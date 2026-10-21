@@ -75,6 +75,25 @@ const V6_HEXOBJ = 'test/fixtures/sparse/hexobj_values.mat';
 // (plain), -v7 and -v6 (test/fixtures/global/make_global_fixtures.m).
 const GLOBAL_V7 = 'test/fixtures/global/global_v7.mat';
 const GLOBAL_V6 = 'test/fixtures/global/global_v6.mat';
+// Simulink.Parameter and Simulink.Signal objects whose properties a save writes into the
+// subsystem's cells (phase 2): the cell-swap and allow-list probes' originals (MATLAB's own saves,
+// make_cellswap_fixtures.m and make_allowlist_originals.m), and MATLAB's saves of objects of
+// every class and shape a Value takes (Param, Sig, ParamMat, typed_objects, complex_objects).
+const PV_BASIC = 'test/fixtures/mat-cellswap/pv_basic.mat';
+const PV_BASIC_V6 = 'test/fixtures/mat-cellswap/pv_basic_v6.mat';
+const PV_SHARED = 'test/fixtures/mat-cellswap/pv_shared.mat';
+const PV_SIGNAL = 'test/fixtures/mat-cellswap/pv_signal.mat';
+const AL_DTYPE = 'test/fixtures/mat-allowlist/al_dtype.mat';
+const AL_MINMAX = 'test/fixtures/mat-allowlist/al_minmax.mat';
+const AL_NESTED = 'test/fixtures/mat-allowlist/al_nested.mat';
+const AL_SHAPE = 'test/fixtures/mat-allowlist/al_shape.mat';
+const AL_SIGNAL = 'test/fixtures/mat-allowlist/al_signal.mat';
+const AL_TEXT = 'test/fixtures/mat-allowlist/al_text.mat';
+const PARAM = 'test/fixtures/mcos/Param.mat';
+const SIG = 'test/fixtures/mcos/Sig.mat';
+const PARAM_MAT = 'test/fixtures/mcos/ParamMat.mat';
+const TYPED_OBJECTS = 'test/fixtures/mcos/typed_objects.mat';
+const COMPLEX_OBJECTS = 'test/fixtures/mcos/complex_objects.mat';
 
 const LONG_NAME = 'a' + 'b'.repeat(61) + 'c'; // 63 characters, the longest name core writes
 
@@ -312,6 +331,60 @@ function opened(rel) {
     },
     undo() {
       session.undo();
+    },
+    redo() {
+      session.redo();
+    },
+    /**
+     * Set the property `key` of the node at `labels` (an object's Min, Description, DataType, …)
+     * to `value`; then it must show `shown` (the text typed, unless said) in that column.
+     */
+    prop(labels, key, value, shown = value) {
+      const node = at(...labels);
+      session.setActive(root, node);
+      accepted(key + ' ' + JSON.stringify(value) + ' of ' + labels.join(' > '), session.editProperty(node.id, key, value));
+      const p = node.getProperties().find((q) => q.key === key);
+      const got = p ? node.getPropInfo(p).displayValue : undefined;
+      if (got !== shown) {
+        throw new Error(labels.join(' > ') + ' shows ' + key + ' ' + JSON.stringify(got) + ', not ' + JSON.stringify(shown));
+      }
+      return node;
+    },
+    /** The node at `labels` must show `shown` in the column `key` (a DataType the save co-writes, say). */
+    showsProp(labels, key, shown) {
+      const node = at(...labels);
+      const p = node.getProperties().find((q) => q.key === key);
+      const got = p ? node.getPropInfo(p).displayValue : node[key];
+      if (got !== shown) {
+        throw new Error(labels.join(' > ') + ' shows ' + key + ' ' + JSON.stringify(got) + ', not ' + JSON.stringify(shown));
+      }
+    },
+    /** A row added to the node at `labels` (an element of a Value, a field of a struct one). */
+    addTo(labels, className, display) {
+      const node = at(...labels);
+      session.setActive(root, node);
+      const added = session.addChildTo(node.id);
+      if (!added) {
+        throw new Error('addChildTo ' + labels.join(' > ') + ' was refused');
+      }
+      shows(added, className, display);
+      return added;
+    },
+    /** The last row of the node at `labels` removed. */
+    removeLast(labels) {
+      const node = at(...labels);
+      const last = node.children[node.children.length - 1];
+      session.setActive(root, last);
+      accepted('delete the last row of ' + labels.join(' > '), session.deleteNodeById(last.id));
+    },
+    /** The edit at `labels` must be refused, its words containing `words`. */
+    refused(labels, key, value, words) {
+      const node = at(...labels);
+      session.setActive(root, node);
+      const answer = session.editProperty(node.id, key, value);
+      if (answer === true || !String(answer?.reason).includes(words)) {
+        throw new Error(key + ' ' + value + ' of ' + labels.join(' > ') + ' answered ' + JSON.stringify(answer) + ', not a refusal saying ' + JSON.stringify(words));
+      }
     },
     /**
      * Every variable MatWriter can write as what it is, marked edited: the state an edit and
@@ -936,6 +1009,491 @@ control(
   (f) => f.rename('cat_ab', 'cat_abR'),
   ["S = renameStructField(S, 'cat_ab', 'cat_abR');", 'S.cat_abR(1) = S.cat_abR(2);'],
   'cat_abR: isequaln false',
+);
+
+// ---- objects: a property of a Simulink.Parameter or a Simulink.Signal (phase 2) ----------
+//
+// Each written into the subsystem cell that holds it, with the cells MATLAB's own edit changes
+// with it (a resized Value's Dimensions, the DataType a Value of another class makes), and every
+// variable's record as it was read. The MATLAB half compares every readable property of every
+// object, its DataType, Dimensions and Complexity included, and the handles two variables share.
+for (const [id, file] of [
+  ['zero_pv_basic', PV_BASIC],
+  ['zero_pv_shared', PV_SHARED],
+  ['zero_al_nested', AL_NESTED],
+  ['zero_al_shape', AL_SHAPE],
+  ['zero_typed_objects', TYPED_OBJECTS],
+  ['zero_complex_objects', COMPLEX_OBJECTS],
+]) {
+  zero(id, file, 'a save with no edit is the file');
+}
+add('obj_value_same_class', PV_BASIC, "a Parameter's Value, a double over a double", (f) => f.set(['p'], '7', 'Simulink.Parameter', '7'), ['S.p.Value = 7;']);
+add('obj_value_v6', PV_BASIC_V6, "a Parameter's Value in a -v6 file, which stays uncompressed", (f) => f.set(['p'], '7', 'Simulink.Parameter', '7'), ['S.p.Value = 7;']);
+add(
+  'obj_value_resize',
+  PV_BASIC,
+  'a scalar Value typed as a 2x3: its Dimensions co-written',
+  (f) => {
+    f.set(['p'], '[1 2 3; 4 5 6]', 'Simulink.Parameter', '[1 2 3; 4 5 6]');
+    if (JSON.stringify(f.at('p').serial._properties.Dimensions) !== '[2,3]') {
+      throw new Error('p shows Dimensions ' + JSON.stringify(f.at('p').serial._properties.Dimensions));
+    }
+  },
+  ['S.p.Value = [1 2 3; 4 5 6];'],
+);
+add('obj_value_empty', PV_BASIC, 'a Value typed as []: its Dimensions kept, as MATLAB keeps them', (f) => f.set(['p'], '[]', 'Simulink.Parameter'), ['S.p.Value = [];']);
+add('obj_value_logical', PV_BASIC, 'a logical over a double, under no DataType value (MATLAB derives it)', (f) => f.set(['q'], 'true', 'Simulink.Parameter', 'true'), ['S.q.Value = true;']);
+add('obj_value_complex', PV_BASIC, 'a complex scalar over a real one', (f) => f.set(['p'], '1+2i', 'Simulink.Parameter', '1+2i'), ['S.p.Value = 1+2i;']);
+add(
+  'obj_double_over_int16',
+  AL_DTYPE,
+  "a double over an int16 Value under DataType int16: its DataType co-written 'auto', and shown so",
+  (f) => {
+    f.set(['tI'], '7', 'Simulink.Parameter', '7');
+    f.showsProp(['tI'], 'DataType', 'auto');
+  },
+  ['S.tI.Value = 7;'],
+);
+add(
+  'obj_double_over_single',
+  AL_DTYPE,
+  "a double over a single Value under DataType single: 'auto'",
+  (f) => {
+    f.set(['tS'], '1.5', 'Simulink.Parameter', '1.5');
+    f.showsProp(['tS'], 'DataType', 'auto');
+  },
+  ['S.tS.Value = 1.5;'],
+);
+add(
+  'obj_double_in_uint8_range',
+  AL_DTYPE,
+  'a double over a double Value under DataType uint8, in its range: the DataType kept',
+  (f) => {
+    f.set(['tUd'], '200', 'Simulink.Parameter', '200');
+    f.showsProp(['tUd'], 'DataType', 'uint8');
+  },
+  ['S.tUd.Value = 200;'],
+);
+add(
+  'obj_logical_over_double_type',
+  AL_DTYPE,
+  "a logical over a double Value under DataType double: 'boolean'",
+  (f) => {
+    f.set(['tD'], 'true', 'Simulink.Parameter', 'true');
+    f.showsProp(['tD'], 'DataType', 'boolean');
+  },
+  ['S.tD.Value = true;'],
+);
+add(
+  'obj_char_value',
+  AL_DTYPE,
+  "text over a fixdt Parameter: a string, DataType 'string'",
+  (f) => {
+    f.set(['tF'], "'abc'", 'Simulink.Parameter', "'abc'");
+    f.showsProp(['tF'], 'DataType', 'string');
+  },
+  ["S.tF.Value = 'abc';"],
+);
+add(
+  'obj_value_refused_out_of_range',
+  AL_DTYPE,
+  'a double out of a uint8 DataType range is refused, and the rest is written',
+  (f) => {
+    f.refused(['tUd'], 'Value', '300', 'outside the range [0, 255]');
+    f.set(['tU'], 'true', 'Simulink.Parameter', 'true');
+  },
+  ['S.tU.Value = true;'],
+);
+add(
+  'obj_int16_element',
+  AL_SHAPE,
+  'an element of an int16 Value: its class, and its DataType, kept',
+  (f) => {
+    f.set(['spI', 'Value', 'Value(2)'], '7', 'int16', '7');
+    f.showsProp(['spI'], 'DataType', 'int16');
+  },
+  ['S.spI.Value(2) = 7;'],
+);
+add('obj_int16_add_element', AL_SHAPE, 'an element added to an int16 Value: Dimensions [1 4]', (f) => f.addTo(['spI', 'Value'], 'int16', '0'), ['S.spI.Value(4) = 0;']);
+add('obj_remove_element_symbolic', AL_SHAPE, "an element removed under a symbolic Dimensions '[1,N]', which MATLAB keeps", (f) => f.removeLast(['spN', 'Value']), [
+  'S.spN.Value(3) = [];',
+]);
+add('obj_struct_value_field', AL_SHAPE, "a field of a Bus-typed struct Value", (f) => f.set(['spB', 'Value', 'a'], '5', 'double', '5'), ['S.spB.Value.a = 5;']);
+add('obj_struct_value_add_field', AL_SHAPE, 'a field added to a struct Value, last', (f) => f.addTo(['spB', 'Value'], 'double', '0'), ['S.spB.Value.field = 0;']);
+add(
+  'obj_struct_value_rename_field',
+  AL_SHAPE,
+  "a field of a Bus-typed struct Value renamed, where it stands",
+  (f) => {
+    const node = f.at('spB', 'Value', 'a');
+    f.session.setActive(f.root, node);
+    const answer = f.session.editProperty(node.id, 'Name', 'z');
+    if (answer !== true) {
+      throw new Error('rename spB.Value.a was refused: ' + JSON.stringify(answer));
+    }
+  },
+  ["S.spB.Value = renameStructField(S.spB.Value, 'a', 'z');"],
+);
+add('obj_complex_to_real', COMPLEX_OBJECTS, 'a real typed over a complex Value: its Complexity follows, as MATLAB derives it', (f) => f.set(['pScalar'], '7', 'Simulink.Parameter', '7'), [
+  'S.pScalar.Value = 7;',
+]);
+add('obj_complex_element', COMPLEX_OBJECTS, 'a real element typed into a complex Value, which stays complex', (f) => f.set(['pRow', 'Value', 'Value(1)'], '5', 'double', '5'), [
+  'S.pRow.Value(1) = 5;',
+]);
+add('obj_complex_nested', COMPLEX_OBJECTS, 'a complex Value of a Parameter in a struct', (f) => f.set(['s', 'p'], '1+1i', 'Simulink.Parameter', '1+1i'), ['S.s.p.Value = 1+1i;']);
+add('obj_typed_element', TYPED_OBJECTS, 'an element of an int32 row', (f) => f.set(['pInt32Row', 'Value', 'Value(2)'], '7', 'int32', '7'), ['S.pInt32Row.Value(2) = 7;']);
+add('obj_typed_nd_element', TYPED_OBJECTS, 'an element of a 2x2x2 int16', (f) => f.set(['pInt16Nd', 'Value', 'Value(2,1,2)'], '9', 'int16', '9'), ['S.pInt16Nd.Value(2,1,2) = 9;']);
+add('obj_logical_element', TYPED_OBJECTS, 'an element of a logical row', (f) => f.set(['pLogicalRow', 'Value', 'Value(2)'], 'true', 'logical', 'true'), ['S.pLogicalRow.Value(2) = true;']);
+add('obj_typed_whole', TYPED_OBJECTS, 'a uint8 matrix Value typed whole as a double', (f) => f.set(['pUint8Mat'], '7', 'Simulink.Parameter', '7'), ['S.pUint8Mat.Value = 7;']);
+add('obj_single_element', TYPED_OBJECTS, 'an element of a single row', (f) => f.set(['pSingleRow', 'Value', 'Value(3)'], '0.25', 'single', '0.25'), ['S.pSingleRow.Value(3) = 0.25;']);
+add(
+  'obj_min_max',
+  AL_MINMAX,
+  'a Min and a Max, together',
+  (f) => {
+    f.prop(['pm'], 'Min', '1');
+    f.prop(['pm'], 'Max', '9');
+  },
+  ['S.pm.Min = 1;', 'S.pm.Max = 9;'],
+);
+add('obj_min_empty', AL_MINMAX, 'a Min emptied: []', (f) => f.prop(['pm'], 'Min', '[]', ''), ['S.pm.Min = [];']);
+add('obj_max_int16', AL_MINMAX, 'a Max of a Parameter under DataType int16, in its range', (f) => f.prop(['pmi'], 'Max', '100'), ['S.pmi.Max = 100;']);
+add(
+  'obj_min_above_max_refused',
+  AL_MINMAX,
+  'a Min above the Max is refused (MATLAB warns of it on every load); one below it is written',
+  (f) => {
+    f.refused(['pm'], 'Min', '20', 'greater than its Max');
+    f.prop(['pm'], 'Min', '-3');
+  },
+  ['S.pm.Min = -3;'],
+);
+add(
+  'obj_description_unit',
+  AL_TEXT,
+  'a Description and a Unit',
+  (f) => {
+    f.prop(['xa'], 'Description', 'new description');
+    f.prop(['xa'], 'Unit', 'km');
+  },
+  ["S.xa.Description = 'new description';", "S.xa.Unit = 'km';"],
+);
+// U+00FC U+00DF, two CJK, an emoji (a surrogate pair), U+00B5: MATLAB's char code units.
+const NON_ASCII = 'Grüße 温度 \u{1F600} µ';
+const NON_ASCII_UNITS = 'char([71 114 252 223 101 32 28201 24230 32 55357 56832 32 181])';
+add(
+  'obj_text_non_ascii',
+  AL_TEXT,
+  'a Description and a Unit of non-ASCII text, a character past U+FFFF included',
+  (f) => {
+    f.prop(['xu'], 'Description', NON_ASCII);
+    f.prop(['xu'], 'Unit', 'µm');
+  },
+  [`S.xu.Description = ${NON_ASCII_UNITS};`, 'S.xu.Unit = char([181 109]);'],
+);
+add('obj_text_empty', AL_TEXT, "a Description emptied: ''", (f) => f.prop(['xl'], 'Description', ''), ["S.xl.Description = '';"]);
+add(
+  'obj_signal_all',
+  AL_SIGNAL,
+  "a Signal's Description, Unit, Min, Max and DataType, in one save",
+  (f) => {
+    f.prop(['sg'], 'Description', 'edited');
+    f.prop(['sg'], 'Unit', 'V');
+    f.prop(['sg'], 'Min', '-1');
+    f.prop(['sg'], 'Max', '20');
+    f.prop(['sg'], 'DataType', 'int32');
+  },
+  ["S.sg.Description = 'edited';", "S.sg.Unit = 'V';", 'S.sg.Min = -1;', 'S.sg.Max = 20;', "S.sg.DataType = 'int32';"],
+);
+add(
+  'obj_signal_fixdt',
+  PV_SIGNAL,
+  "a Signal's DataType made a fixdt, and its Description",
+  (f) => {
+    f.prop(['sig'], 'DataType', 'fixdt(1,16,4)');
+    f.prop(['sig'], 'Description', 'x');
+  },
+  ["S.sig.DataType = 'fixdt(1,16,4)';", "S.sig.Description = 'x';"],
+);
+add(
+  'obj_signal_cases',
+  CASES_MAT,
+  "MATLAB's own Signal: every property a save writes",
+  (f) => {
+    f.prop(['aSignal'], 'DataType', 'double');
+    f.prop(['aSignal'], 'Min', '-5');
+    f.prop(['aSignal'], 'Max', '50');
+    f.prop(['aSignal'], 'Unit', 'mV');
+    f.prop(['aSignal'], 'Description', 'edited');
+  },
+  ["S.aSignal.DataType = 'double';", 'S.aSignal.Min = -5;', 'S.aSignal.Max = 50;', "S.aSignal.Unit = 'mV';", "S.aSignal.Description = 'edited';"],
+);
+add(
+  'obj_param_cases',
+  CASES_MAT,
+  "MATLAB's own Parameter: every property a save writes",
+  (f) => {
+    f.set(['aParam'], '3', 'Simulink.Parameter', '3');
+    f.prop(['aParam'], 'Min', '-20');
+    f.prop(['aParam'], 'Max', '20');
+    f.prop(['aParam'], 'Description', 'edited');
+    f.prop(['aParam'], 'Unit', 'km/h');
+  },
+  ['S.aParam.Value = 3;', 'S.aParam.Min = -20;', 'S.aParam.Max = 20;', "S.aParam.Description = 'edited';", "S.aParam.Unit = 'km/h';"],
+);
+add(
+  'obj_param_arrays_cases',
+  CASES_MAT,
+  'an element of a 1x3, a 2x3 and a 2x3x2 Parameter array',
+  (f) => {
+    f.set(['objRow', 'objRow(2)'], '22', 'Simulink.Parameter', '22');
+    f.set(['obj2x3', 'obj2x3(2,3)'], '99', 'Simulink.Parameter', '99');
+    f.set(['obj2x3x2', 'obj2x3x2(1,2,2)'], '[5 6]', 'Simulink.Parameter', '[5 6]');
+  },
+  ['S.objRow(2).Value = 22;', 'S.obj2x3(2,3).Value = 99;', 'S.obj2x3x2(1,2,2).Value = [5 6];'],
+);
+add(
+  'obj_param_mat',
+  PARAM,
+  'a Parameter with every property a save writes held: all of them',
+  (f) => {
+    f.set(['Param'], '[1 2]', 'Simulink.Parameter', '[1 2]');
+    f.prop(['Param'], 'Min', '0');
+    f.prop(['Param'], 'Max', '50');
+    f.prop(['Param'], 'Unit', 'km');
+    f.prop(['Param'], 'Description', 'edited');
+  },
+  ['S.Param.Value = [1 2];', 'S.Param.Min = 0;', 'S.Param.Max = 50;', "S.Param.Unit = 'km';", "S.Param.Description = 'edited';"],
+);
+add(
+  'obj_sig_mat',
+  SIG,
+  'a Signal with every property a save writes held: all of them',
+  (f) => {
+    f.prop(['Sig'], 'DataType', 'int16');
+    f.prop(['Sig'], 'Min', '-4');
+    f.prop(['Sig'], 'Max', '4');
+    f.prop(['Sig'], 'Unit', 'mV');
+    f.prop(['Sig'], 'Description', 'edited');
+  },
+  ["S.Sig.DataType = 'int16';", 'S.Sig.Min = -4;', 'S.Sig.Max = 4;', "S.Sig.Unit = 'mV';", "S.Sig.Description = 'edited';"],
+);
+add('obj_matrix_element', PARAM_MAT, 'an element of a 2x3 Value', (f) => f.set(['ParamMat', 'Value', 'Value(2,3)'], '60', 'double', '60'), ['S.ParamMat.Value(2,3) = 60;']);
+add(
+  'obj_nested_struct',
+  AL_NESTED,
+  "a Parameter in a struct field, a double over its int16 Value: 'auto'",
+  (f) => {
+    f.set(['s', 'p'], '9', 'Simulink.Parameter', '9');
+    f.showsProp(['s', 'p'], 'DataType', 'auto');
+  },
+  ['S.s.p.Value = 9;'],
+);
+add('obj_nested_cell', AL_NESTED, 'a Parameter in a cell', (f) => f.set(['c', 'c{3}'], '4.5', 'Simulink.Parameter', '4.5'), ['S.c{3}.Value = 4.5;']);
+add('obj_nested_array', AL_NESTED, 'an element of a 1x3 Parameter array, resized', (f) => f.set(['arr', 'arr(2)'], '[1 2]', 'Simulink.Parameter', '[1 2]'), ['S.arr(2).Value = [1 2];']);
+add('obj_nested_array_text', AL_NESTED, "an element of a 1x3 Parameter array's Description", (f) => f.prop(['arr', 'arr(3)'], 'Description', 'third'), ["S.arr(3).Description = 'third';"]);
+add(
+  'obj_several',
+  AL_NESTED,
+  'five objects edited in one save, at every place one stands',
+  (f) => {
+    f.set(['s', 'p'], '9', 'Simulink.Parameter', '9');
+    f.set(['c', 'c{1}'], '8', 'Simulink.Parameter', '8');
+    f.set(['c', 'c{3}'], '4.5', 'Simulink.Parameter', '4.5');
+    f.set(['arr', 'arr(2)'], '[1 2]', 'Simulink.Parameter', '[1 2]');
+    f.prop(['arr', 'arr(3)'], 'Description', 'third');
+  },
+  ['S.s.p.Value = 9;', 'S.c{1}.Value = 8;', 'S.c{3}.Value = 4.5;', 'S.arr(2).Value = [1 2];', "S.arr(3).Description = 'third';"],
+);
+add(
+  'obj_nested_matlab',
+  NESTED,
+  "MATLAB's own nesting: a struct in a struct, a cell in a cell, a struct array's element, object arrays in a struct and in a cell",
+  (f) => {
+    f.prop(['s', 'sub', 'q'], 'Description', 'edited q');
+    f.prop(['s', 'sub', 'q'], 'Min', '1');
+    f.prop(['s', 'sub', 'q'], 'Max', '5');
+    f.set(['c', 'c{4}', 'c{4}{1}'], '13', 'Simulink.Parameter', '13');
+    f.set(['sa', 'sa(2)', 'p'], '23', 'Simulink.Parameter', '23');
+    f.set(['s', 'objArr', 'objArr(2)'], '5', 'Simulink.Parameter', '5');
+    f.set(['cArr', 'cArr{2}', 'cArr{2}(1)'], '9', 'Simulink.Parameter', '9');
+  },
+  [
+    "S.s.sub.q.Description = 'edited q';",
+    'S.s.sub.q.Min = 1;',
+    'S.s.sub.q.Max = 5;',
+    'S.c{4}{1}.Value = 13;',
+    'S.sa(2).p.Value = 23;',
+    'S.s.objArr(2).Value = 5;',
+    'S.cArr{2}(1).Value = 9;',
+  ],
+);
+add(
+  'obj_shared_handle',
+  PV_SHARED,
+  'h edited, r = h: both show it, and MATLAB loads one object',
+  (f) => {
+    f.set(['h'], '7', 'Simulink.Parameter', '7');
+    if (f.at('r').displayValue !== '7') {
+      throw new Error('r shows ' + f.at('r').displayValue);
+    }
+  },
+  ['S.h.Value = 7;'],
+);
+add(
+  'obj_shared_through_r',
+  PV_SHARED,
+  'r = h edited through r: typed whole, an element, an element added; h shows each, and takes no edit of its own',
+  (f) => {
+    f.set(['r'], '[1 2 3]', 'Simulink.Parameter', '[1 2 3]');
+    f.set(['r', 'Value', 'Value(2)'], '9', 'double', '9');
+    f.addTo(['r', 'Value'], 'double', '0');
+    if (f.at('h').displayValue !== '[1 9 3 0]') {
+      throw new Error('h shows ' + f.at('h').displayValue);
+    }
+    f.refused(['h'], 'Value', '4', 'an edit of it is made through r');
+  },
+  ['S.r.Value = [1 2 3];', 'S.r.Value(2) = 9;', 'S.r.Value(4) = 0;'],
+);
+add(
+  'obj_shared_nested_v6',
+  V6_HEXOBJ,
+  'a handle held by a struct field and a cell element, in a -v6 file: a Parameter and a Signal',
+  (f) => {
+    f.set(['objsCell', 'objsCell{7}'], '42', 'Simulink.Parameter', '42');
+    f.prop(['objs', 'sig'], 'Min', '2');
+    if (f.at('objs', 'prm').displayValue !== '42' || f.at('objsCell', 'objsCell{2}').Min !== 2) {
+      throw new Error('objs.prm shows ' + f.at('objs', 'prm').displayValue + ', objsCell{2}.Min ' + f.at('objsCell', 'objsCell{2}').Min);
+    }
+  },
+  ['S.objsCell{7}.Value = 42;', 'S.objs.sig.Min = 2;'],
+);
+add(
+  'obj_shared_delete_edited',
+  PV_SHARED,
+  'h edited, then h deleted: r, the same object, carries the edit',
+  (f) => {
+    f.set(['h'], '11', 'Simulink.Parameter', '11');
+    f.remove('h');
+  },
+  ['S.h.Value = 11;', "S = rmfield(S, 'h');"],
+);
+add(
+  'obj_edit_rename',
+  PV_BASIC,
+  'an object edited, and its variable renamed',
+  (f) => {
+    f.set(['p'], '7', 'Simulink.Parameter', '7');
+    f.rename('p', 'p2');
+  },
+  ['S.p.Value = 7;', "S = renameStructField(S, 'p', 'p2');"],
+);
+add(
+  'obj_edit_rename_holder',
+  AL_NESTED,
+  'an object in a struct edited, and the struct renamed',
+  (f) => {
+    f.set(['s', 'p'], '9', 'Simulink.Parameter', '9');
+    f.rename('s', 's2');
+  },
+  ['S.s.p.Value = 9;', "S = renameStructField(S, 's', 's2');"],
+);
+add(
+  'obj_edit_delete_add',
+  PV_BASIC,
+  'an object edited beside one deleted and a variable added',
+  (f) => {
+    f.set(['p'], '7', 'Simulink.Parameter', '7');
+    f.remove('q');
+    f.add('var');
+  },
+  ['S.p.Value = 7;', "S = rmfield(S, 'q');", 'S.var = 0;'],
+);
+add(
+  'obj_edit_undo',
+  PV_BASIC,
+  'an object edited, and the edit undone: the file, byte for byte',
+  (f) => {
+    f.set(['p'], '7', 'Simulink.Parameter', '7');
+    f.prop(['q'], 'Value', '[1 2]');
+    f.undo();
+    f.undo();
+  },
+  [],
+  'identical',
+);
+add(
+  'obj_edit_undo_redo',
+  AL_DTYPE,
+  "an edit undone and redone, the DataType it co-writes with it",
+  (f) => {
+    f.set(['tI'], '7', 'Simulink.Parameter', '7');
+    f.undo();
+    f.showsProp(['tI'], 'DataType', 'int16');
+    f.redo();
+    f.showsProp(['tI'], 'DataType', 'auto');
+  },
+  ['S.tI.Value = 7;'],
+);
+
+// The controls of the object cases: each a difference the save does not make, which the
+// comparison must report.
+control('control_obj_value', PV_BASIC, "a Parameter's Value the save did not write", (f) => f.set(['p'], '7', 'Simulink.Parameter', '7'), ['S.p.Value = 8;'], 'p(1).Value: 8 vs 7');
+control(
+  'control_obj_datatype',
+  AL_DTYPE,
+  "the DataType the save co-wrote, set back: MATLAB's DataType is compared",
+  (f) => f.set(['tI'], '7', 'Simulink.Parameter', '7'),
+  ['S.tI.Value = 7;', "S.tI.DataType = 'int16';"],
+  'tI(1).DataType: size [1 5] vs [1 4]',
+);
+control(
+  'control_obj_dims',
+  PV_BASIC,
+  'the same six numbers in another shape',
+  (f) => f.set(['p'], '[1 2 3; 4 5 6]', 'Simulink.Parameter', '[1 2 3; 4 5 6]'),
+  ['S.p.Value = [1 2 3 4 5 6];'],
+  'p(1).Value: size [1 6] vs [2 3]',
+);
+control(
+  'control_obj_shared',
+  PV_SHARED,
+  'r made a copy of h: the values agree, the sharing does not',
+  (f) => f.set(['h'], '7', 'Simulink.Parameter', '7'),
+  ['S.h.Value = 7;', 'S.r = copy(S.h);'],
+  'handle sharing differs',
+);
+control(
+  'control_obj_twin_value',
+  PV_SHARED,
+  "r's Value, which a save of h's edit writes too",
+  (f) => f.set(['h'], '7', 'Simulink.Parameter', '7'),
+  ['S.h.Value = 7;', 'S.r = copy(S.h);', 'S.r.Value = 8;'],
+  'r(1).Value: 8 vs 7',
+);
+control(
+  'control_obj_text',
+  AL_TEXT,
+  'the non-ASCII Description without its emoji',
+  (f) => f.prop(['xu'], 'Description', NON_ASCII),
+  ['S.xu.Description = char([71 114 252 223 101 32 28201 24230 32 32 181]);'],
+  'xu(1).Description',
+);
+control(
+  'control_obj_nested',
+  AL_NESTED,
+  "another element of the Parameter array",
+  (f) => f.set(['arr', 'arr(2)'], '[1 2]', 'Simulink.Parameter', '[1 2]'),
+  ['S.arr(2).Value = [1 2];', 'S.arr(1).Value = 99;'],
+  'arr(1).Value: 99 vs 1',
+);
+control(
+  'control_obj_signal',
+  AL_SIGNAL,
+  "a Signal's DataType the save did not write",
+  (f) => f.prop(['sg'], 'DataType', 'int32'),
+  ["S.sg.DataType = 'int8';"],
+  'sg(1).DataType: size [1 4] vs [1 5]',
 );
 
 // ---- run ------------------------------------------------------------------------------
