@@ -712,7 +712,7 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
           // Hex-backed values are read-only through and through, and so are a text dictionary's
           // MAT streams (the C-012 ruling, 2026-10-15), and a .mat's object's sparse Value, which
           // its save writes no cell of (MatNode._editRefusal); the rest edit as before.
-          const inMatObject = venue.name === 'mat' && row.owningEntry.constructor.name !== 'MatlabVariableNode';
+          const inMatObject = venue.name === 'mat' && !(row.owningEntry instanceof MatlabVariableNode);
           expect(row.valueEditable, `${path} ${row.displayName}`).toBe(venue.name !== 'binary' && venue.name !== 'text' && !inMatObject);
         }
       }

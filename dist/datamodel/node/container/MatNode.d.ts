@@ -9,7 +9,7 @@ import { type McosObjectState, type McosPlannedCell, type McosTwin, type McosTwi
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
-    _dirty: boolean;
+    dirty: boolean;
     _anonymousElements: MatVariable[];
     headerBytes: Uint8Array | null;
     records: MatRecord[] | null;
@@ -23,8 +23,10 @@ export default class MatNode extends ContainerNode {
     _nodeRecords: Map<BaseNode, MatRecord>;
     _fileVerdict: string | null | undefined;
     _subsystem: MatRecord | null | undefined;
-    _valueVerdicts: Map<BaseNode, string | null>;
+    _valueVerdicts: WeakMap<BaseNode, string | null>;
     _nameCounts: Map<string, number> | null;
+    _countedAt: number;
+    _entriesVersion: number;
     _objects: {
         record: MatRecord;
         subsystem: McosSubsystem;
@@ -45,8 +47,11 @@ export default class MatNode extends ContainerNode {
     nodeOf(record: MatRecord): BaseNode | null;
     get displayName(): string;
     get readOnly(): boolean;
-    get dirty(): boolean;
-    set dirty(value: boolean);
+    _nodeEdited(node: BaseNode): void;
+    addChild(child: BaseNode, index?: number): BaseNode;
+    removeChild(child: BaseNode): void;
+    _entryRenamed(oldName: string, newName: string): void;
+    _entriesMoved(gone: string | null, came: string | null): void;
     /**
      * Why an edit of `key` at `node`, which is `entry` or a node under it, is refused, as a
      * message naming the variable or the file, or null where a save of this file writes it.
@@ -191,6 +196,17 @@ export default class MatNode extends ContainerNode {
      * each record that became none (one the reader dropped) under its own name, as a save writes
      * it (MatFileWriter.refuseDuplicates). A rename into a name another holds is refused for it
      * (DataNode.setProperty), naming this file (_namespaceLabel).
+     *
+     * Counted when first asked, and moved with every variable added, removed or renamed after
+     * (_entriesMoved), so that a rename costs a lookup and not a count of every name: as a
+     * dictionary's are (SectionNode._namespaceHolds, F1-23).
+     *
+     * A record the reader dropped without a name, one that does not inflate or holds no matrix,
+     * is counted under none: what it would be called is not known, so an added or renamed
+     * variable is not held to it (MatFileWriter.refuseDuplicates, likewise). Every such record
+     * already breaks a rule MATLAB loads a file by (MatFileCheck: `compressed-wrapper`,
+     * `top-level-type`), and for all of them but one past the inflate ceiling that is a rule
+     * MATLAB fails the whole load on: no variable of the file is loaded beside it, whatever its name.
      */
     _namespaceHolds(name: string): number;
     /** Where a rename into a name already held is said to collide (DataNode.setProperty): this file. */

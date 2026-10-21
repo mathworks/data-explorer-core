@@ -355,6 +355,9 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     expect(opened(fieldless('s', [3, 4])).map(shown)).toEqual([['s', '<3x4 struct>', 12]]);
     expect(opened(fieldless('s', [1, MAX])).map(shown)).toEqual([['s', `<1x${MAX} struct>`, MAX]]);
     expect(opened(fieldless('s', [1, MAX + 1])).map(shown)).toEqual([['s', `<1x${MAX + 1} struct>`, 0]]);
+    // And the one rule every writer asks of it (MatlabVariableNode._unexpandedStruct: written as the
+    // bytes it was read from), on either side of the cap.
+    expect([opened(fieldless('s', [1, MAX]))[0]._unexpandedStruct(), opened(fieldless('s', [1, MAX + 1]))[0]._unexpandedStruct()]).toEqual([false, true]);
     // The size that ran the heap out, at top level, in a struct field and in a cell. Asked
     // last, so that a reader without the cap fails on the case above instead of here.
     const [s, t, c] = opened(fieldless('s', BIG), structVar('t', ['f'], [{ f: fieldless('', BIG) }]), cellVar('c', [fieldless('', BIG)]));

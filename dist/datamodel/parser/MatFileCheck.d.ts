@@ -89,4 +89,63 @@ export declare function checkMatElement(element: Uint8Array, options?: MatCheckO
  * what it did not reach, whatever the original's check reached.
  */
 export declare function violationsAdded(before: readonly MatViolation[], after: readonly MatViolation[], renamed?: ReadonlyMap<string, string>): MatViolation[];
+/** A record of a file as read, for violationsAddedBySplice: its bytes, from its tag. */
+export interface MatReadRecord {
+    bytes: Uint8Array;
+    /**
+     * Its payload as `inflateZlib` inflated it, for a compressed record whose inflate the caller
+     * holds already (MatParser keeps it, MatVariable._rawBytes), so that it is not inflated again.
+     */
+    inflated?: Uint8Array | null;
+}
+/**
+ * A record of a file written from another (violationsAddedBySplice): a record of that file kept
+ * as its own bytes (`kept`, its index), or bytes written in place of one of its records
+ * (`replaces`, its index: a variable renamed or written fresh, and the subsystem, when a save
+ * writes it anew) or of none (`replaces` null: a variable added).
+ */
+export type MatSplicedRecord = {
+    kept: number;
+} | {
+    written: Uint8Array;
+    replaces: number | null;
+};
+/** A Level-5 file as its 128-byte header and its records, back to back from byte 128. */
+export interface MatFileOfRecords<R> {
+    header: Uint8Array;
+    records: readonly R[];
+}
+/**
+ * What `written` adds to `read` by the rules MATLAB loads a file by, as
+ * `violationsAdded(checkMatFile(read), checkMatFile(written), renamed)` says it, where `written`
+ * is `read` with some of its records kept as their own bytes, the others deleted or written anew,
+ * and records added: worked out from what changed, rather than by checking both files whole.
+ *
+ * WHY IT IS THE SAME ANSWER. What a record breaks depends on its bytes alone (checkRecord, which
+ * checkMatFile walks every record with: `at` only places what is said). So a record kept as its
+ * own bytes breaks in `written` what it broke in `read`, under the same variable, and the two
+ * cancel, by rule and variable, as violationsAdded counts them. What is left to compare is the
+ * records written, the records they replace, the header, and the rules of where records stand
+ * (checkPlacement), which are asked of both files whole, from each record's name and whether it
+ * holds the subsystem: of a kept record, read without walking the rest of it (Check.headOnly).
+ * That holds where three things do, and where one does not both files are checked whole:
+ *
+ *   - both files walk as their records are given: every record's tag declares exactly the bytes
+ *     it is given, and opens with a nonzero byte, which the tag of a type that is a multiple of
+ *     256 does not, and which the walk then takes for padding;
+ *   - no record of `read` is kept twice, or kept and replaced;
+ *   - no kept record holds a name `renamed` maps, which violationsAdded would compare its
+ *     violations under the other name of.
+ *
+ * A record deleted is one more in `read` than in `written`, which can only take from what is
+ * added: it is checked only when something is.
+ *
+ * THE BUDGET (MatCheckOptions) is spent on what is checked, the records written and the ones
+ * they replace, and not on the records kept, which are not walked: so a file past it is still
+ * checked where it changed, where checkMatFile of it would stop. A `budget` note on the written
+ * side is added, as violationsAdded adds every one; one on the read side only leaves less for a
+ * written record's violations to be matched with. A kept record whose name cannot be read within
+ * the budget is a `budget` note on the written side: where it stands cannot be judged.
+ */
+export declare function violationsAddedBySplice(read: MatFileOfRecords<MatReadRecord>, written: MatFileOfRecords<MatSplicedRecord>, renamed?: ReadonlyMap<string, string>, options?: MatCheckOptions): MatViolation[];
 //# sourceMappingURL=MatFileCheck.d.ts.map

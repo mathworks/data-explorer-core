@@ -21,10 +21,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { checkMatFile, violationsAdded } from '../src/datamodel/parser/MatFileCheck.js';
 import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
 import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
 import { objectNodeAt } from '../src/datamodel/node/data/mcosObjectEdit.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { toDTO } from '../src/core/dto.js';
 import { createSession } from '../src/index.js';
 import { zlibSync } from 'fflate';
@@ -579,6 +581,12 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
     expect(edit(node, 'Name', 'late2')).toMatchObject({ error: true, reason: why });
     expect(edit(node, 'Value', '5')).toMatchObject({ error: true, reason: why });
     expect(node.setProperty('Name', 'late2')).toMatchObject({ error: true, reason: why });
+    // And by the rename's own refusal of a name the node does not take (nameEditable), for a setter
+    // that does not ask the source first: as the source says it, not as a name the entry cannot carry.
+    const asked = node._refuseEncodedEdit;
+    node._refuseEncodedEdit = () => null;
+    expect(node.setProperty('Name', 'late2')).toMatchObject({ error: true, reason: why });
+    node._refuseEncodedEdit = asked;
     expect(root.dirty).toBe(false);
     // The variable before the subsystem is as any other.
     expect(by('Param').nameEditable).toBe(true);
@@ -604,12 +612,64 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
     expect(parseMat(arrayBufferOf(save())).variables.map((v) => [v.name, v.value])).toEqual([['a', 5], ['a2', 2], ['b', 3]]);
   });
 
+  it('what the gate found is forgotten for the variable an edit changed, and the names are counted as they move', () => {
+    const { session, root, by, edit } = opened(matFile([scalar('a', 1), scalar('a', 2), scalar('b', 3), cellVar('c', [scalar('', 4)])]));
+    const verdictKept = (n: any) => root._valueVerdicts.has(n);
+    const [a1, a2, b, c] = root.children;
+    root.children.forEach((n: any) => n.valueEditable);
+    expect(root.children.map(verdictKept)).toEqual([true, true, true, true]);
+    // An edit under `c` forgets what was found of `c`, and of nothing else.
+    expect(edit(c.children[0], 'Value', '5')).toBe(true);
+    expect(root.children.map(verdictKept)).toEqual([true, true, true, false]);
+    // A name moved by a rename, its undo and its redo, an addition and a delete, and their undo:
+    // what the gate says of the two `a`s, and what the file is said to hold, follow each.
+    const holds = (...names: string[]) => names.map((n) => root._namespaceHolds(n));
+    expect([a1.valueEditable, a2.valueEditable]).toEqual([false, false]);
+    expect(a2.setProperty('Name', 'z')).toBe(true);
+    expect([a1.valueEditable, a2.valueEditable, holds('a', 'z')]).toEqual([true, true, [1, 1]]);
+    expect(edit(b, 'Name', 'y')).toBe(true);
+    expect(holds('b', 'y')).toEqual([0, 1]);
+    session.undo();
+    expect(holds('b', 'y')).toEqual([1, 0]);
+    session.redo();
+    expect(holds('b', 'y')).toEqual([0, 1]);
+    expect(root.execAddEntry(undefined, 'a')).toBeNull();
+    const added = root.execAddEntry(undefined, 'n');
+    expect([holds('n'), root.execAddEntry(undefined, 'n')]).toEqual([[1], null]);
+    expect(root.execRemoveEntry(by('n'))).not.toBeNull();
+    expect(holds('n')).toEqual([0]);
+    added.redo();
+    expect(holds('n')).toEqual([1]);
+    added.undo();
+    expect(holds('n')).toEqual([0]);
+    // A variable whose slot changes hands (BaseNode._replaceWith) has the names counted again.
+    expect(a1._replaceWith(MatlabVariableNode.createDefault('q', root))).toBe(true);
+    expect(holds('a', 'q', 'z')).toEqual([0, 1, 1]);
+  });
+
   it('a name the file holds as a record the reader dropped is taken: no rename or addition into it', () => {
     // A record that is not a matrix (an miINT32 at the top level) is dropped by the reader, and
     // kept by every save as its bytes; its name is still the file's.
     const { root, edit } = opened(matFile([scalar('a', 1), scalar('b', 2)]));
     expect(root._namespaceHolds('a')).toBe(1);
     expect(edit(root.children[1], 'Name', 'a')).toEqual({ error: true, reason: "'a' already exists in f.mat", invalidValue: 'a', validValue: 'b' });
+  });
+
+  it('a record the reader dropped with no name read out of it holds none: an addition and a rename into any name are taken', () => {
+    // A compressed record whose payload is no zlib stream: the reader drops it, and no name is
+    // read out of it. MATLAB fails the whole load on it (`compressed-wrapper`), so no name an
+    // addition or a rename takes is one MATLAB loads beside it, and the save breaks only that.
+    const broken = new Uint8Array([...u32le(15), ...u32le(8), 1, 2, 3, 4, 5, 6, 7, 8]);
+    const input = matFile([scalar('a', 1), broken]);
+    const before = checkMatFile(new Uint8Array(input));
+    expect(before.map((v) => v.code)).toEqual(['compressed-wrapper']);
+    const { root, edit, save } = opened(input);
+    expect([root.records[1].status, root.records[1].name, root.readOnly]).toEqual(['dropped', null, false]);
+    expect(root.execAddEntry(undefined, 'x')).not.toBeNull();
+    expect(edit(root.children[0], 'Name', 'y')).toBe(true);
+    const saved = save();
+    expect(parseMat(arrayBufferOf(saved)).variables.map((v) => v.name)).toEqual(['y', 'x']);
+    expect(violationsAdded(before, checkMatFile(saved), new Map([['y', 'a']]))).toEqual([]);
   });
 
   it('a variable whose record holds bytes past its element: no rename, refused as it is made; its value is written fresh', () => {

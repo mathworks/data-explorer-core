@@ -122,10 +122,13 @@ objects, and compressed only if the file already holds a compressed record, so a
 `-v6` file stays one. Written from the model, a variable is still the one it was
 read as in every part it holds: a struct array of no element keeps its field
 names, an empty its complexity, a zero its sign, and a variable saved as global
-stays global. Before the bytes are handed back they are read again, and
-held to the rules MATLAB loads a file by: a save that breaks one the file as read
-did not break is refused, with a `MatWriteError` naming the variable, and nothing
-is written.
+stays global. Before the bytes are handed back, every record written anew is
+read again, and the file is held to the rules MATLAB loads a file by: a save that
+breaks one the file as read did not break is refused, with a `MatWriteError`
+naming the variable, and nothing is written. Both are asked where the save changed
+the file, so a save costs what it changed, however large the rest of the file is;
+a record written anew too large for the check to finish is refused as not
+verified.
 
 What such a save cannot write, the editor does not offer. A host that honours the
 editability core hands it (`getPropInfo(...).editable`, a row's `Name.editable`,

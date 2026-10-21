@@ -507,10 +507,13 @@ export default class DataNode extends BaseNode {
       // something asks for it directly — renaming a Simulink.Parameter's `Value` row was
       // exactly that, accepted by the model and dropped by serialize, which writes the
       // key `Value` whatever the node is called.
+      // Said as the source says it, when it is the source that refuses (BaseNode.sourceEditRefusal:
+      // a MAT-file's variable stored after its subsystem), which _refuseEncodedEdit has asked
+      // already for every class whose setter comes here first.
       if (!this.nameEditable) {
         return {
           error: true,
-          reason: `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
+          reason: sourceEditRefusal(this, 'Name') ?? `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
           invalidValue: stringValue,
           validValue: this.displayName,
         };
