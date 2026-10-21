@@ -17,9 +17,15 @@ import { unzipSync } from 'fflate';
 // never surface in the public tree (the public name is "data explorer"). The rest are
 // a machine's paths: an internal build archive (where MATLAB's own matlabroot lives on
 // the development machines) and a home folder, which carries an account name.
+//
+// The last two are MATLAB's own C++ names, a source file (`Name.cpp`) and a member
+// (`Class::member`), as a crash report or MATLAB's source gives them: say what MATLAB did
+// instead ("a segmentation violation while it read the dictionary"). A header-file name a
+// test holds as data (`a.cpp`, `a.HPP`) does not start with a capital, and is not matched.
 const NEEDLES = [
   'insidelabs', 'ipws', 'mw-npm-repository', 'gitlab', 'data-explorer-ts',
   '/System/Volumes', 'mathworks/devel', 'jobarchive', '/Users/[A-Za-z0-9._-]',
+  '[A-Z][A-Za-z0-9_]+\\.(cpp|hpp|cc)\\b', '[A-Z][A-Za-z0-9_]+::[a-z_][A-Za-z0-9_]+',
 ];
 
 // The same paths, and a sandbox's, as they are searched for INSIDE what a fixture

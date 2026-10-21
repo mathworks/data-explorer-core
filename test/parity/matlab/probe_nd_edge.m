@@ -7,7 +7,7 @@
 %   1*1*3  d(1) and d(2) are BOTH 1, so a rank-2 writer drops the Dimension
 %          attribute altogether and treats a three-element array as a scalar
 %          struct — MATLAB answers the resulting nested <Element><Element> with
-%          a segmentation violation in ElementPart.cpp.
+%          a segmentation violation in its dictionary XML reader.
 %   2*3*2 complex
 %          MATLAB spells a complex array as IsComplex="1" with a flat
 %          column-major text body, which a rows x cols loop reads six values of.

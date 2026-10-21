@@ -8,8 +8,8 @@
 // read the Encoding attribute, so the text went to parseFloat — `0001494D…` is 1494 — and
 // every save wrote `Class="double">1494.0` (or `Class="Simulink.Parameter">1494`) back in
 // place of the stream. That was silent loss for a sparse array, and for an object-classed
-// one a file MATLAB's reader crashed on (a segmentation violation in
-// SLDDOperations::convertStructFromStructArray), measured on R2027a.
+// one a file MATLAB's reader crashed on (a segmentation violation while it converted the
+// struct array), measured on R2027a.
 //
 // test/fixtures/sparse/sparse_binary.sldd is MATLAB's own file (make_sparse_fixtures.m),
 // with seventeen hex entries: sparse arrays of every class, a struct and a cell holding
