@@ -5,7 +5,7 @@ import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
-import { encodedHolderOf, sourceEditRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, sourceEditRefusal, streamValueRefusal } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -1380,6 +1380,10 @@ export default class MatlabVariableNode extends DataNode {
    *
    * Judged of a node made of the text alone (_applyParsed, as the edit applies it), so that a
    * refused edit leaves this one, its entry and its file as they were.
+   *
+   * A dictionary value that is a MAT stream holding objects is asked first (BaseNode
+   * streamValueRefusal): its save writes a Simulink.Parameter's Value into the object's cell, and
+   * judges a Value typed in as a MAT-file does.
    */
   _refuseUnwritableValue(parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
     let entry: BaseNode = this;
@@ -1390,13 +1394,15 @@ export default class MatlabVariableNode extends DataNode {
     }
     const refuse = (source as unknown as { _valueRefusal?: (entry: BaseNode, node: BaseNode, value: BaseNode) => string | null } | null)
       ?._valueRefusal;
-    if (typeof refuse !== 'function') {
+    const inStream = inMcosStream(this);
+    if (typeof refuse !== 'function' && !inStream) {
       return null;
     }
     const value = new MatlabVariableNode(this.name, null, {});
     value._scalarType = this._scalarType;
     value._applyParsed(parsed);
-    const refused = refuse.call(source, entry, this, value);
+    const refused =
+      (inStream ? streamValueRefusal(this, value) : null) ?? (typeof refuse === 'function' ? refuse.call(source, entry, this, value) : null);
     return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
   }
 
@@ -4407,7 +4413,10 @@ export default class MatlabVariableNode extends DataNode {
    * Whatever node comes back writes the stream back as it was read, for as long as nothing
    * changes the value (DataNode._adoptEncoded), and everything at or under it is read-only
    * (DataNode._refuseEncodedEdit): nothing in this package writes a new one for every value
-   * a stream can hold.
+   * a stream can hold. But for an allow-listed property of a Simulink.Parameter or a
+   * Simulink.Signal in it, where the stream is an entry's whole value, which is where MATLAB
+   * writes one: the stream is the gate of every edit inside it, and the save writes it again
+   * with only that property's cell of its subsystem swapped (mcosStreamEdit).
    *
    * A stream that does not read — not hex, not a MAT stream, shorter than it says, or an
    * array class MatParser does not model — is the placeholder below, never a number. An
@@ -4446,6 +4455,11 @@ export default class MatlabVariableNode extends DataNode {
       node._adoptEncoded(encoded);
       if (node instanceof MatlabVariableNode) {
         node._keepStreamElement(stream.bytes);
+      }
+      // Its objects' allow-listed properties take an edit, which rewrites the stream
+      // (mcosStreamEdit): the stream is the gate of every edit inside it, and its writer.
+      if (decoded.trailingElements.length > 0 && holdsMcosObject(outer)) {
+        NodeRegistry.adoptMcosStream(node, { format: 'hex', bytes: stream.bytes, className: encodedClass(encoded), encoded });
       }
       for (const warning of partial) {
         recordPartialDecode(warning.message);
@@ -4709,12 +4723,12 @@ export default class MatlabVariableNode extends DataNode {
    * stream's object was the opaque `<1x1 Simulink.Parameter>`: no Value, no properties, and
    * as a plain variable it took a Value edit that wrote a number over the whole object.
    *
-   * Like the hex, it is read-only and written back as it was read, for as long as nothing
-   * changes it (DataNode._adoptEncoded): nothing in this package writes the stream of an
-   * MCOS object. A text dictionary and a copy are handed the cdata itself, character for
-   * character; the envelope the adoption keeps is the hex a binary dictionary holds for the
-   * same bytes, under MATLAB's Class, which is what one this is pasted into writes, as it
-   * wrote it for the opaque node before.
+   * Like the hex, it is read-only but for its objects' allow-listed properties, and written
+   * back as it was read for as long as nothing changes it (DataNode._adoptEncoded), and with
+   * only their cells of its subsystem swapped after (mcosStreamEdit). A text dictionary and a
+   * copy are handed the cdata itself, character for character; the envelope the adoption keeps
+   * is the hex a binary dictionary holds for the same bytes, under MATLAB's Class, which is
+   * what one this is pasted into writes, as it wrote it for the opaque node before.
    */
   static _parseCdataObjects(
     rawVal: Record<string, unknown>,
@@ -4748,6 +4762,11 @@ export default class MatlabVariableNode extends DataNode {
     if (node instanceof MatlabVariableNode) {
       node._rawInput = rawVal;
       node._keepStreamElement(bytes);
+    }
+    // As parseEncoded's: its objects' allow-listed properties take an edit (mcosStreamEdit).
+    if (trailingElements.length > 0) {
+      const stream = matStreamPrefix(bytes) ?? bytes;
+      NodeRegistry.adoptMcosStream(node, { format: 'cdata', bytes: stream, className: matlabClassOf(variable), raw: rawVal });
     }
     for (const warning of partial) {
       recordPartialDecode(warning.message);

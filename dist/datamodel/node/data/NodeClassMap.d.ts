@@ -3,6 +3,7 @@ import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 import { attachMcosDecoded, type McosDecoded } from './mcosTypedNode.js';
+import { adoptMcosStream } from './mcosStreamEdit.js';
 export declare function getClass(className: string): NodeClassType | null;
 export declare function parseValue(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
 export declare function getRegisteredClasses(): string[];
@@ -15,6 +16,7 @@ declare const api: {
     wrapDerivedVariable: typeof wrapDerivedVariable;
     modelMcosVariable: typeof modelMcosVariable;
     attachMcosDecoded: typeof attachMcosDecoded;
+    adoptMcosStream: typeof adoptMcosStream;
 };
 export default api;
 //# sourceMappingURL=NodeClassMap.d.ts.map

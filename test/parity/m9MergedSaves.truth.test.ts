@@ -121,7 +121,7 @@ describe("MATLAB's read-back of S2's merged binary saves (M9)", () => {
     });
   }
 
-  it('the one edit core refuses is not asked: an encoded value it can show but not write', () => {
+  it('the one edit core refuses is not asked: a property at its default of an object in an encoded value', () => {
     expect(TRUTH.cases.filter((c) => c.refused !== '').map((c) => [c.fixture, c.entry, c.edit])).toEqual([
       ['fixtures/sparse/hexobj_binary.sldd', 'pTall', 'description'],
     ]);

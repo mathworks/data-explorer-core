@@ -7,6 +7,7 @@ import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../display/Subscript.js';
 import type RowCellPool from './RowCellPool.js';
 import { classColumnText } from '../display/DisplayConvention.js';
+import { mcosStreamGateAbove, mcosStreamGateOf } from './mcosStream.js';
 
 export interface PropClass {
   key: string;
@@ -177,9 +178,18 @@ export type ElementSubscript =
  * because the editability getters below are BaseNode's, and duck-typed for the same
  * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
  * `_encoded`, so the walk stops at the first container and answers null for them.
+ *
+ * Null too inside a stream that holds MCOS objects (mcosStream), edited or not: what may be
+ * edited there is the stream's own answer, which every getter and setter asking this asks next
+ * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
+ * objects with the words this gives. The stream is the gate for as long as its node is, so an
+ * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
  */
 export function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null {
   for (let n = node; n && !(n as unknown as { isContainer?: boolean }).isContainer; n = n.parent) {
+    if (mcosStreamGateOf(n)) {
+      return null;
+    }
     if ((n as unknown as { _encoded?: unknown })._encoded) {
       return n;
     }
@@ -199,16 +209,22 @@ export function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | n
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
  * this class imports no container.
+ *
+ * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
+ * it (mcosStream): its save writes an allow-listed property of one of its objects into the
+ * stream's subsystem, and nothing else.
  */
 export function sourceEditRefusal(node: BaseNode, key: string): string | null {
-  let entry: BaseNode | null = null;
-  let n: BaseNode | null = node;
-  while (n && !(n as unknown as { isContainer?: boolean }).isContainer) {
-    entry = n;
-    n = n.parent;
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
   }
-  const refuse = (n as unknown as { _editRefusal?: SourceEditRefusal } | null)?._editRefusal;
-  return entry && typeof refuse === 'function' ? refuse.call(n, entry, node, key) : null;
+  const stream = mcosStreamGateAbove(node)?._editRefusal(entry, node, key);
+  if (stream) {
+    return stream;
+  }
+  const refuse = (source as unknown as { _editRefusal?: SourceEditRefusal } | null)?._editRefusal;
+  return typeof refuse === 'function' ? refuse.call(source, entry, node, key) : null;
 }
 
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
@@ -224,14 +240,42 @@ export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) =
  */
 export function sourceValueRefusal(node: BaseNode, key: string, value: unknown): string | null {
   const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  // A stream's first, as sourceEditRefusal asks it.
+  const stream = mcosStreamGateAbove(node)?._editValueRefusal(entry, node, key, value);
+  if (stream) {
+    return stream;
+  }
   const refuse = (source as unknown as { _editValueRefusal?: SourceValueRefusal } | null)?._editValueRefusal;
-  return entry && typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
+  return typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
 }
 
 /** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
 export function sourceJudgesValues(node: BaseNode): boolean {
   const { entry, source } = sourceOf(node);
-  return !!entry && typeof (source as unknown as { _editValueRefusal?: unknown } | null)?._editValueRefusal === 'function';
+  return (
+    !!entry &&
+    (!!mcosStreamGateAbove(node) || typeof (source as unknown as { _editValueRefusal?: unknown } | null)?._editValueRefusal === 'function')
+  );
+}
+
+/**
+ * Why a stream `node` is in (mcosStream) refuses `value`, a node built of the text an edit typed
+ * in for `node`, or null where it takes it, or `node` is in none: the stream's half of a source's
+ * answer to a value typed in (MatNode._valueRefusal), asked of it first by the setter that asks
+ * the source's (MatlabVariableNode._refuseUnwritableValue).
+ */
+export function streamValueRefusal(node: BaseNode, value: BaseNode): string | null {
+  const { entry } = sourceOf(node);
+  const gate = entry ? mcosStreamGateAbove(node) : null;
+  return gate ? gate._valueRefusal(entry!, node, value) : null;
+}
+
+/** Whether `node` is in a stream that judges a value typed in for it (streamValueRefusal). */
+export function inMcosStream(node: BaseNode): boolean {
+  return !!mcosStreamGateAbove(node);
 }
 
 /** A source's answer to sourceValueRefusal. */

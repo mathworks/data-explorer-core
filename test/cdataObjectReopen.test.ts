@@ -15,8 +15,10 @@
 // or a cell holding objects reopened with each of them so.
 //
 // Reopened now, the entry is the node its binary twin is. It is read-only, as the binary
-// twin is, because nothing here writes the stream again. A save writes the cdata it was
-// read from, and a copy back into a binary dictionary is the hex MATLAB wrote.
+// twin is, but for an allow-listed property of a Simulink.Parameter or a Simulink.Signal in
+// it, whose edit a save writes into the stream's subsystem (slddStreamObjects.test.ts). A save
+// of it unedited writes the cdata it was read from, and a copy back into a binary dictionary
+// is the hex MATLAB wrote.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -116,20 +118,37 @@ describe('a hex object pasted into a text dictionary reopens as the object it wa
   });
 });
 
-describe('reopened, it is read-only, as it is in the binary dictionary, and only its name edits', () => {
+describe('reopened, it is read-only, as it is in the binary dictionary: only its name edits, and an object\'s property a save writes', () => {
+  // As in the binary dictionary (hexObjectFixtures.test.ts): an allow-listed property of a
+  // Simulink.Parameter or a Simulink.Signal that MATLAB stored a value for takes an edit, which a save
+  // writes into the stream's subsystem (slddStreamObjects.test.ts), and every other property of those
+  // two, and anything under a sparse Value of one, is refused by the rules. Everything else is
+  // refused with the words an encoded value always had.
+  const TAKEN: Record<string, string[]> = { 'objs.sig': ['Min'], 'objs.prm': ['Value'], 'objsCell{2}': ['Min'], 'objsCell{7}': ['Value'] };
+  const ruled = (node: any, path: string): boolean =>
+    /^Simulink\.(Parameter|Signal)$/.test(node.className) || /^(pSp|pSpComplex|pSpLogical|pTall)\.Value\b/.test(path);
   for (const venue of VENUES) {
     const { reopened } = pastedAndReopened(venue);
     for (const name of venue.objects) {
       it(`${venue.binary} ${name}`, () => {
         const entry = entryOf(reopened, name + 'Pasted');
         for (const node of subtree(entry)) {
+          const path = name + node.matlabPath.slice(entry.matlabPath.length);
+          const taken = TAKEN[path] ?? [];
           const label = `${name}: ${node.id} (${node.constructor.name})`;
-          expect(node.valueEditable, label).toBe(false);
+          expect(node.valueEditable, label).toBe(taken.includes('Value'));
           expect(node.nameEditable, label).toBe(node === entry);
           expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(false);
           expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(false);
           for (const prop of ['Value', 'Description', 'DataType', 'Min']) {
-            expect(node.setProperty(prop, '1'), `${label} ${prop}`).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+            const result = node.setProperty(prop, '1');
+            if (taken.includes(prop)) {
+              expect(result, `${label} ${prop}`).toBe(true);
+            } else if (ruled(node, path)) {
+              expect(result, `${label} ${prop}`).toMatchObject({ error: true });
+            } else {
+              expect(result, `${label} ${prop}`).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+            }
           }
         }
       });

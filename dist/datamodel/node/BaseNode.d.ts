@@ -126,6 +126,12 @@ export type ElementSubscript = {
  * because the editability getters below are BaseNode's, and duck-typed for the same
  * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
  * `_encoded`, so the walk stops at the first container and answers null for them.
+ *
+ * Null too inside a stream that holds MCOS objects (mcosStream), edited or not: what may be
+ * edited there is the stream's own answer, which every getter and setter asking this asks next
+ * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
+ * objects with the words this gives. The stream is the gate for as long as its node is, so an
+ * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
  */
 export declare function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null;
 /**
@@ -140,6 +146,10 @@ export declare function encodedHolderOf(node: BaseNode | null | undefined): Base
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
  * this class imports no container.
+ *
+ * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
+ * it (mcosStream): its save writes an allow-listed property of one of its objects into the
+ * stream's subsystem, and nothing else.
  */
 export declare function sourceEditRefusal(node: BaseNode, key: string): string | null;
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
@@ -155,6 +165,15 @@ export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) =
 export declare function sourceValueRefusal(node: BaseNode, key: string, value: unknown): string | null;
 /** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
 export declare function sourceJudgesValues(node: BaseNode): boolean;
+/**
+ * Why a stream `node` is in (mcosStream) refuses `value`, a node built of the text an edit typed
+ * in for `node`, or null where it takes it, or `node` is in none: the stream's half of a source's
+ * answer to a value typed in (MatNode._valueRefusal), asked of it first by the setter that asks
+ * the source's (MatlabVariableNode._refuseUnwritableValue).
+ */
+export declare function streamValueRefusal(node: BaseNode, value: BaseNode): string | null;
+/** Whether `node` is in a stream that judges a value typed in for it (streamValueRefusal). */
+export declare function inMcosStream(node: BaseNode): boolean;
 /** A source's answer to sourceValueRefusal. */
 export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
 /**

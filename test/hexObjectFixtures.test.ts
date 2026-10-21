@@ -13,7 +13,9 @@
 //   control    a plain double, which MATLAB writes as XML.
 //
 // What the binary dictionary holds as hex is written back as it was read, so everything
-// under it is read-only. These are the nodes under a hex value that no fixture reached
+// under it is read-only, but for an allow-listed property of a Simulink.Parameter or a
+// Simulink.Signal in it, which a save writes into the stream's subsystem
+// (slddStreamObjects.test.ts). These are the nodes under a hex value that no fixture reached
 // before, and whose read-only gates nothing exercised: the add/remove-child gates of a
 // StructNode, a bus and an enum type, the setProperty overrides of SignalNode, BusNode,
 // ValueTypeNode and VariantControlNode, and the names of a struct's fields and of an
@@ -87,12 +89,20 @@ describe('a function handle shows as func2str says, in every venue', () => {
   }
 });
 
-describe('under a hex value, every node is read-only, whatever its class', () => {
+describe('under a hex value, every node is read-only, whatever its class, but an object\'s property a save writes', () => {
   const design = variablesOf('hexobj_binary.sldd');
   // Every property each class edits through an override of its own before DataNode's —
   // Min and Max (SignalNode, BusNode, ValueTypeNode), the enumerals (BusNode,
   // ValueTypeNode), Value (VariantControlNode, MatlabVariableNode) — and the generic ones.
   const PROPS = ['Value', 'Min', 'Max', 'DataType', 'Description', 'Unit', 'Complexity', 'Dimensions', 'DimensionsMode', 'SampleTime', 'Name'];
+  // An allow-listed property of a Simulink.Parameter or a Simulink.Signal that MATLAB stored a value
+  // for takes an edit, which a save writes into the stream's subsystem (slddStreamObjects.test.ts):
+  // the Signal's Min (1) and the Parameter's Value (3), in the struct and in the cell. Every other
+  // property of those two, and everything under pTall's Value, which is sparse, is refused by the
+  // rules; everything else, with the words an encoded value always had.
+  const TAKEN: Record<string, string[]> = { 'objs.sig': ['Min'], 'objs.prm': ['Value'], 'objsCell{2}': ['Min'], 'objsCell{7}': ['Value'] };
+  const ruled = (node: any): boolean =>
+    /^Simulink\.(Parameter|Signal)$/.test(node.className) || /^pTall\.Value\b/.test(node.matlabPath);
 
   for (const name of HEX) {
     it(name, () => {
@@ -102,11 +112,20 @@ describe('under a hex value, every node is read-only, whatever its class', () =>
         expect(node.nameEditable, label).toBe(false);
         expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(false);
         expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(false);
+        // Asked of a fresh reading of the same node, so that an edit taken leaves `entry` as read.
+        const fresh = subtree(variablesOf('hexobj_binary.sldd').children.find((e: any) => e.name === name)).find((n: any) => n.id === node.id);
         const keys = new Set([...PROPS, ...(node.getProperties?.() ?? []).map((p: any) => p.key)]);
         for (const prop of keys) {
           for (const text of ['1', '[]', 'single']) {
-            const result = node.setProperty(prop, text);
-            expect(result, `${label} ${prop}=${text}`).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+            const result = fresh.setProperty(prop, text);
+            const what = `${label} ${prop}=${text}`;
+            if ((TAKEN[node.matlabPath] ?? []).includes(prop)) {
+              expect(result === true || !ENCODED_REASON.test(result.reason), what).toBe(true);
+            } else if (ruled(node)) {
+              expect(result, what).toMatchObject({ error: true });
+            } else {
+              expect(result, what).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+            }
           }
         }
       }

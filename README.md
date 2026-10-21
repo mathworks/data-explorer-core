@@ -108,6 +108,17 @@ save gate has to check for itself. `readEntryFragment(fragment,
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.
 
+A value a dictionary holds as a MAT stream is shown, and written back as the
+stream: a binary dictionary's `Encoding="hex"` value, which MATLAB writes for an
+entry whose value holds a sparse array, and the cdata of the same stream a text
+dictionary holds once such an entry is pasted into it. Nothing in one takes an
+edit but its entry's rename and, where the stream is the entry's whole value,
+the properties of its `Simulink.Parameter` and `Simulink.Signal` objects that a
+MAT-file's take (below), by the same rules. The save writes the stream again
+with only the cells of those properties replaced, every other byte as it was
+read: the hex's `EncodedLength` is the new byte count, and the cdata's text is
+the new stream's own. An edit undone writes the stream as it was read.
+
 ### A MAT-file
 
 A MAT-file is saved as the file it was read from, with what was edited written
