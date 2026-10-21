@@ -53,11 +53,25 @@ const REALMAX_SINGLE = 3.4028234663852886e38;
 // A builtin name a DataType may hold whose range this package does not know MATLAB's check of,
 // and so refuses a double under, rather than not check it.
 const UNCHECKED_BUILTIN = new Set(['half']);
-// What a Signal's DataType may be set to, measured: a builtin name, fixdt(…), an enumeration, a
-// bus, or an alias (a name, dotted or not). Not what was not measured, though it spells like a
-// name: 'auto', which MATLAB's own save drops, 'half', 'string', 'struct'; nor 'Inherit: …'.
+// What a Signal's DataType may be set to: a builtin name; fixdt of a signedness and a word length,
+// then up to three numbers (a fraction length; a slope and a bias; a slope adjustment, an exponent
+// and a bias) and the 'DataTypeOverride' pair, or of one quoted name, `fixdt('sfix16_En4')`; an
+// enumeration or a bus, `Enum: E` and `Bus: B`, of a name; or an alias, a name, dotted or not.
+// Measured against MATLAB R2027a, its set method takes any text and loads any as written, garbage
+// such as `fixdt(foo)` or `fixdt(1,16,4,5,6,7)` included, but for white space at either end, which
+// it trims: `'Enum: E '` and `'fixdt(1,16,4)\n'` load as other text than was written. So the text
+// is held to the forms that name a type, spelled with no white space at either end and no control
+// character anywhere. Not what was not measured, though it spells like a name: 'auto', which
+// MATLAB's own save drops, 'half', 'string', 'struct'; nor 'Inherit: …'.
 const SIGNAL_BUILTIN = new Set(['double', 'single', 'boolean', ...Object.keys(INTEGER_RANGE)]);
-const SIGNAL_DATA_TYPE = /^(?:fixdt\(.*\)|Enum: *\S.*|Bus: *\S.*|[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*)$/s;
+const NAME = '[A-Za-z][A-Za-z0-9_]*';
+const DOTTED = NAME + '(?:\\.' + NAME + ')*';
+const NUMBER = '[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?';
+const COMMA = ' *, *';
+const FIXDT_ARGS = "'" + NAME + "'"
+    + '|(?:0|1|true|false)' + COMMA + '[1-9][0-9]*(?:' + COMMA + NUMBER + '){0,3}'
+    + '(?:' + COMMA + "'DataTypeOverride'" + COMMA + "'(?:Off|Inherit)')?";
+const SIGNAL_DATA_TYPE = new RegExp('^(?:fixdt\\( *(?:' + FIXDT_ARGS + ') *\\)|(?:Enum|Bus): *' + DOTTED + '|' + DOTTED + ')$');
 const SIGNAL_NOT_MEASURED = new Set(['auto', 'half', 'string', 'struct']);
 // The largest number of elements MATLAB takes a Signal's Dimensions to declare.
 const INT32_MAX = 2147483647;

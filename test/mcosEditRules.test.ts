@@ -243,6 +243,39 @@ describe('the cells an edit of a MAT-file object writes, or why none', () => {
   });
 });
 
+// Measured against MATLAB R2027a: a Signal's DataType set method takes any text, and a file whose
+// DataType cell holds any of these loads it as written, garbage included, but for white space at
+// either end, which it trims (the text loads as other text than was written). So the cell is held
+// to the forms that name a type, each of which loaded as written.
+describe("a Signal's DataType, held to the forms that name a type", () => {
+  const taken = [
+    'fixdt(1,16,4)', 'fixdt(0,8)', 'fixdt(1, 16, 4)', 'fixdt(true,16,4)', 'fixdt(1,16,-4)', 'fixdt(1,16,1,-4,0)',
+    'fixdt(1,16,0.0625,0)', 'fixdt(1,16,6.25e-2,0)', "fixdt('double')", "fixdt('sfix16_En4')",
+    "fixdt(1,16,4,'DataTypeOverride','Off')", 'Enum: MyEnum', 'Enum:MyEnum', 'Enum: pkg.MyEnum', 'Bus: MyBus', 'Bus:MyBus',
+    'MyNT', 'a.b', 'my_type_1', 'single', 'int8', 'uint64', 'boolean',
+  ];
+  // Each loads as written, but means no type (an expression, extra arguments, a word length of 0, a
+  // name with a space in it), or loads trimmed, or holds a control character.
+  const refusedTexts = [
+    'fixdt(foo)', 'fixdt(1,16,4,5,6,7)', 'fixdt(1,16,2^-4,0)', 'fixdt()', 'fixdt(1,16,4', 'fixdt(1,16,4);disp(1)',
+    'fixdt(fixdt(1,16,4))', 'fixdt(1,+16,4)', 'fixdt(1,0,4)', 'fixdt(1,\t16,4)', 'fixdt(1,\n16,4)', 'fixdt(1,16,4)\n',
+    'Enum: 3abc', 'Enum: My Enum', 'Enum: MyEnum ', 'Enum: MyEnum\n', ' Enum: MyEnum', 'Bus: My Bus', 'Bus: 3abc', 'Bus: MyBus(1)',
+    'int16\u0007', 'single ', '3abc', 'a..b',
+  ];
+  for (const text of taken) {
+    it('takes ' + JSON.stringify(text), () => {
+      expect(cellsOf(signal({ DataType: chr('int16') }), [{ property: 'DataType', value: chr(text) }])).toEqual(['DataType=char[1 ' + text.length + ']:' + JSON.stringify(text)]);
+    });
+  }
+  for (const text of refusedTexts) {
+    it('refuses ' + JSON.stringify(text), () => {
+      expect(cellsOf(signal({ DataType: chr('int16') }), [{ property: 'DataType', value: chr(text) }])).toEqual(
+        refused('DataType', "p.DataType would be '" + text + "', which is not a data type this package writes into a Simulink.Signal"),
+      );
+    });
+  }
+});
+
 describe('what an edit is refused for whatever its value, asked before it is made', () => {
   it('a property held, at its default, excluded, or of a class with no rules', () => {
     const p = param({ Min: dbl(0), Description: 'not-a-cell' });
