@@ -1,11 +1,13 @@
 import ContainerNode from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
-import type { PropClass, PIGroupDef } from '../BaseNode.js';
+import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceSetResult } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
-import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { McosPropertyVerdicts, type McosObjectState, type McosPlannedCell, type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
+import { type McosSubsystemRecords } from '../../parser/McosSubsystemCodec.js';
+import { type McosAppendSession, type McosNewObject } from '../../parser/McosTemplateMerge.js';
+import { type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
+import { MatSpotVerdicts, type MatObjectState, type MatObjectsWritten, type MatSharing } from '../data/matObjectEdit.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
@@ -29,12 +31,41 @@ export default class MatNode extends ContainerNode {
     _entriesVersion: number;
     _objects: {
         record: MatRecord;
-        subsystem: McosSubsystem;
+        records: McosSubsystemRecords;
     } | string | undefined;
-    _objectStates: WeakMap<BaseNode, McosObjectState | string>;
-    _propertyVerdicts: McosPropertyVerdicts;
+    _objectStates: WeakMap<BaseNode, MatObjectState | string>;
+    _propertyVerdicts: MatSpotVerdicts;
     _twins: McosTwinGroup[] | undefined;
     _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
+    _objectNodesById: Map<number, BaseNode[]> | undefined;
+    _creation: {
+        records: McosSubsystemRecords;
+        original: McosSubsystemRecords;
+        session: McosAppendSession;
+        created: Map<BaseNode, McosNewObject>;
+        rows: Map<BaseNode, number[]>;
+    } | undefined;
+    _busProjections: WeakMap<BaseNode, {
+        rows: BaseNode[];
+        state: MatObjectState | string;
+    }>;
+    _followed: {
+        node: BaseNode;
+        key: string;
+        values: Record<string, unknown>;
+    } | undefined;
+    _addRefused: string | null;
+    _classVerdicts: Map<string, string | null> | undefined;
+    _rebuilt: {
+        from: McosSubsystemRecords;
+        live: BaseNode[];
+        made: {
+            records: McosSubsystemRecords;
+            session: McosAppendSession;
+            objects: Map<BaseNode, McosNewObject>;
+            remap: (node: BaseNode, state: MatObjectState) => MatObjectState;
+        };
+    } | undefined;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added
@@ -87,13 +118,19 @@ export default class MatNode extends ContainerNode {
      * Why an edit of `key` at `node`, at or under `object`, the node of an MCOS object in `entry`, is
      * refused whatever its value, or null where the value decides (_editValueRefusal): the edit of a
      * variable one of two of one name (duplicateWhy), of a part of the object that is no property a
-     * save writes (mcosObjectEdit.propertyAt), of a file whose objects a save cannot read, of an
+     * save writes (matObjectEdit.matPropertyAt), of a file whose objects a save cannot read, of an
      * object it cannot find in them, and of a property the rules refuse (propertyRefusal). The
      * object's state is what this asks first, and is made then (_objectState). With `describe` false
      * (an editor drawn, BaseNode.sourceEditRefused) a part of the object refused is not described
      * (propertyAt): every other refusal is said as it is.
      */
     _objectKeyRefusal(entry: BaseNode, object: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
+    /**
+     * Which other node of the file the object at `object` is too, and how (matObjectEdit.MatSharing):
+     * a Parameter's or a Signal's twins (_twinGroups), each shown the edits of the others; any other
+     * object another node holds the handle of, which would show none. Null for one no other node is.
+     */
+    _sharingOf(object: BaseNode): MatSharing;
     /**
      * Why no edit of the object at `object` is taken for the other nodes that are the same object
      * (_twinGroups), each of which an edit is copied into (_mirrorTwins), as a clause, or null: an
@@ -111,6 +148,7 @@ export default class MatNode extends ContainerNode {
      * (_attachedTwins).
      */
     _twinGroups(): McosTwinGroup[];
+    _objectNodesOfFile(): BaseNode[];
     /** The group of the nodes that are the object `object` is, or null where no other node is it. */
     _twinGroupOf(object: BaseNode): McosTwinGroup | null;
     /** The members of `group` in the tree now, or none where fewer than two are. */
@@ -135,45 +173,89 @@ export default class MatNode extends ContainerNode {
      * as the node would hold it (a bound as a number or undefined, text as a string, a Value as the
      * value node the edit makes), cannot be written into this file, or null where it can, or where
      * `node` is no object's. Judged with the object's other edits as the save will judge them
-     * (McosEditRules.objectEditCells): a Min above its Max, a Value out of its DataType's range.
+     * (McosPropertyRules.planPropertyEdits): a Min above its Max, a Value out of its DataType's range.
      * Asked by the setters before they set it (BaseNode.sourceValueRefusal), so that the edit is not
      * taken, rather than taken and then refused by the save.
      */
     _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
     /**
+     * The rows of `node`'s Property Inspector this file offers in its property groups
+     * (BaseNode.sourceInspectorRows), where `node` is an object's or a row under one: its Name; where
+     * it stands, its Kind and Class; of a string, its DataType, as of every MATLAB value; and the
+     * properties a save writes into the object
+     * (matObjectEdit.matPropertyAt finds a spot of them), each of which takes an edit in some state of
+     * it (a storage class other than Auto opens an Identifier; a NumericType's mode opens its scaling).
+     * A property it saves no edit of (a Parameter's Dimensions, which follow its Value; a CoderInfo's
+     * custom attributes) is shown read-only in "Other". The saved keys a row shows already are not
+     * shown again there, stale until a save: a NumericType's SignednessBool, FixedExponent and
+     * SlopeAdjustmentFactor, which its Signedness, FractionLength and Slope show; a Bus's elements,
+     * which its rows are; a ValueType's own element. Of a MATLAB value, every row, and none of a
+     * Description, which no MATLAB value has.
+     */
+    _inspectorRows(entry: BaseNode, node: BaseNode): SourceInspectorRows | null;
+    /**
+     * The editor this file offers of `key` at `node` (of `entry`), a property of an object's node
+     * shown read-only in every other source (BaseNode.sourceOfferedEditor): one a save writes into
+     * the object (matObjectEdit.matBagEditorOf), a text box, or a dropdown of the rules' choices or
+     * true and false; null for any other. Whether it takes an edit now is _editRefusal's.
+     */
+    _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
+    /**
+     * The edit of `key` at `node` (of `entry`) to `text`, of a property this file offers an editor of
+     * (_offeredEditor): the text taken as the editor takes it, held to what a save writes
+     * (DataNode._refuseSourceValue, _editValueRefusal), and written into the node's property bag where
+     * the node shows it, its field too where one shows it; for a NumericType, with what MATLAB's setter
+     * changes beside it. Null for a key it offers no editor of, which the node's own setter takes.
+     */
+    _setOffered(entry: BaseNode, node: BaseNode, key: string, text: string): SourceSetResult | null;
+    /**
+     * What puts `key` of `node` (of `entry`) back as it stands now, a property this file offers an
+     * editor of (_offeredEditor): every bag key and field its class's editors write, as they are, an
+     * edit of a NumericType's changing more than its own. Null for any other key.
+     */
+    _offeredRestorer(entry: BaseNode, node: BaseNode, key: string): (() => void) | null;
+    /**
      * What `key` of `node`, of `entry`, follows to once its edits are saved, for the node to show
      * (BaseNode.sourceFollowedProperty), or undefined: the DataType of a Simulink.Parameter's node, as
-     * the save writes it with an edit of the Value (mcosObjectEdit.shownDataType). Nothing else, and
+     * the save writes it with an edit of the Value (matObjectEdit.matShownDataType). Nothing else, and
      * nothing for a node that is no object's, or one whose object a save cannot find.
      */
     _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;
     /**
-     * The subsystem of this file as a save swaps cells in it: its record, and its element read whole
-     * (McosSubsystemEdit.readMcosSubsystem); or why no object's edit can be written, read once.
+     * The subsystem of this file as a save writes edits into it: its record, and its element read
+     * whole into records (McosSubsystemCodec.readSubsystem); or why no object's edit can be written,
+     * read once.
      */
     _mcosSubsystem(): {
         record: MatRecord;
-        subsystem: McosSubsystem;
+        records: McosSubsystemRecords;
     } | string;
     /**
      * What the file holds of the object at `object`, and what its node held the first time this was
-     * asked (mcosObjectEdit.objectStateOf), or why no edit of it can be written; made once a node,
+     * asked (matObjectEdit.matObjectStateOf), or why no edit of it can be written; made once a node,
      * the first time the editor asks about the object, which every edit of it does before it is
      * made, and kept.
      */
-    _objectState(object: BaseNode): McosObjectState | string;
+    _objectState(object: BaseNode): MatObjectState | string;
     /**
-     * For the save (MatFileWriter): the subsystem's record and its element with every edit of an
-     * object under `entries` written into its cells, and the cells written; or null where none of
-     * them holds one. `entries` are the variables whose edits reached objects only, whose records are
-     * written as they were. Throws MatWriteError for an edit it cannot write
-     * (mcosObjectEdit.objectSubsystemEdit).
+     * The state of the object at `object` as the gate judges an edit of it now: _objectState's, but
+     * for a Bus with element rows added or removed since, whose state is projected onto a copy of
+     * the records it was read from (matObjectEdit.projectedBusState), kept while its rows stay those.
      */
-    _objectSubsystemEdit(entries: readonly BaseNode[]): {
-        record: MatRecord;
-        element: Uint8Array;
-        cells: McosPlannedCell[];
-    } | null;
+    _objectStateNow(object: BaseNode): MatObjectState | string;
+    /**
+     * For the save (MatFileWriter): the subsystem's record (null for a file that held none) and its
+     * element with every edit of an object under `entries` written into it, the records it was read
+     * as (`original`, which the save holds it to append-only), and the cells written; or null where
+     * none of them holds one and no object was created. `entries` are the variables whose edits
+     * reached objects only, whose records are written as they were, and those created as objects
+     * (_createObject), whose subsystem is written while any of them is in the tree. Throws
+     * MatWriteError for an edit it cannot write (matObjectEdit.matObjectSubsystemEdit).
+     */
+    _objectSubsystemEdit(entries: readonly BaseNode[]): ({
+        record: MatRecord | null;
+        original: McosSubsystemRecords;
+    } & MatObjectsWritten) | null;
     /**
      * Why `value`, a node built of the text an edit typed in for `node`, of `entry`, cannot be
      * written into this file, or null where it can: a string, which MatWriter has no MAT class
@@ -221,11 +303,62 @@ export default class MatNode extends ContainerNode {
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     getSection(): null;
+    /**
+     * The classes a new variable of this file may be, which a host offers (its Add gallery) and
+     * execAddEntry takes, exactly: a plain variable, the double 0; a 1x1 struct of no field; and each
+     * of MAT_CREATABLE_CLASSES MATLAB's own default object of which merges into the file's subsystem
+     * (_classRefusal: it reads whole, at a blob version an edit was measured on, and takes the merge),
+     * or the file has none. None for a file no save of which can be written (_fileRefusal), whose view
+     * takes no edit at all.
+     */
+    getAllowedTypes(): string[];
+    _creationRefusal(): string | null;
+    _classRefusal(className: string): string | null;
     execAddEntry(className?: string, entryName?: string): {
         node: BaseNode;
         undo: () => void;
         redo: () => void;
     } | null;
+    /**
+     * Why the last execAddEntry added nothing, in words naming this file, or null where it added a
+     * variable: what a host shows of a refused Add, as it shows a refused edit's reason (DataModel's
+     * addEntryRefusal).
+     */
+    addEntryRefusal(): string | null;
+    _addRefusalOf(kind: 'plain' | 'struct' | 'object', className: string | undefined, entryName: string | undefined): string | null;
+    /**
+     * MATLAB's default object of `className`, merged into the subsystem this file's saves write
+     * (McosTemplateMerge.mergeTemplateObject: MATLAB R2023b's own records of one, copied in the order
+     * its `save -append` writes them), and the node of the variable `name` holding it, as a file
+     * holding it shows it: the typed node of a Simulink object, a `string`'s node. Null where the
+     * merge refuses.
+     */
+    _createObject(className: string, name: string): BaseNode | null;
+    /**
+     * The properties a child row added at `node` (of `entry`) starts with (BaseNode.sourceNewChildProperties):
+     * of a Bus of the file's objects, MATLAB's default Simulink.BusElement, as this package reads one
+     * from a file, which is what a save writes for the row (matObjectEdit.projectedBusState) but its
+     * name. Undefined for any other node.
+     */
+    _newChildProperties(entry: BaseNode, node: BaseNode): Record<string, unknown> | undefined;
+    /** The class-17 element a save writes for `node`, a variable created in this file as an object (_createObject), or null for any other. */
+    _createdElement(node: BaseNode): Uint8Array | null;
+    /**
+     * The subsystem a save writes the objects created since the read into, which are in the tree now
+     * (_liveCreations), and each one's object there. Where every object created is, the one they were
+     * merged into (_creation). Where one was deleted since, merged again of the file's subsystem
+     * alone, those in the tree in the order made, with one append session, so that none of a deleted
+     * one is written, as MATLAB's own save writes none: and what was judged of each by its old ids is
+     * the object's under its new ones (remap). Made once for a set of those.
+     */
+    _liveCreation(): {
+        records: McosSubsystemRecords;
+        session: McosAppendSession;
+        objects: Map<BaseNode, McosNewObject>;
+        remap: (node: BaseNode, state: MatObjectState) => MatObjectState;
+    };
+    /** The variables created as objects that are in the tree now. */
+    _liveCreations(): BaseNode[];
     _uniqueName(baseName: string): string;
     execRemoveEntry(node: BaseNode): {
         undo: () => void;
@@ -241,4 +374,11 @@ export default class MatNode extends ContainerNode {
         warnings?: ParseWarning[];
     }, recordOf?: ReadonlyMap<MatVariable, MatRecord> | null): void;
 }
+/**
+ * The classes a new variable of a MAT-file may be created as an object of (MATLAB's own default one,
+ * merged from its records: McosTemplateMerge): every class with a template whose node offers an
+ * editor of each property MATLAB sets. A file offers each where its subsystem takes the merge
+ * (MatNode.getAllowedTypes, which a host's Add gallery is to read, per file).
+ */
+export declare const MAT_CREATABLE_CLASSES: readonly string[];
 //# sourceMappingURL=MatNode.d.ts.map

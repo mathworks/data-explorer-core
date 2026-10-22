@@ -76,6 +76,11 @@ export interface MatVariable {
     // node of another class held in a cell or a struct (MatlabVariableNode._memberVar) —
     // which it refuses, for its caller to write the value another way.
     _unwritable?: string;
+    // The class-17 element a MAT-file's save writes for an MCOS object held in a struct field or a
+    // cell element of a variable it writes fresh (MatlabVariableNode._memberVar): the element the
+    // object was read as, which names the same objects of the file's subsystem, passed through as
+    // its bytes (MatWriter.withObjectMembers). Set on a member a save hands over, never by the reader.
+    _objectElement?: Uint8Array;
     _anonymous?: boolean;
     isOpaque?: boolean;
     // An opaque's object handle — which objects of the file's shared MCOS heap this
@@ -844,6 +849,18 @@ function parseOpaque(view: DataView, offset: number, end: number): MatVariable {
 // mcosDecodedTable holds the decode beside it: the variable is the host's.
 const enumerationInstances = new WeakMap<MatVariable, MatVariable>();
 
+// The element an MCOS object held in a cell was read as, by the variable parseMatrix made of it:
+// what a MAT-file's save writes for it when it writes the cell fresh (MatlabVariableNode.
+// _objectMemberOf). Beside the variable, not its `_rawBytes`, which a cell element keeps only for a
+// value it is the one reading of (an undecoded one, a sparse array), and which the decoder's scan
+// for a handle reads (McosParser.decodeMcosVariables): a struct field keeps its own there already.
+const opaqueElements = new WeakMap<MatVariable, Uint8Array>();
+
+/** The element an MCOS object held in a cell element was read as, or undefined (opaqueElements). */
+export function opaqueElementOf(variable: MatVariable): Uint8Array | undefined {
+    return opaqueElements.get(variable);
+}
+
 /** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
 export function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined {
     return enumerationInstances.get(variable);
@@ -1444,6 +1461,11 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
                 if (child.undecoded || child.isSparse || isUnheldStructArray(child)) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
+                } else if (child.isOpaque) {
+                    // An MCOS object's element, beside it (opaqueElementOf), as a struct field
+                    // keeps its own in _rawBytes.
+                    const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
+                    opaqueElements.set(child, new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen)));
                 }
                 cells.push(child);
             } else {

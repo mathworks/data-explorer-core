@@ -294,6 +294,33 @@ export function oneWrite(write) {
         writing = null;
     }
 }
+// While a MAT-file's save writes a variable fresh (withObjectMembers): the element it writes for an
+// MCOS object held in a struct field or a cell, or null for one it has none for.
+let objectElement = null;
+/**
+ * Runs `write` with each MCOS object held in a struct field or a cell written as the class-17
+ * element `elementOf` gives for it, the one it was read as: what a MAT-file's save does for a
+ * variable it writes fresh, a struct whose plain field was edited beside an object, say
+ * (MatFileWriter.freshElement), and the save says which elements it passes through
+ * (MatFileWriter.objectElementOf). The element names objects of the file's own subsystem, which the
+ * save writes beside it, so it is the object, as it was, or edited there. Nowhere else: a stream
+ * written into a dictionary has no subsystem of the file's, and an object member there is refused
+ * as it always was.
+ */
+export function withObjectMembers(elementOf, write) {
+    const was = objectElement;
+    objectElement = elementOf;
+    try {
+        return write();
+    }
+    finally {
+        objectElement = was;
+    }
+}
+// The element memberElement writes for `v` as an MCOS object passed through, or null.
+function passedThrough(v) {
+    return objectElement && (v.isOpaque || v._objectElement) ? objectElement(v) : null;
+}
 /**
  * Takes `bytes` of the write's budget for something a writer spells that no data backs —
  * `what`, in words — or, when not that much is left, takes nothing and refuses the write
@@ -832,6 +859,11 @@ export function encodeMatVariable(v) {
  * byte held, and the cell is refused. Anything else is encoded, out of the write's budget.
  */
 function memberElement(v, budget) {
+    // An MCOS object a MAT-file's save passes through (withObjectMembers): the bytes it was read as.
+    const object = passedThrough(v);
+    if (object) {
+        return object;
+    }
     if (v.isSparse && v._rawBytes) {
         const own = ownElement(v._rawBytes);
         if (own) {
@@ -846,6 +878,9 @@ function memberElement(v, budget) {
  * member whose damaged dims word read [-5, 3] made an unedited cell's copy throw.
  */
 function writtenAsOwnBytes(v) {
+    if (passedThrough(v)) {
+        return true;
+    }
     return !!(v.isSparse && v._rawBytes && ownElementName(v._rawBytes));
 }
 /**

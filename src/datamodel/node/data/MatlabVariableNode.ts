@@ -27,6 +27,8 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import { objectElementOf } from '../../parser/MatFileWriter.js';
+import { mcosPlaceOf } from '../mcosPlace.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins, withOrigin } from '../../parser/EntrySource.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import {
@@ -321,6 +323,10 @@ export default class MatlabVariableNode extends DataNode {
   // no longer describes the live tree. See the _var getter.
   _varStale: boolean;
   _isOpaque: boolean;
+  // A `string` of a MAT-file's subsystem, its text edited in place, whole or an element at a time
+  // (MatNode.placeStrings): it takes no row added or removed, which would give a 1x1 a row of its
+  // own that the file read again would not show.
+  _mcosString?: boolean;
   // A sparse array's value: its non-zeros, and nothing else — `_elements` is empty for
   // one, because a sparse array is never held as a dense list (parser/SparseData). Entry k
   // is element row k, which is where that row's edit goes (_syncElementFromChild). Set when
@@ -347,6 +353,10 @@ export default class MatlabVariableNode extends DataNode {
   // The [1,n]/[n,1] orientation an array had before a removal collapsed it to a
   // scalar, so undo can restore the shape and not just the values.
   _preCollapseDims: number[] | null;
+  // The dims a cell had before each element removed of it was, by the element's node, so that its
+  // restore puts back the shape and not one the count makes: a 1x2 cell left one element is 1x1,
+  // which says no orientation, and would come back 2x1.
+  _cellDimsBefore: WeakMap<BaseNode, number[]> | null;
   // The class a COMPLEX array had before a removal collapsed it to a scalar, so undo can
   // restore it: the scalar's own type is 'complex' (or the class, for a survivor that is
   // real), and an edit of the scalar between the removal and its undo can change both.
@@ -401,6 +411,7 @@ export default class MatlabVariableNode extends DataNode {
     this._mcosValue = undefined;
     this._mcosDimensions = null;
     this._preCollapseDims = null;
+    this._cellDimsBefore = null;
     this._preCollapseType = null;
     this._collapsedClass = null;
     this._elementType = null;
@@ -634,7 +645,7 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   get valueEditable(): boolean {
-    if (this._isOpaque) {
+    if (this._isOpaque && !this._mcosString) {
       return false;
     }
     // A value read from a MAT stream, or a row under one, is shown and not edited.
@@ -645,7 +656,7 @@ export default class MatlabVariableNode extends DataNode {
     // array is the first opaque node with children at all, and its elements display real
     // editable-looking text ("alpha"), so without this they would have offered an editor
     // whose commit could not reach the file.
-    if (this.parent instanceof MatlabVariableNode && this.parent._isOpaque) {
+    if (this.parent instanceof MatlabVariableNode && this.parent._isOpaque && !this.parent._mcosString) {
       return false;
     }
     // Nor an element of a sparse array no edit of could be written (_sparseRefusal).
@@ -1208,13 +1219,20 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   getProperties(): PropClass[] {
-    return [PropName, PropValue, PropDataType, PropDescription];
+    return this._ofMcosString() ? [PropName, PropValue, PropDataType] : [PropName, PropValue, PropDataType, PropDescription];
   }
 
   getPILayout() {
     // className is dynamic (double/int8/struct/the opaque MCOS class), so this
     // can't be schema-keyed; author the common "General" identity group directly.
-    return [{ group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }];
+    const items = [PropName, PropValue, PropDataType, PropKind, PropClassAtom];
+    return [{ group: 'General', items: this._ofMcosString() ? items : [...items, PropDescription] }];
+  }
+
+  // A MAT-file's `string`, or an element of one (_mcosString): MATLAB's string has no Description,
+  // so it shows no such row.
+  _ofMcosString(): boolean {
+    return !!this._mcosString || (this.parent instanceof MatlabVariableNode && !!this.parent._mcosString);
   }
 
   // ---- Edit + structural mutation (the only writers of the state above) ----
@@ -1524,7 +1542,7 @@ export default class MatlabVariableNode extends DataNode {
     // the second gate for one that calls setProperty directly, because accepting the text
     // would update the node and leave the file's own bytes — which is what gets written
     // back — saying something else.
-    if (parent._isOpaque) {
+    if (parent._isOpaque && !parent._mcosString) {
       return {
         error: true,
         reason: 'This value is read-only',
@@ -1807,6 +1825,17 @@ export default class MatlabVariableNode extends DataNode {
       this._dims = parsed.dims ? parsed.dims.slice() : [1, 1];
       this.serial = {};
     }
+    // A MAT-file's `string`, its text typed in whole, holds it as the string array it is shown as,
+    // its size the one it is shown at (dims, which reads an opaque's own).
+    if (this._mcosString) {
+      if (this._kind === 'scalar' && this._scalarType === 'string') {
+        this._kind = 'string';
+        this._elements = [this._scalarValue];
+        this._dims = [1, 1];
+        this.serial = { _array_type: 'String', _dimensions: [1, 1], _mw_element_type: 'MATLABArray' };
+      }
+      this._mcosDimensions = this._dims.slice();
+    }
   }
 
   // The write-side twin of parseMatrixValue. This used to be its own loop, and it
@@ -1959,7 +1988,7 @@ export default class MatlabVariableNode extends DataNode {
     // gate was never exercised — a decoded 1x3 string would have offered Add Child and
     // then dropped the added element on save. A value still in the encoded stream it was
     // read from is read-only the same way, for the same reason (DataNode._encodedReadOnly).
-    if (this._isOpaque || this._encodedReadOnly) {
+    if (this._isOpaque || this._mcosString || this._encodedReadOnly) {
       return false;
     }
     // Nor a container the node ceiling built without its rows (_cutByCeiling): the row Add
@@ -2092,7 +2121,7 @@ export default class MatlabVariableNode extends DataNode {
 
   canRemoveChild(): boolean {
     // Read-only in both directions, as in canAddChild.
-    if (this._isOpaque || this._encodedReadOnly || this._streamHolder()) {
+    if (this._isOpaque || this._mcosString || this._encodedReadOnly || this._streamHolder()) {
       return false;
     }
     // Nor does a sparse array give one up: removing a non-zero from a vector shortens
@@ -2123,12 +2152,13 @@ export default class MatlabVariableNode extends DataNode {
       this._elements.splice(idx, 1);
       this._updateArrayAfterRemove();
     } else if (this._kind === 'cell') {
+      (this._cellDimsBefore ??= new WeakMap()).set(child, this._dims.slice());
       this._updateCellAfterRemove();
     } else if (this._kind === 'string') {
       this._elements.splice(idx, 1);
       this._updateStringAfterRemove();
     }
-    this._reindexChildren();
+    this._reindexPositional();
     this._markModified();
   }
 
@@ -2202,7 +2232,9 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   restoreChildNode(child: BaseNode, index: number): void {
-    if (this._kind === 'scalar') {
+    // A scalar a removal collapsed an array to (_preCollapseDims), and not a struct, whose fields are
+    // a scalar's children too: a field restored is put back beside the others, as they are.
+    if (this._kind === 'scalar' && this._preCollapseDims !== null) {
       // Undoing the removal that collapsed this array back to a scalar. The
       // surviving element lost its child row on the way down, so rebuild it here
       // before `child` is spliced in — otherwise the array comes back one element
@@ -2255,7 +2287,14 @@ export default class MatlabVariableNode extends DataNode {
       this._updateDimsForCount(this._elements.length);
       this._syncArraySerial();
     } else if (this._kind === 'cell') {
-      this._updateDimsForCount(this.children.length);
+      // The shape it had before the element was removed, where that holds as many as it holds now.
+      const before = this._cellDimsBefore?.get(child);
+      this._cellDimsBefore?.delete(child);
+      if (before && before.reduce((a, b) => a * b, 1) === this.children.length) {
+        this._dims = before.slice();
+      } else {
+        this._updateDimsForCount(this.children.length);
+      }
       if ((this.serial as Record<string, unknown>)._dimensions) {
         (this.serial as Record<string, unknown>)._dimensions = this._dims;
       }
@@ -2269,7 +2308,7 @@ export default class MatlabVariableNode extends DataNode {
       this._elements.splice(index, 0, typeof restored === 'string' ? restored : '');
       this._updateDimsForCount(this._elements.length);
     }
-    this._reindexChildren();
+    this._reindexPositional();
     this._markModified();
   }
 
@@ -2352,6 +2391,15 @@ export default class MatlabVariableNode extends DataNode {
   _reindexChildren(): void {
     for (let i = 0; i < this.children.length; i++) {
       this.children[i].name = String(i + 1);
+    }
+  }
+
+  // The children renamed by position, where a position is their name: an array's, a cell's and a
+  // string's elements. A struct's fields keep their own names, a field added and then removed (an
+  // Add undone) included: renamed '1', '2', … they were saved so.
+  _reindexPositional(): void {
+    if (this._kind === 'array' || this._kind === 'cell' || this._kind === 'string') {
+      this._reindexChildren();
     }
   }
 
@@ -3571,10 +3619,33 @@ export default class MatlabVariableNode extends DataNode {
    * and a member whose dims are not a size is refused as that, finally, naming it.
    */
   static _memberVar(node: BaseNode): MatVariable {
+    // An MCOS object's node, of any kind (_objectMemberOf): the object as it was read, and the
+    // element a MAT-file's save writes for it (MatWriter.withObjectMembers). Every other writer
+    // refuses it, as it always did.
+    const object = MatlabVariableNode._objectMemberOf(node);
+    const element = object && 'element' in object ? object : null;
     if (node instanceof MatlabVariableNode) {
-      return node._var;
+      return element
+        ? { ...node._var, name: '', isOpaque: true, className: element.variable.className, mcosHandle: element.variable.mcosHandle, _objectElement: element.element }
+        : node._var;
     }
     const cls = String((node as unknown as { className?: string }).className || 'value');
+    if (element) {
+      return {
+        name: '',
+        className: element.variable.className,
+        dimensions: (element.variable.mcosHandle?.dims ?? [1, 1]).slice(),
+        isComplex: false,
+        isLogical: false,
+        value: null,
+        fields: null,
+        mcosHandle: element.variable.mcosHandle,
+        // Written only by a MAT-file's save (MatWriter.withObjectMembers); refused everywhere else,
+        // as it always was.
+        _objectElement: element.element,
+        _unwritable: classPhrase(cls) + ' MatWriter has no variable for',
+      };
+    }
     return {
       name: '',
       className: cls,
@@ -3585,6 +3656,49 @@ export default class MatlabVariableNode extends DataNode {
       fields: null,
       _unwritable: classPhrase(cls) + ' MatWriter has no variable for',
     };
+  }
+
+  /**
+   * What a MAT-file's save writes for `node`, a member of a cell or a struct it writes fresh, when
+   * the member is an MCOS object: the class-17 element the object was read as, which names the same
+   * objects of the file's subsystem, and the variable read of it; or why the object cannot be
+   * written so, as a clause naming it; or null for a member that is no object of the file's.
+   *
+   * An object's node is placed (mcosPlace) where it was built of its variable: a typed object's
+   * node, the element rows of an object array's node (each its element of the one variable), and
+   * an opaque one's node (a `string`, an object of a class with no typed node), which holds its
+   * variable itself. Which element of it a save passes through, and which it refuses, is
+   * MatFileWriter.objectElementOf's to say.
+   */
+  static _objectMemberOf(node: BaseNode): { variable: MatVariable; element: Uint8Array } | { why: string } | null {
+    let variable: MatVariable | undefined;
+    const place = mcosPlaceOf(node);
+    if (place) {
+      if (place.index !== 0) {
+        return { why: node.matlabPath + ' is an element of an object array, which a save writes only whole' };
+      }
+      variable = place.variable;
+    } else if (node instanceof MatlabVariableNode) {
+      if (!node._isOpaque || !node._matVar?.isOpaque) {
+        return null;
+      }
+      variable = node._matVar;
+    } else {
+      // An object array's node: every element row placed, each its element of one variable.
+      const places = node.children.map((c) => mcosPlaceOf(c));
+      const first = places[0];
+      if (!first || !places.every((p, k) => p && p.variable === first.variable && p.index === k)) {
+        return null;
+      }
+      variable = first.variable;
+    }
+    const element = objectElementOf(variable, node.matlabPath);
+    return 'why' in element ? element : { variable, element: element.element };
+  }
+
+  /** _objectMemberOf of `member`, a member of this cell or struct (for MatFileWriter, which imports no node class). */
+  _objectMember(member: BaseNode): { variable: MatVariable; element: Uint8Array } | { why: string } | null {
+    return MatlabVariableNode._objectMemberOf(member);
   }
 
   _buildVarObject(): MatVariable {

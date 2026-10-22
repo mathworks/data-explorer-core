@@ -24,6 +24,7 @@ export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/Binar
 export { readEntryFragment } from './datamodel/parser/EntryMerge.js';
 export type { ReadEntryOptions } from './datamodel/parser/EntryMerge.js';
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
+export { MAT_CREATABLE_CLASSES } from './datamodel/node/container/MatNode.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';

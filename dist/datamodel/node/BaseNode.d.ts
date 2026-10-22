@@ -12,6 +12,7 @@ export interface PropClass {
     sourceKeys?: string[];
     format: (value: unknown) => string;
     editableFor?: (node: BaseNode) => boolean;
+    sourceEditable?: boolean;
 }
 export interface PropInfo {
     key: string;
@@ -212,6 +213,65 @@ export declare function sourceTwinsOutside(node: BaseNode): BaseNode[];
  * after every edit it makes or wraps.
  */
 export declare function sourceMirrorTwins(node: BaseNode): BaseNode[];
+/**
+ * The properties a child row added at `node` starts with, as the source `node` is in holds a new
+ * one, or undefined where it says none, which every source but a MAT-file does: in one, a Bus's
+ * new element row is MATLAB's default Simulink.BusElement, as the file will hold it once saved
+ * (MatNode._newChildProperties). Asked by the Add of a class whose new child is an object.
+ */
+export declare function sourceNewChildProperties(node: BaseNode): Record<string, unknown> | undefined;
+/** An editor a source offers of a property its node shows read-only (sourceOfferedEditor). */
+export interface SourceOfferedEditor {
+    editor: 'text' | 'select';
+    options?: string[];
+}
+/**
+ * The editor the source `node` is in offers of `key` at `node`, a property the node shows
+ * read-only in every other source (PropClass.sourceEditable), or null, which every source but a
+ * MAT-file answers: there, an object's property its save writes (MatNode._offeredEditor), a
+ * Signal's InitialValue or a NumericType's WordLength, say. Whether this node takes an edit of it
+ * now is sourceEditRefusal's, asked after.
+ */
+export declare function sourceOfferedEditor(node: BaseNode, key: string): SourceOfferedEditor | null;
+/** The answer of a setter: taken, or refused in words. */
+export type SourceSetResult = true | {
+    error: true;
+    reason: string;
+    invalidValue: string;
+    validValue: string;
+};
+/**
+ * The edit of `key` at `node` to `text`, made by the source that offers its editor
+ * (sourceOfferedEditor), which writes it where the node shows it and holds it to what its save
+ * writes; or null where it offers none, and the node's own setter makes the edit. Asked by
+ * DataNode.setProperty once the edit is one the source takes at all (DataNode._refuseEncodedEdit).
+ */
+export declare function sourceSetOffered(node: BaseNode, key: string, text: string): SourceSetResult | null;
+/**
+ * What puts `key` of `node` back as it stands now, where its source made the edit
+ * (sourceSetOffered) and so keeps what it changed with it, or null: what an undo of such an edit
+ * runs (DataModel.editProperty), as a node's own restorer is.
+ */
+export declare function sourceRestorerFor(node: BaseNode, key: string): (() => void) | null;
+/**
+ * Which rows of a node's Property Inspector its source offers in its groups, which of its rows are
+ * of no property the node has, and which saved keys a row shows already (sourceInspectorRows).
+ */
+export interface SourceInspectorRows {
+    shows: (key: string) => boolean;
+    hides: (key: string) => boolean;
+    skips: readonly string[];
+}
+/**
+ * Which rows of `node`'s Property Inspector its source offers in its property groups, by key, and
+ * the saved keys of the node's bag a row it shows shows already, and the rows of properties the
+ * node has none of; or null where it shows every row the node lays out: what every source but a
+ * MAT-file answers. A MAT-file's object offers only the
+ * rows of properties its save writes (and where it stands, its Kind and Class), each of which
+ * takes an edit in some state of the object (MatNode._inspectorRows); every other row is shown
+ * read-only in the "Other" group, as the keys no row shows are.
+ */
+export declare function sourceInspectorRows(node: BaseNode): SourceInspectorRows | null;
 /**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a

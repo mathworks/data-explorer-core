@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
-import { enumerationInstanceOf, functionHandleText as handleText, isUnheldStructArray, parseMatrix, structElementsHeld, } from './MatParser.js';
+import { enumerationInstanceOf, functionHandleText as handleText, isUnheldStructArray, opaqueElementOf, parseMatrix, structElementsHeld, } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
+import { handleCoderInfoOf } from './McosSubsystemCodec.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
@@ -318,6 +319,25 @@ const unreadSlots = new WeakMap();
 export function unreadCellSlots(bag) {
     return bag !== null && typeof bag === 'object' ? unreadSlots.get(bag) : undefined;
 }
+// An object property holding NO object, an empty object array: the handle [0xDD000000, ndims,
+// dims…, class row] with an extent of 0 and so no id, as MATLAB saves the Elements of every
+// default Simulink.Bus and of one whose last element was removed (measured against MATLAB R2023b
+// and R2027a: a 0x0 BusElement array, its class row kept). Read as the array the value-object
+// form gives an object array, of no element. objectHandleFromValue reads no handle of no id, and
+// the resolver below then took the class row for an object id: a default Bus read as holding
+// one element, the Bus itself with no properties, and showed a row with no name. Null for any
+// other handle.
+function emptyObjectArray(v, ctx, owner, propName) {
+    const ndims = v[1];
+    if (!Number.isInteger(ndims) || ndims < 2 || ndims > 8 || v.length < 2 + ndims || v.length > 3 + ndims)
+        return null;
+    const dims = v.slice(2, 2 + ndims);
+    if (!dims.every((d) => Number.isInteger(d) && d >= 0) || dims.every((d) => d > 0))
+        return null;
+    const classId = v[2 + ndims];
+    const arrayClass = componentsBaseOf(owner, propName) ?? (classId !== undefined ? ctx.meta.classes[classId]?.fullName ?? '' : '');
+    return { _array_class: arrayClass, _array_type: 'MATLABArray', _dimensions: dims, _mw_element_type: 'MATLABArray', _elements: [] };
+}
 // Turn a parsed mxArray value into a property value in the SLDD-shaped form the
 // data model expects. Object handles recurse into nested { _object_class,
 // _properties }; structs and cells recurse into { _array_type: 'Struct'|'Cell', … }.
@@ -330,7 +350,24 @@ export function unreadCellSlots(bag) {
 function resolveValue(cell, ctx, path, depth, owner, propName) {
     if (!cell)
         return undefined;
+    // A CoderInfo MATLAB R2024b and earlier save (and every object made from the R2023b templates)
+    // is a 'handle' opaque holding a small blob of its own: what it holds of its StorageClass, its
+    // Identifier (saved as Alias) and its Alignment, under the names R2027a's MCOS CoderInfo has, for
+    // the columns that show them. Anything else it holds is not read here.
+    if (cell.isOpaque && cell.className === 'Simulink.CoderInfo') {
+        const element = opaqueElementOf(cell);
+        const read = element ? handleCoderInfoOf(element) : null;
+        if (read?.ok) {
+            const { StorageClass, Identifier, Alignment } = read.settings;
+            // Marked, for the setters (schemaBridge.heldOpaqueRefusal): the opaque, not these, is what a
+            // file holds, which only a source that writes it (a MAT-file) takes an edit of.
+            return { _object_class: 'Simulink.CoderInfo', _properties: { StorageClass, Alias: Identifier, Alignment }, _handleOpaque: true };
+        }
+    }
     if (isObjectHandle(cell)) {
+        const empty = emptyObjectArray(cell.value, ctx, owner, propName);
+        if (empty)
+            return empty;
         const handle = objectHandleFromValue(cell.value);
         // A SCALAR object property (the common case): one nested { _object_class,
         // _properties }, exactly as before.
@@ -743,7 +780,9 @@ function buildProperties(objId, ctx, path, depth) {
             resolved = ctx.meta.strings[value];
         }
         else if (flag === 2) {
-            resolved = value !== 0;
+            // An integer triple is a flag (true or false), but for a CoderInfo's Alignment, which MATLAB
+            // R2027a saves as the number it is (an int32: -1 is omitted, as its default).
+            resolved = name === 'Alignment' ? value | 0 : value !== 0;
         }
         else {
             continue; // unknown flag — never guess

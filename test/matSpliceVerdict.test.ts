@@ -239,7 +239,8 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, n
 
 describe('the verdict of a save, judged where it changed the file, is the verdict of both files judged whole', () => {
   for (const [what, edit, least, breaks, subsystems] of SAVES) {
-    it(what, () => {
+    // A sweep of every file: seconds alone, and more under a full run's load.
+    it(what, { timeout: 30_000 }, () => {
       let compared = 0;
       let refusedByIt = 0;
       let subsystemsWritten = 0;

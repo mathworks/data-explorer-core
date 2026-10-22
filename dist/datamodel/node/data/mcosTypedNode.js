@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { withCoderInfoShown, withNumericTypeShown } from './mcosShown.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots } from '../../parser/McosParser.js';
@@ -77,12 +78,15 @@ warnings) {
     // dispatches on _array_class — known class -> its typed node (scalar), unknown or
     // multi-element -> ObjectNode — so both converge on the same recursion the SLDD
     // paths use. Every typed node's parse() tolerates an empty _properties.
+    // A NumericType's Signedness, FractionLength and Slope as MATLAB shows them, and a CoderInfo's
+    // Identifier, beside what it saves them as, which is all a file holds (mcosShown).
+    const bagOf = (e) => !e ? {} : className === 'Simulink.NumericType' ? withNumericTypeShown(e) : className === 'Simulink.Parameter' || className === 'Simulink.Signal' ? withCoderInfoShown(e) : e;
     const rawVal = {
         _array_class: className,
         _array_type: 'MATLABArray',
         _dimensions: dims,
         _mw_element_type: 'MATLABArray',
-        _elements: elems.map((e) => ({ _properties: e || {} })),
+        _elements: elems.map((e) => ({ _properties: bagOf(e) })),
     };
     let node;
     try {

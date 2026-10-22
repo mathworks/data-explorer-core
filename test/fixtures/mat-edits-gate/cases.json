@@ -1,0 +1,5093 @@
+{
+ "source": "live gates of core T-D1: edits made through the session, saved, each loaded in MATLAB R2027a (and R2023b, R2024b for the cross-release set) against that release's own assignment on a fresh load of the original: equal, quiet, each variable alone equal, a re-save equal. sha256 is of the whole saved file.",
+ "cases": [
+  {
+   "name": "p_value_insert",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;"
+   ],
+   "sha256": "553b123f39dcdad08ea091f8358956d76293cae0309a5fb2746b11a46212e210",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_value_matrix",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[1 2; 3 4]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [1 2; 3 4];"
+   ],
+   "sha256": "a07c11fa5944603091424577c9a469b08dd7fc196e7268586c27e8a420dac28b",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_value_logical",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "sha256": "96ef9593ac1d2997ac9444abf601853ee555474ba951203b10ab2612dee06330",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_value_char",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "'abc'"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 'abc';"
+   ],
+   "sha256": "9777506db630f43607c643945ec0f6cea097c3a5e46ba9f5e9b1bfcc07f1ad13",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_value_complex",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "1+2i"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 1+2i;"
+   ],
+   "sha256": "33da2c94ac8778b4e0b38abecb2ccb17d186d7b2400e971fddc38230186773a4",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_bounds_insert",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "-1"
+    ],
+    [
+     "p",
+     "Max",
+     "10"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = -1;",
+    "S.p.Max = 10;"
+   ],
+   "sha256": "2507ed92f88f5a35deec36ab73b0928ac9926ca6a1c0adb896a867ae303c45bd",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_text_insert",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     "gain"
+    ],
+    [
+     "p",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = 'gain';",
+    "S.p.Unit = 'm';"
+   ],
+   "sha256": "bd5ae7b71377ef104493a28ad7406e1b5197dea4301b5e7a9d092511417f927a",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_value_datatype",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "p",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.p.DataType = 'int8';"
+   ],
+   "sha256": "e966786ad8522c2ddab805cca722b08dda0a1f1d224b3869a8da0768bbce5d82",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_datatype_alone",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'single';"
+   ],
+   "sha256": "d80025f5509a5957ea5f5d63b162f711c9bce497697bf1109ceeeded07c33a58",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "p_storage_insert",
+   "original": "mcos-rules/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "ExportedGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'ExportedGlobal';"
+   ],
+   "sha256": "575df3e19f13529183deac9a1b12b3272cb2468c2350326747a720d40e92f2d2",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_desc_default",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = '';"
+   ],
+   "sha256": "65d8db0c242c86b8838490bc570f51bbc75a75760a79002a42734380f8a16d68",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_min_default",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = [];"
+   ],
+   "sha256": "0866eb423d6456a86a92469bd001054262bc2727c92ab6ad7c518927896d03e2",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_value_default",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [];"
+   ],
+   "sha256": "7d46fadab949fe0acd4b95b455482dbfae7a6e135a37625fd3b7b6da011cadab",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_datatype_auto",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'auto';"
+   ],
+   "sha256": "b719d4f22f745feb1cd9030a16aac63d9a81b91efad0558ad63597a01c2ed7d2",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_unit_default",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Unit",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Unit = '';"
+   ],
+   "sha256": "9386aa598d2c6fc96a7fa103f604e5fbfcda79e6c9ce79c54993a52e4286a044",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pset_value_logical",
+   "original": "mcos-rules/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "refused": "Cannot edit \"p\": p.Max (10) would be outside the range [0, 1] of its DataType 'boolean', which MATLAB loads with a warning on every load.",
+   "verdicts": {
+    "R2027a": "REFUSED_MATLAB_ERRS_OR_WARNS"
+   }
+  },
+  {
+   "name": "pint_value_double",
+   "original": "mcos-rules/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 7;"
+   ],
+   "sha256": "e302d6cb50896415467d46cd15ba50f15f2c91a715e68277f790916bb15b0d17",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pint_max",
+   "original": "mcos-rules/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Max",
+     "50"
+    ]
+   ],
+   "matlab": [
+    "S.p.Max = 50;"
+   ],
+   "sha256": "9ef0c8ba302efe14a1297049c7ab02f96aa4b3ad33366096672ad2ec087cb9f9",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pexp_storage_auto",
+   "original": "mat-edits-gate/r27/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "Auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'Auto';"
+   ],
+   "sha256": "99c1c3d66e47f1b2214795c36716ee059baf82f3f55bfa723ecf516d124e0386",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_bounds_insert",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "0"
+    ],
+    [
+     "sig",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = 0;",
+    "S.sig.Max = 5;"
+   ],
+   "sha256": "a0d35f0afb2c811cce55bf9509ff13829de5530ac271bc067c8cef553cb767c0",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_datatype_insert",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'int16';"
+   ],
+   "sha256": "87b811fa51bc3f2aae84ec7139ff46c11d92c7ccd445677012df8b3465c44d70",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_complexity_insert",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'complex';"
+   ],
+   "sha256": "b7151c5c459188f0fbc98de0fcac9b0c87ad6d144876b072c96c4cfe14e803ad",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_dimsmode_insert",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "399a582725885d722e5dc34de45c6ef27f375db7543852fd1a59dac0960d0905",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_text_insert",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     "sig"
+    ],
+    [
+     "sig",
+     "Unit",
+     "V"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = 'sig';",
+    "S.sig.Unit = 'V';"
+   ],
+   "sha256": "1049b26950117f10f8fa40b6b5549ca5f6c4f7d936d326eb759ea600146075cd",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "s_storage",
+   "original": "mcos-rules/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "2916e596ceec7c2909a23272d230d17ed51f4060175e1f81f07d3ce57e85e5e0",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "sset_complexity_auto",
+   "original": "mcos-rules/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'auto';"
+   ],
+   "sha256": "dc81c227bf79da2a249eeca4fa7b976afde1d7f021d2d53d3f581b41744dbd6e",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "sset_datatype_auto",
+   "original": "mcos-rules/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'auto';"
+   ],
+   "sha256": "54d40251846edda0bf3d6ca9f82af264bc5d07510ddcfd3ed102fc0432cc1bee",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "sset_min_default",
+   "original": "mcos-rules/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = [];"
+   ],
+   "sha256": "defe7496f8473df1454a8a755ede58d8bead6653c45d6ab50af01fae48187d16",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "sset_desc_default",
+   "original": "mcos-rules/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = '';"
+   ],
+   "sha256": "a76dac47cf013692773240d9457af34f01a738f8b351e57e1078b2f3fdab8e98",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "sset_dimsmode_variable",
+   "original": "mcos-rules/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "374ba1abbd973828bc8289ba58594551e5d86d4def8e1c579c4d9dfec8875d32",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "b_desc",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     "bus"
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = 'bus';"
+   ],
+   "sha256": "c521028a1e4a18425957f8be168617efd2de1c8ff4288a7e1d5363ef6c95cfa4",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_name",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "first"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'first';"
+   ],
+   "sha256": "b78e3a54d27bf9ee2f2c0d4b8f60792b1e87c05041ea5066c0611910c5a93df1",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_bounds_insert",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "Min",
+     "-1"
+    ],
+    [
+     "b.e2",
+     "Max",
+     "1"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).Min = -1;",
+    "S.b.Elements(2).Max = 1;"
+   ],
+   "sha256": "fb36571f62c1e2c5b21d7622ce99541c55ac2783acbef909fc493d23c632cc59",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_datatype_insert",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'int8';"
+   ],
+   "sha256": "d7779d0da4d886a66838b9afd46bd2a22e695d9a4e489177d91dd1ad0f48240a",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_complexity",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Complexity = 'complex';"
+   ],
+   "sha256": "eb6519c8d08a251477d367f69b8659ed22a8f99db064e6e97f6b99aeda5f2a91",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_dimsmode",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).DimensionsMode = 'Variable';"
+   ],
+   "sha256": "689d15095d69b73570d847583c988b69b25541631d3c4cae74b3f5dd4cbb77fd",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "be_text",
+   "original": "mcos-rules/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Unit",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Description",
+     "x"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Unit = 'm';",
+    "S.b.Elements(1).Description = 'x';"
+   ],
+   "sha256": "048ee5a002ce8212914452b5bde3fd5286e3399f3256240f7dcdcb56391927f0",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "bset_be_datatype_default",
+   "original": "mcos-rules/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'double';"
+   ],
+   "sha256": "e713bddc89b6a3466e7a6896470a9b9458684fb24bd91b3ecbabf3dc1de1ba54",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "bset_be_bounds_default",
+   "original": "mcos-rules/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Min",
+     "[]"
+    ],
+    [
+     "b.e1",
+     "Max",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Min = [];",
+    "S.b.Elements(1).Max = [];"
+   ],
+   "sha256": "49beab28457e06f8b2dff036c18903bf6f1ce9913cc271e5ba7e09354b4f9762",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "bset_desc_empty",
+   "original": "mcos-rules/bset.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = '';"
+   ],
+   "sha256": "777f6d13353b2a7f9cafdbc6e9f3697afadbd5cacd7bd2c315a20cabbc0b7e68",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "bset_be_desc_default",
+   "original": "mcos-rules/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Description = '';"
+   ],
+   "sha256": "ed457cf17b49584fe5f7ff2a0920e2218cdd7474c33f00db09feb3203d82bfa9",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "bset_be_name_swap",
+   "original": "mcos-rules/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "tmp"
+    ],
+    [
+     "b.e2",
+     "Name",
+     "e1"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "e2"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'tmp';",
+    "S.b.Elements(2).Name = 'e1';",
+    "S.b.Elements(1).Name = 'e2';"
+   ],
+   "sha256": "858ba6d18e6754e3f329a523afd06dd20e3e59a4546da7a73226c729c32cd1fe",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vt_bounds_insert",
+   "original": "mcos-rules/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "1"
+    ],
+    [
+     "vt",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = 1;",
+    "S.vt.Max = 5;"
+   ],
+   "sha256": "43c2efb8a173aa273dc3e92dac59d91157b1049fe8461c0abdfa9561032e43d2",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vt_enums_insert",
+   "original": "mcos-rules/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "complex"
+    ],
+    [
+     "vt",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'complex';",
+    "S.vt.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "6aa49a631232fcf7e4b187bd886b9821a7127ecf48d2844483e2b0df5a32d2b5",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vt_datatype_insert",
+   "original": "mcos-rules/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'int16';"
+   ],
+   "sha256": "e8a5dc28f41b86ceb3a577ccceb9315a107a365e5f25f336d828690acea9f3f6",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vt_text_insert",
+   "original": "mcos-rules/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Description",
+     "v"
+    ],
+    [
+     "vt",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Description = 'v';",
+    "S.vt.Unit = 'm';"
+   ],
+   "sha256": "5fe53092ebec14fafce21e36d635682b69041559c9022a290f04f5988f600ca9",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vtset_datatype_default",
+   "original": "mcos-rules/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'double';"
+   ],
+   "sha256": "2a11a070cf41b2c0a380339ed44a04a8c545cdc0a693fd8882532d8f61e0e478",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vtset_complexity_default",
+   "original": "mcos-rules/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "real"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'real';"
+   ],
+   "sha256": "c012c33886ceed56163d7129c8fb8342ba5b7a1311d1364eb45095235406233c",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "vtset_min_default",
+   "original": "mcos-rules/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = [];"
+   ],
+   "sha256": "d5dd27c23cb5edbe38c2a923ad0f8b50f53a48d63855fd9db7e7486abbbd5874",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "nt_desc",
+   "original": "mcos-rules/nt0.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "num"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'num';"
+   ],
+   "sha256": "b271bde62dfc1568c2b905d9b3214237d4e5c6ce8aab9a0db0011a75af7f0951",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "ntf_desc",
+   "original": "mcos-rules/ntf.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "fixed"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'fixed';"
+   ],
+   "sha256": "a68bcc97e3cfa4ec56eb2770b676a93d7e2a51dd5b2338c4fc209641158ff8ce",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "at_basetype",
+   "original": "mcos-rules/at0.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'int16';"
+   ],
+   "sha256": "7fe0da9c0af4406a00722dcd6673f0c3d002913908dd34fe622d6eb741c770ba",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "atset_desc_empty",
+   "original": "mat-edits-gate/r27/atset.mat",
+   "edits": [
+    [
+     "at",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.at.Description = '';"
+   ],
+   "sha256": "118fe766089b5180e2f40d65388d0b339bd767ac7ad3adbb1ba5ab67e316c03e",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "atset_basetype",
+   "original": "mat-edits-gate/r27/atset.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'single';"
+   ],
+   "sha256": "163b4f0a345e5b9cc0d52e75685f5cd2a1ca83f7dd8567df3c2e32a00a610682",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_scalar",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"xyz\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"xyz\";"
+   ],
+   "sha256": "72f5761765d731efe36bb43784ad53f4de355379cfa00f39717b755d9986c406",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_element",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s2(1)",
+     "Value",
+     "\"q\""
+    ]
+   ],
+   "matlab": [
+    "S.s2(1) = \"q\";"
+   ],
+   "sha256": "4c571b3e3b0dc337f031d3fd1917bc04dd9a8a9ce2b2f677c6d118a9c9c28a77",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_whole_2x2",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s2",
+     "Value",
+     "[\"a\" \"b\"; \"c\" \"d\"]"
+    ]
+   ],
+   "matlab": [
+    "S.s2 = [\"a\" \"b\"; \"c\" \"d\"];"
+   ],
+   "sha256": "cbbbd5a95a71b3fbe8a5f7a2f3518b51f20d02ede41fd4275148202e1d260d3d",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_struct_field",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "st.a",
+     "Value",
+     "\"field\""
+    ]
+   ],
+   "matlab": [
+    "S.st.a = \"field\";"
+   ],
+   "sha256": "2a03f924317c0e505f0289c34815119b2f7664dceb58d7e15eb09cd791c943e7",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_cell",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "c{1}",
+     "Value",
+     "\"cell\""
+    ]
+   ],
+   "matlab": [
+    "S.c{1} = \"cell\";"
+   ],
+   "sha256": "eb72836184c2086b6a553e1c3c9705eb1fdf4bb4977d81180b8d954648fd5fb9",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_unicode",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"😀 é\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = string(char([55357 56832 32 233]));"
+   ],
+   "sha256": "83eaf31380a7cf965dd1743ace0a2dd7d139dd0ada0f269d6bf216aee117944d",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_empty",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"\";"
+   ],
+   "sha256": "28a043ced3552958397173d0b3bc5f8d9069803dea1e67a64f089ead8f03ec56",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "str_all",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"one\""
+    ],
+    [
+     "s2(2)",
+     "Value",
+     "\"two\""
+    ],
+    [
+     "st.a",
+     "Value",
+     "\"three\""
+    ],
+    [
+     "c{1}",
+     "Value",
+     "\"four\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"one\";",
+    "S.s2(2) = \"two\";",
+    "S.st.a = \"three\";",
+    "S.c{1} = \"four\";"
+   ],
+   "sha256": "9ce9b94dbef7d9d8ee0f4a686a410ebffed1c1157265f0cbbf25bdbe168fe1c5",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_str_field",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "st.k",
+     "Value",
+     "2"
+    ]
+   ],
+   "matlab": [
+    "S.st.k = 2;"
+   ],
+   "sha256": "0eaa2d63848d8eeeb7f33df99d1fe457dd3b7614799555a4a6fd015bc817d285",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_str_cell",
+   "original": "mcos-rules/str.mat",
+   "edits": [
+    [
+     "c{2}",
+     "Value",
+     "3"
+    ]
+   ],
+   "matlab": [
+    "S.c{2} = 3;"
+   ],
+   "sha256": "e574c84e9df79c2e098efe4d5cb3a8b9afa4b9031419af32dcaed2b34334465a",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_nest_field_and_bus",
+   "original": "mcos-rules/nest.mat",
+   "edits": [
+    [
+     "s.k",
+     "Value",
+     "7"
+    ],
+    [
+     "s.b",
+     "Description",
+     "nb"
+    ]
+   ],
+   "matlab": [
+    "S.s.k = 7;",
+    "S.s.b.Description = 'nb';"
+   ],
+   "sha256": "88db3b0a6d5dbf8e72345d87a5e6902a0f246464a4ab12f879e81cd024fcf1b4",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_nest_be_and_cell",
+   "original": "mcos-rules/nest.mat",
+   "edits": [
+    [
+     "s.b.e1",
+     "Name",
+     "z1"
+    ],
+    [
+     "c{2}",
+     "Value",
+     "'y'"
+    ]
+   ],
+   "matlab": [
+    "S.s.b.Elements(1).Name = 'z1';",
+    "S.c{2} = 'y';"
+   ],
+   "sha256": "49aee773db92586e6aaec0c19470bd77d8c3505b00a8d9a3cc2462a6859e233b",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mix_all",
+   "original": "mcos-rules/mix.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "sig",
+     "Min",
+     "1"
+    ],
+    [
+     "b",
+     "Description",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "z"
+    ],
+    [
+     "nt",
+     "Description",
+     "n"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.sig.Min = 1;",
+    "S.b.Description = 'm';",
+    "S.b.Elements(1).Name = 'z';",
+    "S.nt.Description = 'n';"
+   ],
+   "sha256": "5f50c346547850d3ab518f5793344a7a500644285cc04db54bce1a072327041f",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "al_tS_value",
+   "original": "mat-allowlist/al_dtype.mat",
+   "edits": [
+    [
+     "tS",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.tS.Value = 7;"
+   ],
+   "sha256": "89f382e5575728100c280fb722c9dc0cf4dc02ed73469d9f51a4b626fed9f877",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "al_tI_complex",
+   "original": "mat-allowlist/al_dtype.mat",
+   "edits": [
+    [
+     "tI",
+     "Value",
+     "1+2i"
+    ]
+   ],
+   "matlab": [
+    "S.tI.Value = 1+2i;"
+   ],
+   "sha256": "35341ccb5a3b29732924414f0c550ba26aa890fe4f08c4410d8b29cee17fbdf0",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "al_xe_desc_insert",
+   "original": "mat-allowlist/al_text.mat",
+   "edits": [
+    [
+     "xe",
+     "Description",
+     "abc"
+    ]
+   ],
+   "matlab": [
+    "S.xe.Description = 'abc';"
+   ],
+   "sha256": "b1bb65c67817ed8e2dfc0e4b7629f47bd7436c25138428d2fb1e9bef86d078cd",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "al_pm_min_default",
+   "original": "mat-allowlist/al_minmax.mat",
+   "edits": [
+    [
+     "pm",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.pm.Min = [];"
+   ],
+   "sha256": "51c49cad2e7f85596075680efc78bcb02a0f49d6da3a7906996719dd5bf58332",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pv_default_value",
+   "original": "mat-cellswap/pv_default.mat",
+   "edits": [
+    [
+     "d",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.d.Value = 5;"
+   ],
+   "sha256": "b4770e40847d69155c41d213be2ea0afd08ee3bd639a14e6645e5abb59ce8b46",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "pv_shared_handle",
+   "original": "mat-cellswap/pv_shared.mat",
+   "edits": [
+    [
+     "h",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.h.Value = 7;"
+   ],
+   "sha256": "845cab4840afd494234d3b5f8c16d614a2fe246734d82cba85ccecd78cbf3024",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_nest_sk_c2",
+   "original": "mcos-rules/nest.mat",
+   "edits": [
+    [
+     "s.k",
+     "Value",
+     "7"
+    ],
+    [
+     "c{2}",
+     "Value",
+     "'y'"
+    ]
+   ],
+   "matlab": [
+    "S.s.k = 7;",
+    "S.c{2} = 'y';"
+   ],
+   "sha256": "4661748e01499335d9f4545b3a37291f0ec2c564ccbb651136a2da418ad08429",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_pvnested_sk_sp",
+   "original": "mat-cellswap/pv_nested.mat",
+   "edits": [
+    [
+     "s.k",
+     "Value",
+     "7"
+    ],
+    [
+     "s.p",
+     "Value",
+     "8"
+    ]
+   ],
+   "matlab": [
+    "S.s.k = 7;",
+    "S.s.p.Value = 8;"
+   ],
+   "sha256": "b9f359df6a3d702495bc8be1091b2cc920e4ea4ac5f234e48f42cd173fa9db32",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_pvnested_c2_c1",
+   "original": "mat-cellswap/pv_nested.mat",
+   "edits": [
+    [
+     "c{2}",
+     "Value",
+     "'y'"
+    ],
+    [
+     "c{1}",
+     "Value",
+     "9"
+    ]
+   ],
+   "matlab": [
+    "S.c{2} = 'y';",
+    "S.c{1}.Value = 9;"
+   ],
+   "sha256": "9e3a0c100a1dd4b1b759bcea70d6119c48ec11aa49663b9599403a068cc3b440",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_nestedobj_c3",
+   "original": "mcos/nested_objects.mat",
+   "edits": [
+    [
+     "c{3}",
+     "Value",
+     "43"
+    ]
+   ],
+   "matlab": [
+    "S.c{3} = 43;"
+   ],
+   "sha256": "eb8a5e1bccfed9cdd616f2e42484feb8e720c70ca33fbac430b9916687aec24d",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_nestedobj_carr4",
+   "original": "mcos/nested_objects.mat",
+   "edits": [
+    [
+     "cArr{4}",
+     "Value",
+     "4"
+    ]
+   ],
+   "matlab": [
+    "S.cArr{4}.Value = 4;"
+   ],
+   "sha256": "1502adfb46304a0d1d8cb20317e9957e2ba8a1c8b968cfc5bf2122a31f0d7494",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_hexobj_sp",
+   "original": "sparse/hexobj_values.mat",
+   "edits": [
+    [
+     "objs.sp(1,2)",
+     "Value",
+     "9"
+    ]
+   ],
+   "matlab": [
+    "S.objs.sp(1,2) = 9;"
+   ],
+   "sha256": "7b1544508e69b4df3ba51589e37c5774c554f3c66b2046a7f3997684fa285754",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "d6_complexobj_sz",
+   "original": "mcos/complex_objects.mat",
+   "edits": [
+    [
+     "s.z",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.s.z = 5;"
+   ],
+   "sha256": "337f1a6bc6d7cea454abbd8bf183f2b63d38d44256f39a12aa4b29ad3e6d2872",
+   "verdicts": {
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_insert",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;"
+   ],
+   "sha256": "ae53d51a2f71a638cfc120a5dc391ee6a1b88f66eb2a7f3373a627b1dfedff72",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_matrix",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[1 2; 3 4]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [1 2; 3 4];"
+   ],
+   "sha256": "33e71196ed3e79c88b477c22c2beaff5f24753cb5443f6e9dac739f0898736d7",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_logical",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "sha256": "72a48978470a89a1e6bda431919288c21ac1226cb45e6b8c5c50aeaec361ccd3",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_char",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "'abc'"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 'abc';"
+   ],
+   "sha256": "d5d5f925a39c6f407b24d963ac03d2aeaaf5c52892922b470f6c087076f3ca1f",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_complex",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "1+2i"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 1+2i;"
+   ],
+   "sha256": "1bd2dc2ed085a2a1d5d4ce04dfae6a7d42c6b8a4e774190bc3ea8e3e3817ec65",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_bounds_insert",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "-1"
+    ],
+    [
+     "p",
+     "Max",
+     "10"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = -1;",
+    "S.p.Max = 10;"
+   ],
+   "sha256": "c39d995afff0054d0b500f84cdf5f1525688cb75d948c84b3ff951e9936a9340",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_text_insert",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     "gain"
+    ],
+    [
+     "p",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = 'gain';",
+    "S.p.Unit = 'm';"
+   ],
+   "sha256": "b9f157e99e647f9bc320cba6c9aecb534c3c252cd64ee1e9fcd21afe63e89c13",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_value_datatype",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "p",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.p.DataType = 'int8';"
+   ],
+   "sha256": "0924ee815305e5e4af484a02306e2ae567bb1c236bbd48fd2b110844988ea16e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_datatype_alone",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'single';"
+   ],
+   "sha256": "e06d97472d48b9ac5910d91c8f0c341a0b99b8b808b9e17a53caa46a2ccb0762",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_p_storage_insert",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "ExportedGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'ExportedGlobal';"
+   ],
+   "sha256": "32e4aed45afda1d5e2eb714f029c9291d3f1ed11f195d18e41ac7e386f085536",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_desc_default",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = '';"
+   ],
+   "sha256": "69b3b3462c369837d455da3a9728c9b9269eedfba722a757cc0341bf3ab8282e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_min_default",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = [];"
+   ],
+   "sha256": "fdc0f0035351b24e91078f23a9c8e75d36ab63f02d36926cfd6bce5b15864bc4",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_value_default",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [];"
+   ],
+   "sha256": "1931a4752c45545299d6302f8d93342faf3dfab77572c49d8ac0c94d9bf7a4ac",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_datatype_auto",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'auto';"
+   ],
+   "sha256": "aac64adbd7aa43c56ef072eec796c8246e6cb2b408191ff13d6c2ac2eb6e2ead",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_unit_default",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Unit",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Unit = '';"
+   ],
+   "sha256": "48dc33dc43c2fae7ecbcb56b51cfe8858d12cddf4aa30e774157976092304c49",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pset_value_logical",
+   "original": "mat-edits-gate/r23/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "refused": "Cannot edit \"p\": p.Max (10) would be outside the range [0, 1] of its DataType 'boolean', which MATLAB loads with a warning on every load.",
+   "verdicts": {
+    "R2023b": "REFUSED_MATLAB_ERRS_OR_WARNS",
+    "R2024b": "REFUSED_MATLAB_ERRS_OR_WARNS",
+    "R2027a": "REFUSED_MATLAB_ERRS_OR_WARNS"
+   }
+  },
+  {
+   "name": "r23_pint_value_double",
+   "original": "mat-edits-gate/r23/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 7;"
+   ],
+   "sha256": "56ee7280314529b9e156074df0770075ddca447da07ea15b3294c1ce7bfa5ef9",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pint_max",
+   "original": "mat-edits-gate/r23/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Max",
+     "50"
+    ]
+   ],
+   "matlab": [
+    "S.p.Max = 50;"
+   ],
+   "sha256": "05ad4b857febd5e143aa2d8747055beb3e715759bac437874ace315aac3b348a",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_pexp_storage_auto",
+   "original": "mat-edits-gate/r23/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "Auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'Auto';"
+   ],
+   "sha256": "aa2c6d1ee8798b3f7319e28920e6f8986ba621231a8a17c533f6d1f7e35feb48",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_bounds_insert",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "0"
+    ],
+    [
+     "sig",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = 0;",
+    "S.sig.Max = 5;"
+   ],
+   "sha256": "dfba2e8b15d0c1b53fc9230e02dfe85c2cef3245307633e83f91c7e97c0529af",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_datatype_insert",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'int16';"
+   ],
+   "sha256": "57f14251fd140f8be9f4d26043abf31cb4cee49cc40f4a78a87ea30df4b2ab83",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_complexity_insert",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'complex';"
+   ],
+   "sha256": "a834c971c3027174cbc7b0a1907bfaa659c1783f1a25c18a9fd08206cd9d8096",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_dimsmode_insert",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "93dd9d809c858a73cf5d46d0bced037407404242bc01e78c9ddac72fc38ca57e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_text_insert",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     "sig"
+    ],
+    [
+     "sig",
+     "Unit",
+     "V"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = 'sig';",
+    "S.sig.Unit = 'V';"
+   ],
+   "sha256": "979c8d4060de451da28ed0eba8017a43202a10ca8fde7e40fb216a02eea310d5",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_s_storage",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "9930241b4159927b33ae8ced8ee3ab12e4950699d0d4bb4c116177c5d574adfe",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_sset_complexity_auto",
+   "original": "mat-edits-gate/r23/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'auto';"
+   ],
+   "sha256": "7cb850a6c29ed15e0a5133554b61ce11fd2457ce1a99b4a2ed4837d37066db2a",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_sset_datatype_auto",
+   "original": "mat-edits-gate/r23/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'auto';"
+   ],
+   "sha256": "adbc7adf2224cc1ca9000bf6011554fadeecd8850dd9dc4ac673649a966aa6b6",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_sset_min_default",
+   "original": "mat-edits-gate/r23/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = [];"
+   ],
+   "sha256": "2ea87231633ff0877d5e3ec61485f973f41af75edc198a1ae6001aa60962508c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_sset_desc_default",
+   "original": "mat-edits-gate/r23/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = '';"
+   ],
+   "sha256": "dd66cf52a214a7ebf04be0f7546633b194117f4f0e5870befc69c54f80b49673",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_sset_dimsmode_variable",
+   "original": "mat-edits-gate/r23/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "1a1905da2a00a243317574d45ee4174e96157293864181b535da7a5f366bebb9",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_b_desc",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     "bus"
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = 'bus';"
+   ],
+   "sha256": "c1d67f127c50ecdd393b540bcb819d8943c2bc3a1672e1485ca3fa533bbaadf3",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_name",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "first"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'first';"
+   ],
+   "sha256": "e0674268fb41adda1488846838acd5f505c44408b7f450a77f63a48de62d9798",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_bounds_insert",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "Min",
+     "-1"
+    ],
+    [
+     "b.e2",
+     "Max",
+     "1"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).Min = -1;",
+    "S.b.Elements(2).Max = 1;"
+   ],
+   "sha256": "c258cfc65ceba5b2e0b8b3a108c08c3026b89c9f69236c4e8bedb34b1473f5df",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_datatype_insert",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'int8';"
+   ],
+   "sha256": "0ab2bc1aeea46a2c02ae05602a7f0ec5cf0414c46d99d4e774818c8fdfaebfbf",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_complexity",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Complexity = 'complex';"
+   ],
+   "sha256": "9c5059f96359ff7469f762702ee3eb6076a6d812adf145d3d7e06baa31e964cf",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_dimsmode",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).DimensionsMode = 'Variable';"
+   ],
+   "sha256": "cdda860544c0305abc9ba177255f872c4b31feb0261f6a92c13e3845ba387fd0",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_be_text",
+   "original": "mat-edits-gate/r23/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Unit",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Description",
+     "x"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Unit = 'm';",
+    "S.b.Elements(1).Description = 'x';"
+   ],
+   "sha256": "cc59b94c83b9eabcdff9e96ef63b6ad18f9af1e1dabfa9fabddc55875ccbf5ed",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_bset_be_datatype_default",
+   "original": "mat-edits-gate/r23/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'double';"
+   ],
+   "sha256": "2ad251ed7a6b7be63b2fb38960e2be31b7e526ea01e73a9a4b26e50068f649c8",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_bset_be_bounds_default",
+   "original": "mat-edits-gate/r23/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Min",
+     "[]"
+    ],
+    [
+     "b.e1",
+     "Max",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Min = [];",
+    "S.b.Elements(1).Max = [];"
+   ],
+   "sha256": "f3ed1642ee4d54b170ee9eb4aeb63bc01f290b073a3e6e594c745d737e167bb3",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_bset_desc_empty",
+   "original": "mat-edits-gate/r23/bset.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = '';"
+   ],
+   "sha256": "686ed4a0bba9cbfe07e132b997a28f2771042b8eaa66f19e87f7fc60a85214fe",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_bset_be_desc_default",
+   "original": "mat-edits-gate/r23/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Description = '';"
+   ],
+   "sha256": "d6bfeb191ef9a1994e80f32d2525f21bbe55bf9eb52fa2e246fe8c5969561738",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_bset_be_name_swap",
+   "original": "mat-edits-gate/r23/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "tmp"
+    ],
+    [
+     "b.e2",
+     "Name",
+     "e1"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "e2"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'tmp';",
+    "S.b.Elements(2).Name = 'e1';",
+    "S.b.Elements(1).Name = 'e2';"
+   ],
+   "sha256": "723bb85a4740c76674a970cdff3b9cc93aad45cfe2de9d294c9899935a63fe26",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vt_bounds_insert",
+   "original": "mat-edits-gate/r23/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "1"
+    ],
+    [
+     "vt",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = 1;",
+    "S.vt.Max = 5;"
+   ],
+   "sha256": "59bbef18b9e517a72779b00b9c14723d9808d0dbde02df609ae8bc2978bf3001",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vt_enums_insert",
+   "original": "mat-edits-gate/r23/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "complex"
+    ],
+    [
+     "vt",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'complex';",
+    "S.vt.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "99169cf1b86c8b66399997207c82114a7e4e486273977dd813e41b955f735a69",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vt_datatype_insert",
+   "original": "mat-edits-gate/r23/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'int16';"
+   ],
+   "sha256": "5526eb2bbd4972a9a4dbec0cac6ac7a0486bf028205dc013dc598303e15044cb",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vt_text_insert",
+   "original": "mat-edits-gate/r23/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Description",
+     "v"
+    ],
+    [
+     "vt",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Description = 'v';",
+    "S.vt.Unit = 'm';"
+   ],
+   "sha256": "c401eb318dce8114d205c67314bdb1e982e2e35235ef9bbe71f156ebffcfff7c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vtset_datatype_default",
+   "original": "mat-edits-gate/r23/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'double';"
+   ],
+   "sha256": "3caaf0fffab96904b6df7f372d4743414cae28f7f6714272f1fefe0303cca4c4",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vtset_complexity_default",
+   "original": "mat-edits-gate/r23/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "real"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'real';"
+   ],
+   "sha256": "8969dd75c379a06658e70d93847c332a4546f884c71a0ba28c5b3686c3ac6e3e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_vtset_min_default",
+   "original": "mat-edits-gate/r23/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = [];"
+   ],
+   "sha256": "4ba6fce655df3d30343c23052bda1b4c3a22c2a8a0de8b137845a7d83c1f0c97",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_nt_desc",
+   "original": "mat-edits-gate/r23/nt0.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "num"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'num';"
+   ],
+   "sha256": "a30d6112a605af5a88a671f0cc6f21492618557138643e0febe6adaaf666ecb3",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ntf_desc",
+   "original": "mat-edits-gate/r23/ntf.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "fixed"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'fixed';"
+   ],
+   "sha256": "e58801cae5564e87d87d27e0e2ab958414e9b168b0984a61555fe3c82ac7fa15",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_at_basetype",
+   "original": "mat-edits-gate/r23/at0.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'int16';"
+   ],
+   "sha256": "0d620798596465364874057b0e3bfe0fe84a3f2090cdcee17838a1ee3fbef85a",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_atset_desc_empty",
+   "original": "mat-edits-gate/r23/atset.mat",
+   "edits": [
+    [
+     "at",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.at.Description = '';"
+   ],
+   "sha256": "666a17d38ea71fc67e258b84ffb0e414e3ff71efe1b6fbbf4f8f7bd7d3368919",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_atset_basetype",
+   "original": "mat-edits-gate/r23/atset.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'single';"
+   ],
+   "sha256": "7166ab6c5970bd1b3eeb950f5e73ada54958b7922b8d9c4c2c2043ee12ec28e2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_scalar",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"xyz\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"xyz\";"
+   ],
+   "sha256": "fc23a16362a06d833615245d18dfab73919a8c4b7a22d004cf8dd2cb8babcde0",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_element",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s2(1)",
+     "Value",
+     "\"q\""
+    ]
+   ],
+   "matlab": [
+    "S.s2(1) = \"q\";"
+   ],
+   "sha256": "a6fdbe18ee48e2b35490c0256499ee9816f651bfaeb69bbe650a7e38a72ad7cc",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_whole_2x2",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s2",
+     "Value",
+     "[\"a\" \"b\"; \"c\" \"d\"]"
+    ]
+   ],
+   "matlab": [
+    "S.s2 = [\"a\" \"b\"; \"c\" \"d\"];"
+   ],
+   "sha256": "3d6975c4fa37ca050a2e29370505fb07e9810bbc3674a1495b8e4c9b053722b7",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_struct_field",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "st.a",
+     "Value",
+     "\"field\""
+    ]
+   ],
+   "matlab": [
+    "S.st.a = \"field\";"
+   ],
+   "sha256": "0d7f1c46c8c06b3a1390e6c77e64d8c69b159af44db6b5a2da2893326e52ba40",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_cell",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "c{1}",
+     "Value",
+     "\"cell\""
+    ]
+   ],
+   "matlab": [
+    "S.c{1} = \"cell\";"
+   ],
+   "sha256": "453e4a70541651b17e1b1d3cf9fe5d6c740efe815e1e1452e7cfe53bb601a17c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_unicode",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"😀 é\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = string(char([55357 56832 32 233]));"
+   ],
+   "sha256": "72e44c23141f4d2dc151591f0e57bef501de46cf10284d37f97d14c8d2c90b15",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_empty",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"\";"
+   ],
+   "sha256": "5d4f92b3df745ebae6e24622e74daaecff7f83d2c5a98245ceca89e8e0c4f849",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_str_all",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"one\""
+    ],
+    [
+     "s2(2)",
+     "Value",
+     "\"two\""
+    ],
+    [
+     "st.a",
+     "Value",
+     "\"three\""
+    ],
+    [
+     "c{1}",
+     "Value",
+     "\"four\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"one\";",
+    "S.s2(2) = \"two\";",
+    "S.st.a = \"three\";",
+    "S.c{1} = \"four\";"
+   ],
+   "sha256": "f4c205dc3c39f52c766e990d72a7300d1e6974d71f66b20f4012d67a91b72176",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_d6_str_field",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "st.k",
+     "Value",
+     "2"
+    ]
+   ],
+   "matlab": [
+    "S.st.k = 2;"
+   ],
+   "sha256": "d35d7ec596ceee2d2b3d93958092d1f738f435a29ea3d26c67a7336070bd691f",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_d6_str_cell",
+   "original": "mat-edits-gate/r23/str.mat",
+   "edits": [
+    [
+     "c{2}",
+     "Value",
+     "3"
+    ]
+   ],
+   "matlab": [
+    "S.c{2} = 3;"
+   ],
+   "sha256": "d6d9781daf95762643b7afbe76c0f298128e8ca68d2e570511ee7978902e1f0b",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_d6_nest_field_and_bus",
+   "original": "mat-edits-gate/r23/nest.mat",
+   "edits": [
+    [
+     "s.k",
+     "Value",
+     "7"
+    ],
+    [
+     "s.b",
+     "Description",
+     "nb"
+    ]
+   ],
+   "matlab": [
+    "S.s.k = 7;",
+    "S.s.b.Description = 'nb';"
+   ],
+   "sha256": "195e08b42203041f57614e278980a69941420f0d398007575e54228f536ec245",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_d6_nest_be_and_cell",
+   "original": "mat-edits-gate/r23/nest.mat",
+   "edits": [
+    [
+     "s.b.e1",
+     "Name",
+     "z1"
+    ],
+    [
+     "c{2}",
+     "Value",
+     "'y'"
+    ]
+   ],
+   "matlab": [
+    "S.s.b.Elements(1).Name = 'z1';",
+    "S.c{2} = 'y';"
+   ],
+   "sha256": "ca2473a75199c5098c25b37d4a86b43643b9de3fe7964bb127389743f74222c1",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_mix_all",
+   "original": "mat-edits-gate/r23/mix.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "sig",
+     "Min",
+     "1"
+    ],
+    [
+     "b",
+     "Description",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "z"
+    ],
+    [
+     "nt",
+     "Description",
+     "n"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.sig.Min = 1;",
+    "S.b.Description = 'm';",
+    "S.b.Elements(1).Name = 'z';",
+    "S.nt.Description = 'n';"
+   ],
+   "sha256": "c31d0d3162145ec57c90534a7299d11989427415b1174ad5f834b8532d182e77",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ci_p_iep",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "ImportedExternPointer"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "sha256": "bcbd1d2b8ba7eee54cd72a954c79b3cebc9bdf02270f114d8b3ce3b5283f3b48",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ci_p_model_default",
+   "original": "mat-edits-gate/r23/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "SimulinkGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'Model default';"
+   ],
+   "sha256": "261114d17860c65fc1bd2114d05317857527203e8a9c8b130e4ccc278833c10c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ci_pexp_alignment",
+   "original": "mat-edits-gate/r23/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "alignment",
+     "8"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.Alignment = 8;"
+   ],
+   "sha256": "3a504fa6cb1c02883fd2ac1841eaf9658a0041fb4fdc9c8e516b92342c6c6ce5",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ci_pexp_alignment_storage",
+   "original": "mat-edits-gate/r23/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "alignment",
+     "16"
+    ],
+    [
+     "p",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.Alignment = 16;",
+    "S.p.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "655a787dc461fdcc6b8f4c00d01a7e190eec8702ce0dc2c1a971743c615654f0",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r23_ci_s_iep",
+   "original": "mat-edits-gate/r23/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "storageClass",
+     "ImportedExternPointer"
+    ]
+   ],
+   "matlab": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "sha256": "230a96e5f2bbf4792bf39e8a660eb8794d234aafe0014e6c362c639030a99101",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_insert",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;"
+   ],
+   "sha256": "b1845b3248845ad8064f7ca1cd6d3f5a8bd357e2476a76dc903de953f93b7444",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_matrix",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[1 2; 3 4]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [1 2; 3 4];"
+   ],
+   "sha256": "93001c6ac1b68eb5fd7adf1e1b8ce4e619168c0bb8eeb41fb3409525c37d6587",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_logical",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "sha256": "2411e84737ad518f31f8cfc2c1c8ff0300258bb87f70abd10f8be70bc343d8ca",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_char",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "'abc'"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 'abc';"
+   ],
+   "sha256": "ef3d81fa88e8ac7120f9770df67c208b72e0bac1177acbbf4bd800c57c9dfa15",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_complex",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "1+2i"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 1+2i;"
+   ],
+   "sha256": "325a5d65dc81f9075886ec130bb01d09fc1d44cb9fc659980b4c24f173e1da19",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_bounds_insert",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "-1"
+    ],
+    [
+     "p",
+     "Max",
+     "10"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = -1;",
+    "S.p.Max = 10;"
+   ],
+   "sha256": "3cee10dde6273dbe7304b70b339a2923ad7572494b02409c7a621f321cfa4484",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_text_insert",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     "gain"
+    ],
+    [
+     "p",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = 'gain';",
+    "S.p.Unit = 'm';"
+   ],
+   "sha256": "e2e2b44b6421e2f2c5930c456064f9c2794f2b9fc45296510cf52494cc4805ec",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_value_datatype",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "p",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.p.DataType = 'int8';"
+   ],
+   "sha256": "2b5a8c75d7139d5aa7287510701a4cb2b3bd2e24848ed85fc7ff1b002287c53e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_datatype_alone",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'single';"
+   ],
+   "sha256": "62c78e54bfd1fff01c21459ae97dc6d49f0e493284518f1f1c001d7a5b3763c2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_p_storage_insert",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "ExportedGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'ExportedGlobal';"
+   ],
+   "sha256": "a6beafe3a0a2aafdbd974d2c413340875f5f9b4d9a6178a18dac7befba6f3b73",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_desc_default",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Description = '';"
+   ],
+   "sha256": "b2a0b3896cac26bf1001e8fb9e0abd44113fff03e38a99abcb2d344580ce2f70",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_min_default",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Min = [];"
+   ],
+   "sha256": "66a70b61eed2694a6ce13fb1a32775d6dc7c8776b865608ff4325dd60a0a8fdf",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_value_default",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = [];"
+   ],
+   "sha256": "aa272f21e4e6d6a8c7e76dcfc9b70e2549ef0f79bb081e3f1cfa9cdc50d5d095",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_datatype_auto",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.DataType = 'auto';"
+   ],
+   "sha256": "86f7a46c274950f6b8ae504201766201b84848b784356237f5df1d7c0e249323",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_unit_default",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Unit",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.p.Unit = '';"
+   ],
+   "sha256": "a0656151cb7be42f82dca8e9e39e94fad6be3e9ace86a3ce514dc8b51aa4e2b6",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pset_value_logical",
+   "original": "mat-edits-gate/r24/pset.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "true"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = true;"
+   ],
+   "refused": "Cannot edit \"p\": p.Max (10) would be outside the range [0, 1] of its DataType 'boolean', which MATLAB loads with a warning on every load.",
+   "verdicts": {
+    "R2023b": "REFUSED_MATLAB_ERRS_OR_WARNS",
+    "R2024b": "REFUSED_MATLAB_ERRS_OR_WARNS",
+    "R2027a": "REFUSED_MATLAB_ERRS_OR_WARNS"
+   }
+  },
+  {
+   "name": "r24_pint_value_double",
+   "original": "mat-edits-gate/r24/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 7;"
+   ],
+   "sha256": "1290ba147f0fde770d307c32d1a79ddbe4a7c00dbe36c322149b3f3b79f28a40",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pint_max",
+   "original": "mat-edits-gate/r24/pint.mat",
+   "edits": [
+    [
+     "p",
+     "Max",
+     "50"
+    ]
+   ],
+   "matlab": [
+    "S.p.Max = 50;"
+   ],
+   "sha256": "3bd0f1917016d49b6ac27a5192ce37458c282f4daece39dee7e198da17157be4",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_pexp_storage_auto",
+   "original": "mat-edits-gate/r24/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "Auto"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'Auto';"
+   ],
+   "sha256": "ed3f40f019979cab73478b4e78a2ab36323ee4c0a2a35c5377e6e5941156566d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_bounds_insert",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "0"
+    ],
+    [
+     "sig",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = 0;",
+    "S.sig.Max = 5;"
+   ],
+   "sha256": "d6bd656e2f87e9f90b64769c602bb3b8c7c55057f1d22e81fb7b00c1c2eca821",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_datatype_insert",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'int16';"
+   ],
+   "sha256": "b0e73b48ea89238fa66192d370db2a6237587ae6c3e556442a997d71e7d82058",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_complexity_insert",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'complex';"
+   ],
+   "sha256": "cee144c3bbb3448118f927d8066bc912916c029de097ca2e54fe2397ef6e2dce",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_dimsmode_insert",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "71a7fdd5a43a0bad18a9d9c6fdcddba6035f46bf112c594a609ead8b359fa6f3",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_text_insert",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     "sig"
+    ],
+    [
+     "sig",
+     "Unit",
+     "V"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = 'sig';",
+    "S.sig.Unit = 'V';"
+   ],
+   "sha256": "c60bfa2d79a8b5789a0b6226a3dcbc6cce8bf77caa5a88a99acb6c94cdb0ca1d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_s_storage",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "6edb4d4ec15d438a7353368addc129efd146ff7b29445596089e99bb2aeb9d2b",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_sset_complexity_auto",
+   "original": "mat-edits-gate/r24/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "complexity",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Complexity = 'auto';"
+   ],
+   "sha256": "f8ac8256279984d4046e35e2a6696ef0b74334fecbe9521ce3eef967d53337a5",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_sset_datatype_auto",
+   "original": "mat-edits-gate/r24/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "DataType",
+     "auto"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DataType = 'auto';"
+   ],
+   "sha256": "ac830912d740350cde51b417d9f78a4e9a0f63ca864eccd5013374ca249b7ed9",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_sset_min_default",
+   "original": "mat-edits-gate/r24/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.sig.Min = [];"
+   ],
+   "sha256": "6245135ba8452ab512c06022717acab897dfdf5c5743cdadba5536c876ba224d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_sset_desc_default",
+   "original": "mat-edits-gate/r24/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.sig.Description = '';"
+   ],
+   "sha256": "1e0bd217777afffeecd732623dc52059959a0e041f9f5f59d250c3d3b8a9e9c4",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_sset_dimsmode_variable",
+   "original": "mat-edits-gate/r24/sset.mat",
+   "edits": [
+    [
+     "sig",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.sig.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "86d2c4300c7b03acbe4913bbe70fa308be936fe7834f32720d789932eaea712e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_b_desc",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     "bus"
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = 'bus';"
+   ],
+   "sha256": "bccb0a342b850e6f7f471af8f3b492ff883294cc9ae2f242133b6abc0bfe7a5a",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_name",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "first"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'first';"
+   ],
+   "sha256": "ed104ce65c656ce82a08fe91f35ac843b8fb87d5b06722128f24d15b06b95310",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_bounds_insert",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "Min",
+     "-1"
+    ],
+    [
+     "b.e2",
+     "Max",
+     "1"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).Min = -1;",
+    "S.b.Elements(2).Max = 1;"
+   ],
+   "sha256": "b1e83d53fc42f2aca18ac9a61c30eb2132ffad1b1c0d7cf5f601866f41478107",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_datatype_insert",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "int8"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'int8';"
+   ],
+   "sha256": "babc11b4feb08a088013fada6a556407e9a6c3637ab29221145e791eb1925c8e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_complexity",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Complexity = 'complex';"
+   ],
+   "sha256": "3e3a3537c5b4c1b13a38e34d27ac5f2cd8084dd5c767482e41ede9e369c5097c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_dimsmode",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e2",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(2).DimensionsMode = 'Variable';"
+   ],
+   "sha256": "490ffb0de83dd395786613f0e5e742abbb4dcd073e5adcbb148b6e5b45675ae9",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_be_text",
+   "original": "mat-edits-gate/r24/b2.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Unit",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Description",
+     "x"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Unit = 'm';",
+    "S.b.Elements(1).Description = 'x';"
+   ],
+   "sha256": "36851d3004ba5c60f2b6a50dd321d5f33de40460e4df65bf0c3dee110b0d1774",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_bset_be_datatype_default",
+   "original": "mat-edits-gate/r24/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).DataType = 'double';"
+   ],
+   "sha256": "55db599eaee574ab37369a3d5446311d01f690ab395b10d9d4490dafe6c47fa9",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_bset_be_bounds_default",
+   "original": "mat-edits-gate/r24/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Min",
+     "[]"
+    ],
+    [
+     "b.e1",
+     "Max",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Min = [];",
+    "S.b.Elements(1).Max = [];"
+   ],
+   "sha256": "7470546df2301976f6432c2a8001a6f63ff52365ff75ada84de2438812d74533",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_bset_desc_empty",
+   "original": "mat-edits-gate/r24/bset.mat",
+   "edits": [
+    [
+     "b",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Description = '';"
+   ],
+   "sha256": "2ae5d4dad7c221e61194e820e75daee09deef00424565b2865fb2103662e9503",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_bset_be_desc_default",
+   "original": "mat-edits-gate/r24/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Description = '';"
+   ],
+   "sha256": "6b4fd75b91d3b1e2efe2de861ba62a40f9b3ad656ac8cc73511a4a3d569cffd2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_bset_be_name_swap",
+   "original": "mat-edits-gate/r24/bset.mat",
+   "edits": [
+    [
+     "b.e1",
+     "Name",
+     "tmp"
+    ],
+    [
+     "b.e2",
+     "Name",
+     "e1"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "e2"
+    ]
+   ],
+   "matlab": [
+    "S.b.Elements(1).Name = 'tmp';",
+    "S.b.Elements(2).Name = 'e1';",
+    "S.b.Elements(1).Name = 'e2';"
+   ],
+   "sha256": "a95902bc7faf0d72e4e77ac05a1b77b00224541a3c0c6a11e81212bb0e54475d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vt_bounds_insert",
+   "original": "mat-edits-gate/r24/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "1"
+    ],
+    [
+     "vt",
+     "Max",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = 1;",
+    "S.vt.Max = 5;"
+   ],
+   "sha256": "b1d79f04c5fb5a8ca3d10b77b62d7792ea5baa8fdc5d0a80f3fd289c25a8bd65",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vt_enums_insert",
+   "original": "mat-edits-gate/r24/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "complex"
+    ],
+    [
+     "vt",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'complex';",
+    "S.vt.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "efbbc8f2d94be4633c1fa27d6b30a11e220cdf58cc756199f0aa36e886673f40",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vt_datatype_insert",
+   "original": "mat-edits-gate/r24/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'int16';"
+   ],
+   "sha256": "b29403a4c8810a63132fbb21fdc6e3b52a7cb89439dac5ba0bd9204a6ce84a42",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vt_text_insert",
+   "original": "mat-edits-gate/r24/vt0.mat",
+   "edits": [
+    [
+     "vt",
+     "Description",
+     "v"
+    ],
+    [
+     "vt",
+     "Unit",
+     "m"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Description = 'v';",
+    "S.vt.Unit = 'm';"
+   ],
+   "sha256": "a7aba232d338d968064d51ca63554a81744b09c6c5b062a88fc02e793e735e5f",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vtset_datatype_default",
+   "original": "mat-edits-gate/r24/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "DataType",
+     "double"
+    ]
+   ],
+   "matlab": [
+    "S.vt.DataType = 'double';"
+   ],
+   "sha256": "528ef8c8d53e74bfa8c18cac44b05fe34dc181f3472d9d55aa9b9d780fccfbbe",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vtset_complexity_default",
+   "original": "mat-edits-gate/r24/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "complexity",
+     "real"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Complexity = 'real';"
+   ],
+   "sha256": "9efeab3986b36f6b42985cb39daf85a607c64fb23893eb050cc2d063ad9153ad",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_vtset_min_default",
+   "original": "mat-edits-gate/r24/vtset.mat",
+   "edits": [
+    [
+     "vt",
+     "Min",
+     "[]"
+    ]
+   ],
+   "matlab": [
+    "S.vt.Min = [];"
+   ],
+   "sha256": "042a0a90e203d9506336592cc132b81525a77b6f76321b7add5654444ce0a41e",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_nt_desc",
+   "original": "mat-edits-gate/r24/nt0.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "num"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'num';"
+   ],
+   "sha256": "31371d7ee83ea264bbb9dc73c94d5be55cc6335d8f48298d1fb0a4fc6bb1fddd",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ntf_desc",
+   "original": "mat-edits-gate/r24/ntf.mat",
+   "edits": [
+    [
+     "nt",
+     "Description",
+     "fixed"
+    ]
+   ],
+   "matlab": [
+    "S.nt.Description = 'fixed';"
+   ],
+   "sha256": "324bfbb9d5f39875265971d337b8995760e7c196cb980745497f39a9da1441ab",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_at_basetype",
+   "original": "mat-edits-gate/r24/at0.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'int16';"
+   ],
+   "sha256": "b9260798a3fe95d7892e166e44712b6471fb76420d84c2c6caf41cb794ea8dad",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_atset_desc_empty",
+   "original": "mat-edits-gate/r24/atset.mat",
+   "edits": [
+    [
+     "at",
+     "Description",
+     ""
+    ]
+   ],
+   "matlab": [
+    "S.at.Description = '';"
+   ],
+   "sha256": "4ddbe3f786462a49e800c1a0378d68a98ee18df7a41c2fcbdc25f7c3bcc59d68",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_atset_basetype",
+   "original": "mat-edits-gate/r24/atset.mat",
+   "edits": [
+    [
+     "at",
+     "BaseType",
+     "single"
+    ]
+   ],
+   "matlab": [
+    "S.at.BaseType = 'single';"
+   ],
+   "sha256": "8a9b1ec7c4b5569733881bfdfcb34fd7f585d82c25350c9716312b68dd0ad15d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_scalar",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"xyz\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"xyz\";"
+   ],
+   "sha256": "e21a2372500ae0768298a367357a63a736f6dc4bb5190d020114c85d32599702",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_element",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s2(1)",
+     "Value",
+     "\"q\""
+    ]
+   ],
+   "matlab": [
+    "S.s2(1) = \"q\";"
+   ],
+   "sha256": "40c2dda4df16037e66d01aecf2ad948bcac7fe24798045a8e82b148c340dfb98",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_whole_2x2",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s2",
+     "Value",
+     "[\"a\" \"b\"; \"c\" \"d\"]"
+    ]
+   ],
+   "matlab": [
+    "S.s2 = [\"a\" \"b\"; \"c\" \"d\"];"
+   ],
+   "sha256": "27b0fcba1c676322f6df516c84f87717472bf00ba772149077427c7d45cd09cc",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_struct_field",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "st.a",
+     "Value",
+     "\"field\""
+    ]
+   ],
+   "matlab": [
+    "S.st.a = \"field\";"
+   ],
+   "sha256": "0c83f95086b624fbe00ff4c5014245736d229dda42573e8b231d2dbeb7662249",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_cell",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "c{1}",
+     "Value",
+     "\"cell\""
+    ]
+   ],
+   "matlab": [
+    "S.c{1} = \"cell\";"
+   ],
+   "sha256": "d8b46ff29dbc181cd7a0f1697f4adfd44ca30d97b17ffa755e4a51c7e82b16aa",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_unicode",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"😀 é\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = string(char([55357 56832 32 233]));"
+   ],
+   "sha256": "06d0b8f220ada64cd17ec2d8b0298b3b320084f69a92c1b6657cd0ca91023918",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_empty",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"\";"
+   ],
+   "sha256": "af077e28ad3b969fe1aaec966ff88b0abc2474be50d330bcd2a93066767249e7",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_str_all",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "s1",
+     "Value",
+     "\"one\""
+    ],
+    [
+     "s2(2)",
+     "Value",
+     "\"two\""
+    ],
+    [
+     "st.a",
+     "Value",
+     "\"three\""
+    ],
+    [
+     "c{1}",
+     "Value",
+     "\"four\""
+    ]
+   ],
+   "matlab": [
+    "S.s1 = \"one\";",
+    "S.s2(2) = \"two\";",
+    "S.st.a = \"three\";",
+    "S.c{1} = \"four\";"
+   ],
+   "sha256": "dd829503042d77a0cd61be4a9854b173a98f848d75f458e16a09ffb65424f680",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_d6_str_field",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "st.k",
+     "Value",
+     "2"
+    ]
+   ],
+   "matlab": [
+    "S.st.k = 2;"
+   ],
+   "sha256": "53f3ebb632bde0f55c7f9b16cb82aae82f460c6565d89c4a8dc0a3b52b24ced2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_d6_str_cell",
+   "original": "mat-edits-gate/r24/str.mat",
+   "edits": [
+    [
+     "c{2}",
+     "Value",
+     "3"
+    ]
+   ],
+   "matlab": [
+    "S.c{2} = 3;"
+   ],
+   "sha256": "60398bd02138947f219dea278507638e0fd75c9bc5e98e636bd8d71ec95e3b83",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_d6_nest_field_and_bus",
+   "original": "mat-edits-gate/r24/nest.mat",
+   "edits": [
+    [
+     "s.k",
+     "Value",
+     "7"
+    ],
+    [
+     "s.b",
+     "Description",
+     "nb"
+    ]
+   ],
+   "matlab": [
+    "S.s.k = 7;",
+    "S.s.b.Description = 'nb';"
+   ],
+   "sha256": "2951363b96f033887b8e1c311042ee28aa546263905048a1e363745878a4fc57",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_d6_nest_be_and_cell",
+   "original": "mat-edits-gate/r24/nest.mat",
+   "edits": [
+    [
+     "s.b.e1",
+     "Name",
+     "z1"
+    ],
+    [
+     "c{2}",
+     "Value",
+     "'y'"
+    ]
+   ],
+   "matlab": [
+    "S.s.b.Elements(1).Name = 'z1';",
+    "S.c{2} = 'y';"
+   ],
+   "sha256": "1baacb798ab766367c289b4e3c48adcead7c4c9212ec238b3d20ba81abe488d5",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_mix_all",
+   "original": "mat-edits-gate/r24/mix.mat",
+   "edits": [
+    [
+     "p",
+     "Value",
+     "5"
+    ],
+    [
+     "sig",
+     "Min",
+     "1"
+    ],
+    [
+     "b",
+     "Description",
+     "m"
+    ],
+    [
+     "b.e1",
+     "Name",
+     "z"
+    ],
+    [
+     "nt",
+     "Description",
+     "n"
+    ]
+   ],
+   "matlab": [
+    "S.p.Value = 5;",
+    "S.sig.Min = 1;",
+    "S.b.Description = 'm';",
+    "S.b.Elements(1).Name = 'z';",
+    "S.nt.Description = 'n';"
+   ],
+   "sha256": "a7dc39fcd0c7b7ce8095bceaf77494b4a698fb67262810adf86c53f5ca6f418c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ci_p_iep",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "ImportedExternPointer"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "sha256": "b1b240bd707a4827b4d8faf1ff9152b6312921843c5754fe15c98a2e9357926f",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ci_p_model_default",
+   "original": "mat-edits-gate/r24/p0.mat",
+   "edits": [
+    [
+     "p",
+     "storageClass",
+     "SimulinkGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.StorageClass = 'Model default';"
+   ],
+   "sha256": "43965e17e002d894334591c829f4427f554d8e1426af0feff39c1c97bea0810c",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ci_pexp_alignment",
+   "original": "mat-edits-gate/r24/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "alignment",
+     "8"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.Alignment = 8;"
+   ],
+   "sha256": "882d56c673fc0dd84c7254643b19ae72a5373ccdedd83ac1ea0ce610fa8ef80d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ci_pexp_alignment_storage",
+   "original": "mat-edits-gate/r24/pexp.mat",
+   "edits": [
+    [
+     "p",
+     "alignment",
+     "16"
+    ],
+    [
+     "p",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.p.CoderInfo.Alignment = 16;",
+    "S.p.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "c90e388911fbcea99a82d73b5bf44480d4aca696a476277d27c89209e54e27c2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "r24_ci_s_iep",
+   "original": "mat-edits-gate/r24/s0.mat",
+   "edits": [
+    [
+     "sig",
+     "storageClass",
+     "ImportedExternPointer"
+    ]
+   ],
+   "matlab": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "sha256": "836c6f63cf1e5ed3535fcb93a982de7da3348d98516a4d11a3ec79fc3add1570",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_value",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "pnew",
+     "Value",
+     "5"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.Value = 5;"
+   ],
+   "sha256": "925dea87f35813764944d29a31b1d7b9fb20454f43355b5afcf0bdfe7fb899ef",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_complex",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "pnew",
+     "Value",
+     "1+2i"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.Value = 1+2i;"
+   ],
+   "sha256": "847a1bd125ecc37586049f426e4cade233987544077711eb6dcf8bda524bbccf",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_char",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "pnew",
+     "Value",
+     "'abc'"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.Value = 'abc';"
+   ],
+   "sha256": "2e513366f3db971a351e253b4b7615d26f5775ad01e3d6bc4af37be0f9ba1878",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_text_bounds",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "pnew",
+     "Description",
+     "new"
+    ],
+    [
+     "pnew",
+     "Min",
+     "0"
+    ],
+    [
+     "pnew",
+     "Max",
+     "9"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.Description = 'new';",
+    "S.pnew.Min = 0;",
+    "S.pnew.Max = 9;"
+   ],
+   "sha256": "b2b0c78120b660be9805c15acc5025d051201b2c1f79d1a10782067930d67858",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_storage",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "pnew",
+     "storageClass",
+     "ExportedGlobal"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.CoderInfo.StorageClass = 'ExportedGlobal';"
+   ],
+   "sha256": "c460a2183f8756d68a9bf407d9287a0b4aa242108614865a7007d134c5bd6fc2",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_pnew_none_value_storage",
+   "original": "mcos-handle/r2023b/x_par_n.mat",
+   "edits": [
+    [
+     "pnew",
+     "Value",
+     "[1 2 3]"
+    ],
+    [
+     "pnew",
+     "storageClass",
+     "ImportedExternPointer"
+    ]
+   ],
+   "matlab": [
+    "S.pnew.Value = [1 2 3];",
+    "S.pnew.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "sha256": "4ed2e03fc65ea753eac95db14711a96498401d4436c0ee40106988674ef5f870",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_snew_enums",
+   "original": "mcos-handle/r2023b/x_sig_p.mat",
+   "edits": [
+    [
+     "snew",
+     "complexity",
+     "complex"
+    ],
+    [
+     "snew",
+     "dimensionsMode",
+     "Variable"
+    ]
+   ],
+   "matlab": [
+    "S.snew.Complexity = 'complex';",
+    "S.snew.DimensionsMode = 'Variable';"
+   ],
+   "sha256": "7cfa6ce3d874931700b7fc780273d6c0859a43090efec40ab231723ce5644b70",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_snew_datatype_bounds",
+   "original": "mcos-handle/r2023b/x_sig_p.mat",
+   "edits": [
+    [
+     "snew",
+     "DataType",
+     "int16"
+    ],
+    [
+     "snew",
+     "Min",
+     "-1"
+    ]
+   ],
+   "matlab": [
+    "S.snew.DataType = 'int16';",
+    "S.snew.Min = -1;"
+   ],
+   "sha256": "6e3ae65ab168ea22df6aea8761026cc1a05729055086e9f3569f8a7754b15951",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_snew_storage",
+   "original": "mcos-handle/r2023b/x_sig_p.mat",
+   "edits": [
+    [
+     "snew",
+     "storageClass",
+     "ImportedExtern"
+    ]
+   ],
+   "matlab": [
+    "S.snew.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "sha256": "8f1db1e386c216ab7c42dec3fea9318395b545e3257f96327d3c00acf908833d",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_bnew_desc",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Bus__param.mat",
+   "edits": [
+    [
+     "bnew",
+     "Description",
+     "nb"
+    ]
+   ],
+   "matlab": [
+    "S.bnew.Description = 'nb';"
+   ],
+   "sha256": "bc5c814850a614db570d76cedf47a07c8ae515ab89c69f767d704b80ffad106f",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_vtnew",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_ValueType__param.mat",
+   "edits": [
+    [
+     "vtnew",
+     "Min",
+     "1"
+    ],
+    [
+     "vtnew",
+     "complexity",
+     "complex"
+    ]
+   ],
+   "matlab": [
+    "S.vtnew.Min = 1;",
+    "S.vtnew.Complexity = 'complex';"
+   ],
+   "sha256": "457645206dffcd037ce2b018b0d0eccd43a737b6a85a6a16f260d993a56c2844",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_ntnew_desc",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_NumericType__param.mat",
+   "edits": [
+    [
+     "ntnew",
+     "Description",
+     "n"
+    ]
+   ],
+   "matlab": [
+    "S.ntnew.Description = 'n';"
+   ],
+   "sha256": "0acb307c05512d0413119b767eb40be89241fd51d70257fcae091cfea3d9236b",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_atnew_base",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_AliasType__param.mat",
+   "edits": [
+    [
+     "atnew",
+     "BaseType",
+     "int16"
+    ]
+   ],
+   "matlab": [
+    "S.atnew.BaseType = 'int16';"
+   ],
+   "sha256": "dae06329cd6e423dbb7a0fa696b6ec1e9e38670f03b965f12eaaed54ff862031",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_strnew",
+   "original": "mcos-templates/merged/r2027a/D_string__param.mat",
+   "edits": [
+    [
+     "strnew",
+     "Value",
+     "\"made\""
+    ]
+   ],
+   "matlab": [
+    "S.strnew = \"made\";"
+   ],
+   "sha256": "631537802b60e67b7502673d467f2698bdea313ed2f97c18e856627bcb2b8a05",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  },
+  {
+   "name": "mx_old_and_new",
+   "original": "mcos-templates/merged/r2027a/D_Simulink_Parameter__param.mat",
+   "edits": [
+    [
+     "p0",
+     "Description",
+     "old edited"
+    ],
+    [
+     "pnew",
+     "Value",
+     "7"
+    ]
+   ],
+   "matlab": [
+    "S.p0.Description = 'old edited';",
+    "S.pnew.Value = 7;"
+   ],
+   "sha256": "2498be1296672e073ba3577b3d114efa33d44566d6d4039068b7954f690182e7",
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   }
+  }
+ ]
+}

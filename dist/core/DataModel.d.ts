@@ -49,6 +49,7 @@ export declare function createSession(opts?: CreateSessionOptions): {
         validValue: string;
     };
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
+    addEntryRefusal: () => string | null;
     addChild: () => INode | null;
     deleteNode: () => boolean;
     addChildTo: (nodeId: string) => INode | null;
@@ -109,6 +110,7 @@ declare const DataModel: {
         validValue: string;
     };
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
+    addEntryRefusal: () => string | null;
     addChild: () => INode | null;
     deleteNode: () => boolean;
     addChildTo: (nodeId: string) => INode | null;

@@ -21,6 +21,7 @@ export default class MatlabVariableNode extends DataNode {
     _matVar: MatVariable | null;
     _varStale: boolean;
     _isOpaque: boolean;
+    _mcosString?: boolean;
     _sparse: SparseData | null;
     _sparseEdited: boolean;
     _undecoded: boolean;
@@ -29,6 +30,7 @@ export default class MatlabVariableNode extends DataNode {
     _mcosValue: unknown;
     _mcosDimensions: number[] | null;
     _preCollapseDims: number[] | null;
+    _cellDimsBefore: WeakMap<BaseNode, number[]> | null;
     _preCollapseType: string | null;
     _collapsedClass: string | null;
     _elementType: string | null;
@@ -149,6 +151,7 @@ export default class MatlabVariableNode extends DataNode {
         group: string;
         items: (typeof PropKind | typeof PropDescription)[];
     }[];
+    _ofMcosString(): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
      * For DataModel.editProperty: what puts this value back exactly as it is now, for the
@@ -289,6 +292,7 @@ export default class MatlabVariableNode extends DataNode {
     private _updateDimsForCount;
     private _syncArraySerial;
     _reindexChildren(): void;
+    _reindexPositional(): void;
     serializeValue(): unknown;
     /**
      * Is this a complex value? The two tests are the two shapes complexity arrives
@@ -498,6 +502,31 @@ export default class MatlabVariableNode extends DataNode {
      * and a member whose dims are not a size is refused as that, finally, naming it.
      */
     static _memberVar(node: BaseNode): MatVariable;
+    /**
+     * What a MAT-file's save writes for `node`, a member of a cell or a struct it writes fresh, when
+     * the member is an MCOS object: the class-17 element the object was read as, which names the same
+     * objects of the file's subsystem, and the variable read of it; or why the object cannot be
+     * written so, as a clause naming it; or null for a member that is no object of the file's.
+     *
+     * An object's node is placed (mcosPlace) where it was built of its variable: a typed object's
+     * node, the element rows of an object array's node (each its element of the one variable), and
+     * an opaque one's node (a `string`, an object of a class with no typed node), which holds its
+     * variable itself. Which element of it a save passes through, and which it refuses, is
+     * MatFileWriter.objectElementOf's to say.
+     */
+    static _objectMemberOf(node: BaseNode): {
+        variable: MatVariable;
+        element: Uint8Array;
+    } | {
+        why: string;
+    } | null;
+    /** _objectMemberOf of `member`, a member of this cell or struct (for MatFileWriter, which imports no node class). */
+    _objectMember(member: BaseNode): {
+        variable: MatVariable;
+        element: Uint8Array;
+    } | {
+        why: string;
+    } | null;
     _buildVarObject(): MatVariable;
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;

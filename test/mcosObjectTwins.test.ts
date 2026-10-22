@@ -151,10 +151,16 @@ describe("a Parameter's DataType, as MATLAB's edit of its Value leaves it", () =
     expect([spI.displayValue, spI.DataType]).toEqual(['[1 2 3]', 'int16']);
   });
 
-  it('a DataType changed around the session is not one a save writes', () => {
+  it('a DataType set over the double Value an edit made is written; a CoderInfo changed around the session is not', () => {
+    const typed = opened(read(join(ALLOWLIST, 'al_dtype.mat')));
+    expect(typed.object('tI').setProperty('Value', '7')).toBe(true);
+    expect(typed.object('tI').DataType).toBe('auto');
+    expect(typed.edit(typed.object('tI'), 'DataType', 'single')).toBe(true);
+    const back = opened(typed.save()).object('tI');
+    expect([back.displayValue, back.DataType]).toEqual(['7', 'single']);
     const { object, save } = opened(read(join(ALLOWLIST, 'al_dtype.mat')));
     expect(object('tI').setProperty('Value', '7')).toBe(true);
-    object('tI').DataType = 'single';
+    object('tI').serial._properties.CoderInfo._properties.TypeQualifier = 'const';
     const thrown = thrownBy(save);
     expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
       true,
@@ -331,10 +337,11 @@ describe('two nodes of one object show one object', () => {
   it('an edit of one, made around the session, forgets what the gate found of every variable holding the object', () => {
     const { root, object } = opened(read(HEXOBJ));
     const [objs, objsCell] = ['objs', 'objsCell'].map((name) => root.children.find((c: any) => c.name === name));
-    // Asked of a plain part of each variable, the gate keeps what it found of the variable; asked
-    // of an object, it finds which nodes are one object.
+    // Asked of a plain part of each variable, the gate keeps what it found of the variable (that a
+    // save writes it fresh, beside its objects as they were read); asked of an object, it finds
+    // which nodes are one object.
     for (const entry of [objs, objsCell]) {
-      expect(sourceEditRefusal(entry.children[0].children[0], 'Value')).not.toBeNull();
+      expect(sourceEditRefusal(entry.children[0].children[0], 'Value')).toBeNull();
     }
     expect(sourceEditRefusal(object('objsCell{7}'), 'Value')).toBeNull();
     expect([root._valueVerdicts.has(objs), root._valueVerdicts.has(objsCell)]).toEqual([true, true]);
@@ -387,5 +394,57 @@ describe('two nodes of one object show one object', () => {
       'Cannot edit "h": h is one object with r (one handle), so an edit of it is an edit of the variable r too, which shares its name with another variable of the file, and MATLAB loads only one of them.',
     );
     expect(object('h').displayValue).toBe('5');
+  });
+});
+
+describe('one object of two variables, one deleted before the editor first asks about it', () => {
+  // pv_shared.mat: h and r name one Simulink.Parameter (r = h).
+  const bytes = new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/mat-cellswap/pv_shared.mat', import.meta.url))));
+  const open = () => {
+    const session = createSession();
+    const root: any = session.addMatSource('f.mat', bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+    const by = (n: string) => root.children.find((c: any) => c.name === n);
+    return { session, root, by };
+  };
+
+  it('is still one: deleted and its delete undone, an edit through the other is shown by it, and saved so', () => {
+    for (const editWhileDeleted of [false, true]) {
+      const { session, root, by } = open();
+      const [h, r] = [by('h'), by('r')];
+      session.setActive(root, r);
+      expect(session.deleteNodeById(r.id)).toBe(true);
+      session.setActive(root, h);
+      if (editWhileDeleted) {
+        // Edited while the other is out: copied into it as it comes back.
+        expect(session.editProperty(h.id, 'Value', '8')).toBe(true);
+        session.undo();
+        session.undo();
+        session.redo();
+        session.redo();
+        expect(by('r')).toBeUndefined();
+        session.undo();
+        session.undo();
+        session.setActive(root, h);
+      } else {
+        session.undo();
+      }
+      expect(by('r')).toBe(r);
+      session.setActive(root, h);
+      expect(session.editProperty(h.id, 'Value', '8')).toBe(true);
+      expect([h.displayValue, r.displayValue]).toEqual(['8', '8']);
+      const saved = (session.serializeSource('f.mat') as { bytes: Uint8Array }).bytes;
+      const again: any = createSession().addMatSource('g.mat', saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength));
+      expect(['h', 'r'].map((n) => again.children.find((c: any) => c.name === n).displayValue)).toEqual(['8', '8']);
+    }
+  });
+
+  it("refuses what it does not copy into the other, deleted or not", () => {
+    const { session, root, by } = open();
+    const r = by('r');
+    session.setActive(root, r);
+    expect(session.deleteNodeById(r.id)).toBe(true);
+    const h = by('h');
+    session.setActive(root, h);
+    expect(session.editProperty(h.id, 'storageClass', 'ExportedGlobal')).toMatchObject({ error: true, reason: expect.stringMatching(/is one object with r/) });
   });
 });

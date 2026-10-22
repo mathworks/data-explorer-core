@@ -14,6 +14,7 @@ export interface MatVariable {
     _rawBytes?: Uint8Array | null;
     _modified?: boolean;
     _unwritable?: string;
+    _objectElement?: Uint8Array;
     _anonymous?: boolean;
     isOpaque?: boolean;
     mcosHandle?: {
@@ -85,6 +86,8 @@ export declare function isUnheldStructArray(v: MatVariable): boolean;
  * reader writes for a 1x1 alone and a reader of an array takes for every element's.
  */
 export declare function structElementsHeld(v: MatVariable): number;
+/** The element an MCOS object held in a cell element was read as, or undefined (opaqueElements). */
+export declare function opaqueElementOf(variable: MatVariable): Uint8Array | undefined;
 /** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
 export declare function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined;
 /**

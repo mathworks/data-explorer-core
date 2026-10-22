@@ -1,6 +1,7 @@
 import type { MatRecord, MatVariable } from './MatParser.js';
 import { MatWriteError } from './MatWriter.js';
 import type { MatCheckOptions } from './MatFileCheck.js';
+import { type McosSubsystemRecords, type McosVerifyOptions } from './McosSubsystemCodec.js';
 import type BaseNode from '../node/BaseNode.js';
 import type MatNode from '../node/container/MatNode.js';
 /**
@@ -71,6 +72,8 @@ export declare function freshRefusal(node: BaseNode, record: MatRecord | null): 
  * The first node at or under `at` that MatWriter cannot write as what it is (the rule of
  * MatlabVariableNode._matWritable), with its MATLAB path and what it is, or null for none. Asked
  * by freshRefusal, and by the editor of a value about to be typed in (MatNode._valueRefusal).
+ * An MCOS object in a cell or a struct is written as the element it was read as, and is none of
+ * these, but where that element is not one objectElementOf passes through (`why` says so).
  *
  * A container the node ceiling built without its rows (_cutByCeiling) is written as the variable
  * it was read as (MatlabVariableNode._var), so that variable is what is asked of it, and not its
@@ -80,7 +83,26 @@ export declare function freshRefusal(node: BaseNode, record: MatRecord | null): 
 export declare function unwritableIn(at: BaseNode): {
     path: string;
     what: string;
+    why?: string;
 } | null;
+/**
+ * The class-17 element a save writes for `v`, an MCOS object held in a struct field or a cell of a
+ * variable it writes fresh, or why it writes none, as a clause naming it under `path`: the element
+ * the object was read as (MatVariable._objectElement, which the node layer hands over for a typed
+ * object's node, or the reader's own: a struct field's _rawBytes, a cell element's
+ * MatParser.opaqueElementOf), which names the same objects of the file's subsystem. Only where it
+ * is the element this package writes for the handle it holds (McosSubsystemCodec.
+ * objectReferenceElement): the handle read (its dims and ids), the class row word beside them, an
+ * empty name, 'MCOS' and the class name. Measured on every object held in a struct field of the
+ * repo's fixtures, 79 of 79 over 60 files, each is so, MATLAB's element byte for byte; and one
+ * that is not is not passed through, rather than written as bytes this package cannot say name
+ * the objects they named.
+ */
+export declare function objectElementOf(v: MatVariable, path: string): {
+    element: Uint8Array;
+} | {
+    why: string;
+};
 /**
  * The miMATRIX element `record` holds, inflated, or null where it holds no whole one
  * (elementOfRecord): what the subsystem's cells are swapped in (MatNode._mcosSubsystem).
@@ -106,6 +128,17 @@ export declare function compressedRecordOf(stream: Uint8Array, name: string): Ui
  * one check.
  */
 export declare function subsystemCellsDiffer(original: Uint8Array | null, element: Uint8Array, cells: readonly McosWrittenCell[], objects: string): string | null;
+/**
+ * Where `element`, a subsystem a save wrote, is not the subsystem `records` hold, with `cells`
+ * written into it, in words of `objects`, or null where it is: it reads back through the codec as
+ * exactly those records (McosSubsystemCodec.verifySubsystem: every string in its place, every row,
+ * list, triple and value cell the one meant, every offset landing, every object reference naming
+ * what is there; against `original`, the records it was read as, nothing renumbered and nothing
+ * changed no edit writes; and, with `options`, every object and property no edit names as it was,
+ * and each variable created naming objects of its own); and each cell written, swapped or new, is a
+ * value cell of it, written once, and reads as the value it was written from.
+ */
+export declare function subsystemRecordsDiffer(element: Uint8Array, records: McosSubsystemRecords, cells: readonly McosWrittenCell[], objects: string, original?: McosSubsystemRecords, options?: McosVerifyOptions): string | null;
 /**
  * Where the value read back, `read`, is not the value `model` it was written from, in words naming
  * it under `at`, or null where it is that value: the same class, complexity, storage and size, the

@@ -1,0 +1,1508 @@
+{
+  "version": "23.2.0.3186351 (R2023b) Update 11",
+  "release": "2023b",
+  "templates": [
+    {
+      "file": "Simulink.Parameter.mat",
+      "variable": "obj",
+      "expression": "Simulink.Parameter",
+      "class": "Simulink.Parameter",
+      "isHandle": true,
+      "value": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "Value": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "StorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "TypeQualifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Identifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Alignment": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      -1
+                    ]
+                  },
+                  "CustomStorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      7
+                    ],
+                    "value": "Default"
+                  },
+                  "CustomAttributes": {
+                    "class": "SimulinkCSC.AttribClass_Simulink_Default",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "elements": [
+                      {}
+                    ]
+                  }
+                }
+              ]
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "auto"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "real"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "value": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.Signal.mat",
+      "variable": "obj",
+      "expression": "Simulink.Signal",
+      "class": "Simulink.Signal",
+      "isHandle": true,
+      "value": {
+        "class": "Simulink.Signal",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "StorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "TypeQualifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Identifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Alignment": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      -1
+                    ]
+                  },
+                  "CustomStorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      7
+                    ],
+                    "value": "Default"
+                  },
+                  "CustomAttributes": {
+                    "class": "SimulinkCSC.AttribClass_Simulink_Default",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "elements": [
+                      {}
+                    ]
+                  }
+                }
+              ]
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "auto"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                -1
+              ]
+            },
+            "DimensionsMode": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "auto"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "auto"
+            },
+            "SampleTime": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                -1
+              ]
+            },
+            "SamplingMode": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "auto"
+            },
+            "InitialValue": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "LoggingInfo": {
+              "class": "Simulink.LoggingInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "DataLogging": {
+                    "class": "logical",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      false
+                    ]
+                  },
+                  "NameMode": {
+                    "class": "logical",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      false
+                    ]
+                  },
+                  "LoggingName": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "DecimateData": {
+                    "class": "logical",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      false
+                    ]
+                  },
+                  "Decimation": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      2
+                    ]
+                  },
+                  "LimitDataPoints": {
+                    "class": "logical",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      false
+                    ]
+                  },
+                  "MaxPoints": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      5000
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.Bus.mat",
+      "variable": "obj",
+      "expression": "Simulink.Bus",
+      "class": "Simulink.Bus",
+      "isHandle": false,
+      "value": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "Alignment": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                -1
+              ]
+            },
+            "PreserveElementDimensions": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                false
+              ]
+            },
+            "Elements": {
+              "class": "Simulink.BusElement",
+              "size": [
+                0,
+                0
+              ],
+              "elements": []
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "DataScope": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "Auto"
+            },
+            "HeaderFile": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.BusElement.mat",
+      "variable": "obj",
+      "expression": "Simulink.BusElement",
+      "class": "Simulink.BusElement",
+      "isHandle": false,
+      "value": {
+        "class": "Simulink.BusElement",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "DimensionsMode": {
+              "class": "char",
+              "size": [
+                1,
+                5
+              ],
+              "value": "Fixed"
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "Name": {
+              "class": "char",
+              "size": [
+                1,
+                1
+              ],
+              "value": "a"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                6
+              ],
+              "value": "double"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "real"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.LookupTable.mat",
+      "variable": "obj",
+      "expression": "Simulink.LookupTable",
+      "class": "Simulink.LookupTable",
+      "isHandle": true,
+      "value": {
+        "class": "Simulink.LookupTable",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "Table": {
+              "class": "Simulink.lookuptable.Table",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "Value": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Dimensions": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      2
+                    ],
+                    "value": [
+                      0,
+                      0
+                    ]
+                  },
+                  "DataType": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "auto"
+                  },
+                  "Min": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Max": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Unit": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "FieldName": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      5
+                    ],
+                    "value": "Table"
+                  },
+                  "Description": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  }
+                }
+              ]
+            },
+            "BreakpointsSpecification": {
+              "class": "char",
+              "size": [
+                1,
+                15
+              ],
+              "value": "Explicit values"
+            },
+            "Breakpoints": {
+              "class": "Simulink.lookuptable.Breakpoint",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "Value": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "TunableSizeName": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      2
+                    ],
+                    "value": "N1"
+                  },
+                  "Dimensions": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      2
+                    ],
+                    "value": [
+                      0,
+                      0
+                    ]
+                  },
+                  "DataType": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "auto"
+                  },
+                  "Min": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Max": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Unit": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "FieldName": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      3
+                    ],
+                    "value": "BP1"
+                  },
+                  "Description": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  }
+                }
+              ]
+            },
+            "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                false
+              ]
+            },
+            "SupportTunableSize": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                false
+              ]
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "StorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "TypeQualifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Identifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Alignment": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      -1
+                    ]
+                  },
+                  "CustomStorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      7
+                    ],
+                    "value": "Default"
+                  },
+                  "CustomAttributes": {
+                    "class": "SimulinkCSC.AttribClass_Simulink_Default",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "elements": [
+                      {}
+                    ]
+                  }
+                }
+              ]
+            },
+            "StructTypeInfo": {
+              "class": "Simulink.lookuptable.StructTypeInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "Name": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "DataScope": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "HeaderFileName": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.Breakpoint.mat",
+      "variable": "obj",
+      "expression": "Simulink.Breakpoint",
+      "class": "Simulink.Breakpoint",
+      "isHandle": true,
+      "value": {
+        "class": "Simulink.Breakpoint",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "Breakpoints": {
+              "class": "Simulink.lookuptable.Breakpoint",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "Value": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "TunableSizeName": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": "N"
+                  },
+                  "Dimensions": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      2
+                    ],
+                    "value": [
+                      0,
+                      0
+                    ]
+                  },
+                  "DataType": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "auto"
+                  },
+                  "Min": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Max": {
+                    "class": "double",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": []
+                  },
+                  "Unit": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "FieldName": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      2
+                    ],
+                    "value": "BP"
+                  },
+                  "Description": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  }
+                }
+              ]
+            },
+            "SupportTunableSize": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                false
+              ]
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "StorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "TypeQualifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Identifier": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "Alignment": {
+                    "class": "double",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "value": [
+                      -1
+                    ]
+                  },
+                  "CustomStorageClass": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      7
+                    ],
+                    "value": "Default"
+                  },
+                  "CustomAttributes": {
+                    "class": "SimulinkCSC.AttribClass_Simulink_Default",
+                    "size": [
+                      1,
+                      1
+                    ],
+                    "elements": [
+                      {}
+                    ]
+                  }
+                }
+              ]
+            },
+            "StructTypeInfo": {
+              "class": "Simulink.lookuptable.StructTypeInfo",
+              "size": [
+                1,
+                1
+              ],
+              "elements": [
+                {
+                  "Name": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  },
+                  "DataScope": {
+                    "class": "char",
+                    "size": [
+                      1,
+                      4
+                    ],
+                    "value": "Auto"
+                  },
+                  "HeaderFileName": {
+                    "class": "char",
+                    "size": [
+                      0,
+                      0
+                    ],
+                    "value": ""
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.NumericType.mat",
+      "variable": "obj",
+      "expression": "Simulink.NumericType",
+      "class": "Simulink.NumericType",
+      "isHandle": false,
+      "value": {
+        "class": "Simulink.NumericType",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "DataTypeMode": {
+              "class": "char",
+              "size": [
+                1,
+                6
+              ],
+              "value": "Double"
+            },
+            "Signedness": {
+              "class": "char",
+              "size": [
+                1,
+                6
+              ],
+              "value": "Signed"
+            },
+            "SignednessBool": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                true
+              ]
+            },
+            "WordLength": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                64
+              ]
+            },
+            "FixedExponent": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                0
+              ]
+            },
+            "FractionLength": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                0
+              ]
+            },
+            "Slope": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                1
+              ]
+            },
+            "SlopeAdjustmentFactor": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                1
+              ]
+            },
+            "Bias": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                0
+              ]
+            },
+            "DataTypeOverride": {
+              "class": "char",
+              "size": [
+                1,
+                7
+              ],
+              "value": "Inherit"
+            },
+            "IsAlias": {
+              "class": "logical",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                false
+              ]
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "DataScope": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "Auto"
+            },
+            "HeaderFile": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.AliasType.mat",
+      "variable": "obj",
+      "expression": "Simulink.AliasType",
+      "class": "Simulink.AliasType",
+      "isHandle": false,
+      "value": {
+        "class": "Simulink.AliasType",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "BaseType": {
+              "class": "char",
+              "size": [
+                1,
+                6
+              ],
+              "value": "double"
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "DataScope": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "Auto"
+            },
+            "HeaderFile": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "Simulink.ValueType.mat",
+      "variable": "obj",
+      "expression": "Simulink.ValueType",
+      "class": "Simulink.ValueType",
+      "isHandle": false,
+      "value": {
+        "class": "Simulink.ValueType",
+        "size": [
+          1,
+          1
+        ],
+        "elements": [
+          {
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                6
+              ],
+              "value": "double"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "value": "real"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": [
+                1
+              ]
+            },
+            "DimensionsMode": {
+              "class": "char",
+              "size": [
+                1,
+                5
+              ],
+              "value": "Fixed"
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "value": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "file": "string.mat",
+      "variable": "obj",
+      "expression": "string(\"\")",
+      "class": "string",
+      "isHandle": false,
+      "value": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ],
+        "value": [
+          ""
+        ],
+        "missing": [
+          false
+        ]
+      }
+    }
+  ],
+  "savedOrder": {
+    "Simulink__AliasType": [
+      "BaseType",
+      "Description",
+      "DataScope",
+      "HeaderFile"
+    ],
+    "Simulink__Breakpoint": [
+      "Breakpoints",
+      "SupportTunableSize",
+      "CoderInfo",
+      "StructTypeInfo"
+    ],
+    "Simulink__Bus": [
+      "Alignment",
+      "PreserveElementDimensions",
+      "Elements_internal",
+      "Description",
+      "DataScope",
+      "HeaderFile"
+    ],
+    "Simulink__BusElement": [
+      "Min_internal",
+      "Max_internal",
+      "DimensionsMode",
+      "SamplingMode",
+      "SampleTime",
+      "Description",
+      "DocUnits",
+      "Name",
+      "DataType_internal",
+      "Complexity",
+      "Dimensions"
+    ],
+    "Simulink__LookupTable": [
+      "Table",
+      "BreakpointsSpecification",
+      "Breakpoints",
+      "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes",
+      "SupportTunableSize",
+      "CoderInfo",
+      "StructTypeInfo"
+    ],
+    "Simulink__NumericType": [
+      "DataTypeMode",
+      "SignednessBool",
+      "WordLength",
+      "FixedExponent",
+      "SlopeAdjustmentFactor",
+      "Bias",
+      "DataTypeOverride",
+      "IsAlias",
+      "Description",
+      "DataScope",
+      "HeaderFile"
+    ],
+    "Simulink__Parameter": [
+      "Value",
+      "CoderInfo",
+      "Description",
+      "DataType",
+      "Min",
+      "Max",
+      "DocUnits",
+      "Complexity",
+      "Dimensions"
+    ],
+    "Simulink__Signal": [
+      "CoderInfo",
+      "Description",
+      "DataType",
+      "Min",
+      "Max",
+      "DocUnits",
+      "Dimensions",
+      "DimensionsMode",
+      "Complexity",
+      "SampleTime",
+      "SamplingMode",
+      "InitialValue",
+      "LoggingInfo"
+    ],
+    "Simulink__ValueType": [
+      "DataType",
+      "Min",
+      "Max",
+      "Unit",
+      "Complexity",
+      "Dimensions",
+      "DimensionsMode",
+      "Description",
+      "be"
+    ],
+    "Simulink__lookuptable__Breakpoint": [
+      "Value",
+      "TunableSizeName",
+      "Dimensions",
+      "DataType",
+      "Min",
+      "Max",
+      "Unit",
+      "FieldName",
+      "Description"
+    ],
+    "Simulink__lookuptable__StructTypeInfo": [
+      "Name",
+      "DataScope",
+      "HeaderFileName"
+    ],
+    "Simulink__lookuptable__Table": [
+      "Value",
+      "Dimensions",
+      "DataType",
+      "Min",
+      "Max",
+      "Unit",
+      "FieldName",
+      "Description"
+    ]
+  }
+}

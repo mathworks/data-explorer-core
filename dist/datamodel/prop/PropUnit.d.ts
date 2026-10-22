@@ -3,6 +3,7 @@ export default class PropUnit {
     static key: string;
     static displayName: string;
     static editor: string;
+    static sourceEditable: boolean;
     static column: string | null;
     static sourceKeys: string[];
     static format: typeof formatText;

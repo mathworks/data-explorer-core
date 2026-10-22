@@ -24,10 +24,12 @@ import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { subsystemElementOf, variableDifference } from '../src/datamodel/parser/MatFileWriter.js';
-import { cellValueAt, editMcosObjects, objectIdOf, readMcosSubsystem, storedProperties, valueCellOf } from '../src/datamodel/parser/McosSubsystemEdit.js';
+import { cellValueAt, objectIdOf, readMcosSubsystem } from '../src/datamodel/parser/McosSubsystemEdit.js';
 import type { McosSubsystem } from '../src/datamodel/parser/McosSubsystemEdit.js';
-import { objectEditCells, type McosHeld } from '../src/datamodel/parser/McosEditRules.js';
 import { checkMatFile } from '../src/datamodel/parser/MatFileCheck.js';
+import { readSubsystem } from '../src/datamodel/parser/McosSubsystemCodec.js';
+import { ruleObjectOf, writeObjectEdits } from '../src/datamodel/parser/McosObjectWrite.js';
+import { planPropertyEdits, type McosRuleTarget } from '../src/datamodel/parser/McosPropertyRules.js';
 import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
 import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
@@ -100,6 +102,39 @@ function expectOnlyTheSubsystemChanged(original: Uint8Array, saved: Uint8Array, 
   expect(checkMatFile(saved).length, label).toBe(checkMatFile(original).length);
 }
 
+/**
+ * Where `ours`, a subsystem a save wrote, holds other objects than `theirs` (MATLAB's own save of the
+ * same edit), or null: every object of either the other's, of the same class, holding the same
+ * saved names, each held the same way and holding the same value (the save's own comparison,
+ * MatFileWriter.variableDifference; an object reference by the objects it names). Where in its
+ * list a triple sits, and where its cell does, is MATLAB's to choose and not compared.
+ */
+function recordsDiffer(ours: Uint8Array, theirs: Uint8Array): string | null {
+  const a = readSubsystem(ours);
+  const b = readSubsystem(theirs);
+  if (!a.ok || !b.ok || a.subsystem.blob.objects.length !== b.subsystem.blob.objects.length) {
+    return 'not one table of objects';
+  }
+  for (let id = 1; id < a.subsystem.blob.objects.length; id++) {
+    const x = ruleObjectOf(a.subsystem, id);
+    const y = ruleObjectOf(b.subsystem, id);
+    if (x.className !== y.className || [...x.held.keys()].sort().join(',') !== [...y.held.keys()].sort().join(',')) {
+      return 'object ' + id + ' holds ' + [...x.held.keys()].join(', ') + ' where MATLAB holds ' + [...y.held.keys()].join(', ');
+    }
+    for (const [name, h] of x.held) {
+      const o = y.held.get(name)!;
+      const differs = h.kind !== o.kind
+        || (h.kind === 'cell' && variableDifference((o as { value: MatVariable | null }).value, h.value, name) !== null)
+        || (h.kind === 'str' && h.text !== (o as { text: string }).text)
+        || (h.kind === 'int' && h.value !== (o as { value: number }).value);
+      if (differs) {
+        return 'object ' + id + "'s " + name + ' holds another value than MATLAB\'s';
+      }
+    }
+  }
+  return null;
+}
+
 // ---- The cell-swap probe -------------------------------------------------------------------------
 
 interface CellswapCase {
@@ -109,6 +144,14 @@ interface CellswapCase {
   path: string;
   edits: { savedName: string }[];
   matlab: string | null;
+  rules?: RulesWritten;
+}
+
+/** Where the property rules write a probe's case otherwise than its swap: their subsystem, and MATLAB's verdict on it per release. */
+interface RulesWritten {
+  subsystemSha256: string;
+  by: 'session' | 'rules';
+  matlab: Record<string, string>;
 }
 const CELLSWAP_TRUTH: { cases: CellswapCase[] } = JSON.parse(readFileSync(join(CELLSWAP, 'cellswap.truth.json'), 'utf8'));
 
@@ -144,7 +187,15 @@ describe('the cell-swap probe: an edit through the session is the subsystem MATL
       const { object, edit, save } = opened(original);
       expect(edit(object(c.path), typed[0], typed[1])).toBe(true);
       const saved = save();
-      expect(sameBytes(subsystemOf(saved), subsystemOf(read(CELLSWAP, c.mutant)))).toBe(true);
+      const ours = subsystemOf(saved);
+      if (c.rules) {
+        // The rules write it otherwise than the swap: the subsystem MATLAB passed in each release,
+        // and record for record MATLAB's own save of the edit.
+        expect(sha(ours)).toBe(c.rules.subsystemSha256);
+        expect(recordsDiffer(ours, subsystemOf(read(CELLSWAP, c.mutant.replace(/^mut_/, 'exp_'))))).toBeNull();
+      } else {
+        expect(sameBytes(ours, subsystemOf(read(CELLSWAP, c.mutant))), c.name).toBe(true);
+      }
       expectOnlyTheSubsystemChanged(original, saved, c.name);
       // And what this package reads of it again is the edit.
       const again = opened(saved).object(c.path);
@@ -154,23 +205,24 @@ describe('the cell-swap probe: an edit through the session is the subsystem MATL
     });
   }
 
-  it('the edits it does not take: a Signal InitialValue (no editor), a Value at its default, a DataType', () => {
+  it('the edits it does not take: an InitialValue MATLAB would trim, a DataType over a Value not double; and a Value at its default, which it does', () => {
     const signal = opened(read(CELLSWAP, 'pv_signal.mat'));
-    expect(signal.edit(signal.object('sig'), 'InitialValue', '4')).toMatchObject({ error: true, reason: 'Cannot edit "sig": sig.InitialValue is not one this editor edits in a Simulink.Signal.' });
-    const atDefault = opened(read(CELLSWAP, 'pv_default.mat'));
-    expect(atDefault.edit(atDefault.object('d'), 'Value', '5')).toMatchObject({
-      error: true,
-      reason: 'Cannot edit "d": d.Value is at its class default: the file holds no value for it, and a save can replace only a value the file holds.',
-    });
+    expect(signal.edit(signal.object('sig'), 'initialValue', ' 4')).toMatchObject({ error: true, reason: expect.stringMatching(/sig\.InitialValue would be ' 4', which MATLAB would load as '4'/) });
     const typed = opened(read(CELLSWAP, 'pv_typed.mat'));
     expect(typed.edit(typed.object('t'), 'DataType', 'double')).toMatchObject({
       error: true,
-      reason: 'Cannot edit "t": t.DataType follows its Value, and is written only with it: set on its own, MATLAB converts a Value that is not double to double on every load.',
+      reason: expect.stringMatching(/^Cannot edit "t": t\.DataType follows its Value, of class \w+: set to another, MATLAB converts the Value to double, with a warning on every load\.$/),
     });
-    for (const { root, save } of [signal, atDefault, typed]) {
+    for (const { root, save } of [signal, typed]) {
       expect(root.dirty).toBe(false);
       expect(thrownBy(save)).toBeNull();
     }
+    // A Value at its default, which MATLAB saves no triple for: the save inserts one (McosPropertyRules).
+    const atDefault = opened(read(CELLSWAP, 'pv_default.mat'));
+    expect(atDefault.edit(atDefault.object('d'), 'Value', '5')).toBe(true);
+    const saved = atDefault.save();
+    expectOnlyTheSubsystemChanged(read(CELLSWAP, 'pv_default.mat'), saved, 'pv_default');
+    expect(opened(saved).object('d').displayValue).toBe('5');
   });
 });
 
@@ -183,7 +235,11 @@ interface AllowlistCase {
   variant: string;
   matlab: 'PASS' | 'FAIL' | 'INFO' | 'NOSWAP';
   subsystemSha256: string | null;
+  // The subsystem the property rules write instead of the swap, and each release's verdict on it.
+  rules?: RulesWritten;
 }
+// How many cases each way: held to the probe's bytes, or to the rules' own (named in the truth file).
+const COUNTS = { sessionBytes: 97, sessionRules: 50, rulesBytes: 0, rulesOwn: 71, refusedAtEdit: 31, refusedByRules: 5 };
 const ALLOWLIST_TRUTH: { cases: AllowlistCase[] } = JSON.parse(readFileSync(join(ALLOWLIST, 'allowlist.truth.json'), 'utf8'));
 
 const TEXT_PROPERTIES = new Set(['Description', 'Unit', 'InitialValue', 'DataType']);
@@ -257,6 +313,15 @@ function literal(text: string): { values: unknown[]; dims: number[]; complex: bo
 
 /** The variable MATLAB's `expr` makes, of the typed forms the allow-list probe uses. */
 function variableOf(expr: string): MatVariable {
+  // What a host types for a logical or a char Value, as the session makes it.
+  if (expr === 'true' || expr === 'false') {
+    return mat('uint8', expr === 'true' ? 1 : 0, [1, 1], { isLogical: true });
+  }
+  const text = /^'((?:[^']|'')*)'$/.exec(expr);
+  if (text) {
+    const t = text[1].replace(/''/g, "'");
+    return mat('char', t, t === '' ? [0, 0] : [1, t.length]);
+  }
   const struct = /^struct\((.*)\)$/.exec(expr);
   if (struct) {
     const fields: Record<string, MatVariable> = {};
@@ -273,48 +338,35 @@ function variableOf(expr: string): MatVariable {
   return cls === 'logical' ? mat('uint8', value, dims, { isLogical: true }) : mat(cls, value, dims, { isComplex: complex });
 }
 
-/** What the subsystem holds of the object at `path` of `bytes`, as the rules read it. */
-function heldAt(bytes: Uint8Array, subsystem: McosSubsystem, path: string) {
-  const node = opened(bytes).object(path);
-  const place = mcosPlaceOf(node)!;
-  const objectId = objectIdOf(place.variable.mcosHandle, place.index)!;
-  const stored = storedProperties(subsystem, objectId);
-  if (!stored.ok) {
-    throw new Error(stored.message);
-  }
-  const map = new Map<string, McosHeld>();
-  for (const p of stored.properties) {
-    map.set(p.savedName, { refusal: p.refusal, value: p.cellIndex === null ? null : cellValueAt(subsystem, p.cellIndex) });
-  }
-  return { objectId, held: { className: stored.className, stored: map } };
-}
-
 /**
- * The subsystem the rules and the editor beneath the session write for `edits`, or the first
- * refusal: what a save writes for the same edits, made by a host that could type their values.
+ * The subsystem the property rules and the writer beneath the session write for `edits`, or the
+ * first refusal: what a save writes for the same edits, made by a host that could type their values.
  */
-function writtenBeneath(original: Uint8Array, edits: AllowlistCase['edits']): Uint8Array | string {
-  const read = readMcosSubsystem(subsystemOf(original));
+function writtenByTheRules(original: Uint8Array, edits: AllowlistCase['edits']): Uint8Array | string {
+  const read = readSubsystem(subsystemOf(original));
   if (!read.ok) {
     throw new Error(read.message);
   }
-  const objects: { objectId: number; edits: { savedName: string; cell: Uint8Array }[] }[] = [];
+  const ids = new Map<string, number>();
+  const targets: McosRuleTarget[] = [];
   for (const path of [...new Set(edits.map((e) => e.path))]) {
-    const { objectId, held } = heldAt(original, read.subsystem, path);
+    const place = mcosPlaceOf(opened(original).object(path))!;
+    const objectId = objectIdOf(place.variable.mcosHandle, place.index)!;
+    ids.set(path, objectId);
     const mine = edits
       .filter((e) => e.path === path)
       .map((e) => {
         const text = TEXT_PROPERTIES.has(e.prop) ? textOf(e.expr) : null;
         return { property: e.prop, value: text !== null ? mat('char', text, text === '' ? [0, 0] : [1, text.length]) : variableOf(e.expr) };
       });
-    const ruled = objectEditCells(held, mine, path);
-    if (!ruled.ok) {
-      return ruled.message;
-    }
-    objects.push({ objectId, edits: ruled.cells.map((c) => ({ savedName: c.savedName, cell: valueCellOf(c.value) })) });
+    targets.push({ key: path, object: ruleObjectOf(read.subsystem, objectId), edits: mine });
   }
-  const written = editMcosObjects(read.subsystem, objects);
-  return written.ok ? written.bytes : written.message;
+  const plan = planPropertyEdits(targets);
+  if (!plan.ok) {
+    return plan.message;
+  }
+  const written = writeObjectEdits(read.subsystem, plan.objects.map((o) => ({ objectId: ids.get(o.key)!, ops: o.ops })).filter((o) => o.ops.length > 0));
+  return written.ok ? written.element : written.message;
 }
 
 // Where this package's cells are not the probe's bytes, and load as them all the same, by case: a
@@ -330,6 +382,38 @@ const DECODED_ONLY: Record<string, string> = {
   r2_struct_into_typed: "a struct's field names",
   r2_signal_unit_nonascii: 'miUTF16 text',
 };
+
+/**
+ * Where an object of `ours` holds other triples than the same object of `theirs`, or null: the same
+ * saved names, each held the same way, a value cell holding the same value (the save's own
+ * comparison, MatFileWriter.variableDifference), a text and an integer the same. Of every object:
+ * the metadata blob, which cellsReadDifferently does not look at.
+ */
+function triplesDiffer(ours: Uint8Array, theirs: Uint8Array): string | null {
+  const a = readSubsystem(ours);
+  const b = readSubsystem(theirs);
+  if (!a.ok || !b.ok || a.subsystem.blob.objects.length !== b.subsystem.blob.objects.length) {
+    return 'not one table of objects';
+  }
+  for (let id = 1; id < a.subsystem.blob.objects.length; id++) {
+    const x = ruleObjectOf(a.subsystem, id).held;
+    const y = ruleObjectOf(b.subsystem, id).held;
+    if ([...x.keys()].join(',') !== [...y.keys()].join(',')) {
+      return 'object ' + id + ' holds ' + [...x.keys()].join(', ') + ' where the mutant holds ' + [...y.keys()].join(', ');
+    }
+    for (const [name, h] of x) {
+      const o = y.get(name)!;
+      const differs = h.kind !== o.kind
+        || (h.kind === 'cell' && variableDifference((o as { value: MatVariable | null }).value, h.value, name) !== null)
+        || (h.kind === 'str' && h.text !== (o as { text: string }).text)
+        || (h.kind === 'int' && h.value !== (o as { value: number }).value);
+      if (differs) {
+        return 'object ' + id + "'s " + name + ' holds another value';
+      }
+    }
+  }
+  return null;
+}
 
 /** Where the cells of `ours` read as other values than those of `theirs`, or null. */
 function cellsReadDifferently(ours: Uint8Array, theirs: Uint8Array): string | null {
@@ -348,33 +432,38 @@ function cellsReadDifferently(ours: Uint8Array, theirs: Uint8Array): string | nu
 }
 
 describe("the allow-list probe: each case MATLAB judged, as a save writes it", () => {
-  let sessionBytes = 0;
-  let beneathBytes = 0;
-  let refusedAtEdit = 0;
+  // Each PASS case is held to one subsystem, byte for byte: the probe's swap, which MATLAB passed;
+  // or, for the cases named `rules` in allowlist.truth.json, the one the property rules write
+  // instead (a triple at its default removed, a Parameter's Complexity and DataType written as
+  // MATLAB derives them), which MATLAB R2027a, R2023b and R2024b each passed in its own right.
+  const counts = { sessionBytes: 0, sessionRules: 0, insertedAtDefault: 0, rulesBytes: 0, rulesOwn: 0, refusedAtEdit: 0, refusedByRules: 0 };
   for (const c of ALLOWLIST_TRUTH.cases) {
     const texts = c.edits.map((e) => typedText(e.prop, e.expr));
     const label = c.name + ': ' + c.edits.map((e) => `${e.path}.${e.prop} = ${e.expr}`).join(', ') + ' (MATLAB: ' + c.matlab + ')';
     // A Signal's InitialValue and Dimensions have no editor in this package (SignalNode); a complex
-    // matrix is no literal its parser reads. Their cells are the rules', held below.
+    // matrix is no literal its parser reads. Their subsystems are the rules', written beneath the session.
     const typedByHost =
       texts.every((t) => t !== null) &&
       !c.edits.some((e) => e.prop === 'InitialValue' || e.prop === 'Dimensions' || (/i/.test(e.expr) && e.expr.startsWith('[')));
+    const pinned = c.rules?.subsystemSha256 ?? c.subsystemSha256;
     it(label, () => {
       const original = read(ALLOWLIST, c.original);
       if (typedByHost) {
         const { object, edit, save } = opened(original);
         const answers = c.edits.map((e, i) => edit(object(e.path), e.prop, texts[i]!));
-        if (c.matlab === 'PASS') {
+        if (c.matlab === 'PASS' || c.matlab === 'NOSWAP') {
           expect(answers).toEqual(c.edits.map(() => true));
           const saved = save();
-          const ours = subsystemOf(saved);
-          if (DECODED_ONLY[c.name]) {
-            expect(cellsReadDifferently(ours, subsystemOf(read(ALLOWLIST, 'mut_' + c.name + '.mat')))).toBeNull();
-          } else {
-            expect(sha(ours)).toBe(c.subsystemSha256);
-          }
+          expect(sha(subsystemOf(saved))).toBe(pinned);
           expectOnlyTheSubsystemChanged(original, saved, c.name);
-          sessionBytes++;
+          if (c.matlab === 'NOSWAP') {
+            // A property at its default, which no cell held to swap: the rules insert its triple.
+            const again = opened(saved).object(c.edits[0].path);
+            expect(again.getPropInfo(again.getProperties().find((p: any) => p.key === c.edits[0].prop)).displayValue).toBe(texts[0]);
+            counts.insertedAtDefault++;
+          } else {
+            counts[c.rules ? 'sessionRules' : 'sessionBytes']++;
+          }
         } else if (answers.every((a) => a === true)) {
           // MATLAB's one FAIL that is no edit: the value the object already holds, typed again.
           expect(c.name).toBe('g2_tB_lgc');
@@ -383,30 +472,33 @@ describe("the allow-list probe: each case MATLAB judged, as a save writes it", (
           // Refused before it is made: the file is as it was read.
           expect(answers.find((a) => a !== true)).toMatchObject({ error: true });
           expect(sameBytes(save(), original)).toBe(true);
-          refusedAtEdit++;
+          counts.refusedAtEdit++;
         }
         return;
       }
-      const written = writtenBeneath(original, c.edits);
+      const written = writtenByTheRules(original, c.edits);
       if (c.matlab === 'PASS') {
         expect(typeof written === 'string' ? written : null).toBeNull();
-        if (DECODED_ONLY[c.name]) {
+        expect(sha(written as Uint8Array)).toBe(pinned);
+        if (DECODED_ONLY[c.name] && !c.rules) {
+          // And what the probe's swap held, which MATLAB passed too: the same values in the same triples.
           expect(cellsReadDifferently(written as Uint8Array, subsystemOf(read(ALLOWLIST, 'mut_' + c.name + '.mat')))).toBeNull();
-        } else {
-          expect(sha(written as Uint8Array)).toBe(c.subsystemSha256);
+          expect(triplesDiffer(written as Uint8Array, subsystemOf(read(ALLOWLIST, 'mut_' + c.name + '.mat')))).toBeNull();
         }
-        beneathBytes++;
+        counts[c.rules ? 'rulesOwn' : 'rulesBytes']++;
       } else {
         expect(typeof written, 'refused by the rules').toBe('string');
+        counts.refusedByRules++;
       }
     });
   }
 
-  it('holds most cases to the bytes, through the session where a host can type the edit', () => {
-    expect([sessionBytes, beneathBytes, refusedAtEdit]).toEqual([expect.any(Number), expect.any(Number), expect.any(Number)]);
-    expect(sessionBytes).toBeGreaterThanOrEqual(140);
-    expect(sessionBytes + beneathBytes).toBeGreaterThanOrEqual(210);
-    expect(refusedAtEdit).toBeGreaterThanOrEqual(30);
+  it('holds every case so, the ones the rules write otherwise named in the truth file', () => {
+    expect(counts).toEqual({ sessionBytes: COUNTS.sessionBytes, sessionRules: COUNTS.sessionRules, insertedAtDefault: 2, rulesBytes: COUNTS.rulesBytes, rulesOwn: COUNTS.rulesOwn, refusedAtEdit: COUNTS.refusedAtEdit, refusedByRules: COUNTS.refusedByRules });
+    // Every case the rules write otherwise was judged by MATLAB in each release.
+    for (const c of ALLOWLIST_TRUTH.cases.filter((x) => x.rules)) {
+      expect(c.rules!.matlab, c.name).toEqual({ R2027a: 'PASS', R2023b: 'PASS', R2024b: 'PASS' });
+    }
   });
 });
 
@@ -416,34 +508,35 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
   const refusal = (name: string, why: string) => ({ error: true, reason: 'Cannot edit "' + name + '": ' + why + '.' });
   const WARNS = ', which MATLAB loads with a warning on every load';
 
-  it('a property at its class default, which the file holds no value for', () => {
-    const { object, edit, root } = opened(read(ALLOWLIST, 'al_text.mat'));
-    expect(edit(object('xe'), 'Description', 'abc')).toMatchObject(
-      refusal('xe', 'xe.Description is at its class default: the file holds no value for it, and a save can replace only a value the file holds'),
-    );
-    expect(object('xe').getPropInfo(object('xe').getProperties().find((p: any) => p.key === 'Description')).editable).toBe(false);
-    expect(root.dirty).toBe(false);
+  it('a property at its class default, which the file holds no value for, is taken: the save inserts its triple', () => {
+    const original = read(ALLOWLIST, 'al_text.mat');
+    const { object, edit, save } = opened(original);
+    expect(object('xe').getPropInfo(object('xe').getProperties().find((p: any) => p.key === 'Description')).editable).toBe(true);
+    expect(edit(object('xe'), 'Description', 'abc')).toBe(true);
+    const saved = save();
+    expectOnlyTheSubsystemChanged(original, saved, 'al_text');
+    expect(opened(saved).object('xe').Description).toBe('abc');
   });
 
-  it('a Complexity, a StorageClass, a Dimensions, a DataType on its own', () => {
-    const { object, edit, root } = opened(read(ALLOWLIST, 'al_dtype.mat'));
+  it('a Complexity, a Dimensions, a DataType over a Value not double; and a StorageClass, which it takes', () => {
+    const { object, edit, root, save } = opened(read(ALLOWLIST, 'al_dtype.mat'));
     const p = object('tS');
-    expect(edit(p, 'complexity', 'complex')).toMatchObject(
-      refusal('tS', "tS.Complexity is held as an index into the file's text, not as a value, and MATLAB derives it from the Value as it loads"),
-    );
-    expect(edit(p, 'storageClass', 'ExportedGlobal')).toMatchObject(refusal('tS', 'tS.StorageClass belongs to its CoderInfo, an object of its own, which a save does not rewrite'));
+    expect(edit(p, 'complexity', 'complex')).toMatchObject(refusal('tS', 'tS.Complexity follows its Value, and is written only with it'));
     expect(edit(p, 'dimensions', '[2 3]')).toMatchObject(refusal('tS', 'tS.Dimensions follows its Value, and is written only with it'));
     expect(edit(p, 'DataType', 'int8')).toMatchObject(
-      refusal('tS', 'tS.DataType follows its Value, and is written only with it: set on its own, MATLAB converts a Value that is not double to double on every load'),
+      refusal('tS', 'tS.DataType follows its Value, of class single: set to another, MATLAB converts the Value to double, with a warning on every load'),
     );
     expect([p.status, root.dirty]).toEqual(['', false]);
+    // Its CoderInfo's StorageClass, one index into the file's text of an object of its own.
+    expect(edit(p, 'storageClass', 'ExportedGlobal')).toBe(true);
+    expect(opened(save()).object('tS').getPropInfo(p.getProperties().find((q: any) => q.key === 'storageClass')).displayValue).toBe('ExportedGlobal');
   });
 
   it('a Value out of the range of the DataType it keeps, typed whole or into one element', () => {
     const { object, edit, save, root } = opened(read(ALLOWLIST, 'al_dtype.mat'));
     const p = object('tUd');
     expect(edit(p, 'Value', '300')).toMatchObject(refusal('tUd', "tUd.Value would hold 300, outside the range [0, 255] of its DataType 'uint8'" + WARNS));
-    expect(edit(object('tD'), 'Value', 'NaN')).toMatchObject(refusal('tD', "tD.Value would hold NaN, outside the range [-Inf, Inf] of its DataType 'double'" + WARNS));
+    expect(edit(object('tD'), 'Value', 'NaN')).toMatchObject(refusal('tD', "tD.Value would hold NaN, where a DataType of 'double' takes finite values only" + WARNS));
     expect(edit(object('tBd'), 'Value', '2')).toMatchObject(refusal('tBd', "tBd.Value would hold 2, and a DataType of 'boolean' takes only 0 and 1" + WARNS));
     expect(root.dirty).toBe(false);
     // An element of a Value the DataType is kept over is held to it as well.
@@ -481,15 +574,20 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     expect(edit(sg, 'DataType', 'Bus: MyBus')).toMatchObject(
       refusal('sg', "sg.Min would be set while its DataType is 'Bus: MyBus', and MATLAB ignores a minimum and a maximum for a bus" + WARNS),
     );
-    expect(edit(sg, 'DataType', 'auto')).toMatchObject(refusal('sg', "sg.DataType would be 'auto', which is not a data type this editor writes into a Simulink.Signal"));
+    expect(edit(sg, 'DataType', 'half')).toMatchObject(refusal('sg', "sg.Min would be set under a DataType of 'half', whose range this editor does not check"));
+    expect(edit(sg, 'DataType', 'auto')).toBe(true);
     expect(edit(sg, 'DataType', 'single')).toBe(true);
     expect(opened(save()).object('sg').DataType).toBe('single');
   });
 
-  it('a part of an object no property of which it is: a bus element, an object in a struct by its name', () => {
+  it('a bus element\'s Dimensions and Name, each a property of its own; an object in a struct, by its name, no part of one', () => {
     const cases = opened(read(TEST_ROOT, 'parity/artifacts/mat/cases.mat'));
     const element = cases.by('aBus').children[0];
-    expect(cases.edit(element, 'Name', 'renamed')).toMatchObject(refusal('aBus', 'aBus is a Simulink.Bus, whose properties this editor does not write into a MAT-file'));
+    expect(cases.edit(element, 'dimensions', '[2 3]')).toBe(true);
+    expect(opened(cases.save()).by('aBus').children[0].getPropInfo(element.getProperties().find((p: any) => p.key === 'dimensions')).displayValue).toBe('[2 3]');
+    // Its Name is a property of its own, which the save writes.
+    expect(cases.edit(element, 'Name', 'renamed')).toBe(true);
+    expect(opened(cases.save()).by('aBus').children[0].name).toBe('renamed');
     const nested = opened(read(ALLOWLIST, 'al_nested.mat'));
     expect(nested.object('s.p').nameEditable).toBe(false);
     expect(nested.object('s.p').setProperty('Name', 'q')).toMatchObject({ error: true });
@@ -613,8 +711,9 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
   // `t` of pv_typed.mat with its Value and Description edited, and the subsystem the save writes for
   // them handed on as `tamper` leaves it: a writer that wrote what it did not plan, standing in for one.
   function tampered(tamper: (written: { element: Uint8Array; cells: any[] }) => void) {
+    // Two cells swapped, as the cell swap writes them: its own check holds it, and the codec's.
     const o = opened(read(CELLSWAP, 'pv_typed.mat'));
-    expect([o.edit(o.object('t'), 'Value', '7'), o.edit(o.object('t'), 'Description', 'zz')]).toEqual([true, true]);
+    expect([o.edit(o.object('t'), 'Max', '20'), o.edit(o.object('t'), 'Description', 'zz')]).toEqual([true, true]);
     const plan = o.root._objectSubsystemEdit.bind(o.root);
     o.root._objectSubsystemEdit = (entries: any) => {
       const written = plan(entries);
@@ -630,12 +729,12 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
 
   it('a cell that reads back as another value than the one planned for it', () => {
     const thrown = tampered(({ cells }) => {
-      const value = cells.find((c) => c.savedName === 'Value');
+      const value = cells.find((c) => c.savedName === 'Max');
       value.value = { ...value.value, value: 8 };
     });
     expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
       true,
-      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: object \d+'s Value.* Nothing was written\.$/),
+      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: object \d+'s Max.* Nothing was written\.$/),
     ]);
   });
 
@@ -694,6 +793,56 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
       true,
       expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects do not read back as a subsystem \(.+\)\. Nothing was written\.$/),
     ]);
+  });
+});
+
+describe('a subsystem the rules add to is read again through the codec, and held to the records it was written from', () => {
+  // `d` of pv_default.mat, whose Value was at its default: the save inserts its triple and cell.
+  function tampered(tamper: (written: { element: Uint8Array; records: any; cells: any[]; swapOnly: boolean }) => void) {
+    const o = opened(read(CELLSWAP, 'pv_default.mat'));
+    expect(o.edit(o.object('d'), 'Value', '5')).toBe(true);
+    const plan = o.root._objectSubsystemEdit.bind(o.root);
+    o.root._objectSubsystemEdit = (entries: any) => {
+      const written = plan(entries);
+      expect(written.swapOnly).toBe(false);
+      tamper(written);
+      return written;
+    };
+    return thrownBy(o.save);
+  }
+
+  it('as written, it is saved', () => {
+    expect(tampered(() => {})).toBeNull();
+  });
+
+  it('an element other than the records say', () => {
+    const thrown = tampered((written) => {
+      written.records = { ...written.records, blob: { ...written.records.blob, strings: [...written.records.blob.strings, 'never written'] } };
+    });
+    expect(thrown?.message).toMatch(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects do not read back as the records written \(the written subsystem reads back with blob\.strings .*\)\. Nothing was written\.$/);
+  });
+
+  it('a cell that reads back as another value than the one planned for it', () => {
+    const thrown = tampered(({ cells }) => {
+      const value = cells.find((c) => c.savedName === 'Value');
+      value.value = { ...value.value, value: 8 };
+    });
+    expect(thrown?.message).toMatch(/^Cannot save "f\.mat": the file written for it did not read back as written: object \d+'s Value: .* Nothing was written\.$/);
+  });
+
+  it('a cell said written that is no value cell', () => {
+    const thrown = tampered((written) => {
+      written.cells = [...written.cells, { ...written.cells[0], cellIndex: 1 }];
+    });
+    expect(thrown?.message).toMatch(/the file's objects were written with cell 1, which is not one of their \d+ value cells\. Nothing was written\.$/);
+  });
+
+  it('an edit that reaches an object no edit was for', () => {
+    // Its edit said to be of no object: every object of the file is then held as it was read.
+    const thrown = tampered((written: any) => {
+      written.edited = [];
+    });
+    expect(thrown?.message).toMatch(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects do not read back as the records written \(the edits changed the property list of object \d+, which no edit was for\)\. Nothing was written\.$/);
   });
 });
 

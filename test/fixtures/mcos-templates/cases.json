@@ -1,0 +1,1875 @@
+{
+ "about": "Merges of the R2023b templates (src/datamodel/parser/mcosTemplates.ts) into files MATLAB R2023b and R2027a wrote, each judged by MATLAB R2023b, R2024b and R2027a: loads with no warning, every variable equal to MATLAB's own append of the same code, new or edited ones equal to the code run in that session, the others unchanged, single-variable load, re-save and a further MATLAB append all loading equal. `bytes` compares each with the same release's own save -append of the same code.",
+ "templates": "23.2.0.3186351 (R2023b) Update 11",
+ "judgedBy": [
+  "23.2.0.3186351 (R2023b) Update 11",
+  "24.2.0.3425179 (R2024b) Update 11",
+  "27.1.0.3409468 (R2027a) Prerelease"
+ ],
+ "cases": [
+  {
+   "name": "D_Simulink_Parameter__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Parameter__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Parameter__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Signal__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Signal__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Signal__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Bus__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Bus__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Bus__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_LookupTable__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_LookupTable__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_LookupTable__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_NumericType__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_NumericType__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_NumericType__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_AliasType__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_AliasType__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_AliasType__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_ValueType__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_ValueType__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_ValueType__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_string__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_string__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_string__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN2__param",
+   "into": "r2023b",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN2__other",
+   "into": "r2023b",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN2__none",
+   "into": "r2023b",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN2__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BX1__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BX2__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(end+1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.b0.Elements(end+1) = e;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BX1__bus2",
+   "into": "r2023b",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "bb",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR1__bus2",
+   "into": "r2023b",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(1) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 1
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR2__bus2",
+   "into": "r2023b",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(2) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 2
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR0__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(1) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "b0",
+     "index": 1
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BRX__bus2",
+   "into": "r2023b",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(1) = []; S.bb.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 1
+    },
+    {
+     "op": "add",
+     "var": "bb",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BNX__mixed",
+   "into": "r2023b",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; S.b0.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    },
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "D_Simulink_Parameter__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Parameter__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Parameter__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.pnew = Simulink.Parameter;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "pnew",
+     "tpl": "Simulink.Parameter",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Signal__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Signal__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Signal__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.snew = Simulink.Signal;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "snew",
+     "tpl": "Simulink.Signal",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Bus__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Bus__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Bus__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_LookupTable__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_LookupTable__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_LookupTable__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.ltnew = Simulink.LookupTable;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ltnew",
+     "tpl": "Simulink.LookupTable",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_Breakpoint__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.bpnew = Simulink.Breakpoint;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bpnew",
+     "tpl": "Simulink.Breakpoint",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_NumericType__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_NumericType__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_NumericType__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.ntnew = Simulink.NumericType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "ntnew",
+     "tpl": "Simulink.NumericType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_AliasType__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_AliasType__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_AliasType__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.atnew = Simulink.AliasType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "atnew",
+     "tpl": "Simulink.AliasType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_Simulink_ValueType__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_ValueType__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_Simulink_ValueType__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.vtnew = Simulink.ValueType;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "vtnew",
+     "tpl": "Simulink.ValueType",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "D_string__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_string__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "D_string__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.strnew = string(\"\");",
+   "ops": [
+    {
+     "op": "new",
+     "var": "strnew",
+     "tpl": "string",
+     "sets": [],
+     "elements": []
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BN2__param",
+   "into": "r2027a",
+   "target": "param",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BN1__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BN2__other",
+   "into": "r2027a",
+   "target": "other",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BN1__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN2__none",
+   "into": "r2027a",
+   "target": "none",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical"
+  },
+  {
+   "name": "BN1__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BN2__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.bnew.Elements(2) = e;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "identical but for the file header R2023b does not write and the file keeps"
+  },
+  {
+   "name": "BX1__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BX2__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(end+1) = Simulink.BusElement; e = Simulink.BusElement; e.Name = 'a1'; S.b0.Elements(end+1) = e;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a",
+      "a1"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BX1__bus2",
+   "into": "r2027a",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "add",
+     "var": "bb",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR1__bus2",
+   "into": "r2027a",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(1) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 1
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR2__bus2",
+   "into": "r2027a",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(2) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 2
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BR0__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.b0.Elements(1) = [];",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "b0",
+     "index": 1
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BRX__bus2",
+   "into": "r2027a",
+   "target": "bus2",
+   "matlab": "S.bb.Elements(1) = []; S.bb.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "remove",
+     "var": "bb",
+     "index": 1
+    },
+    {
+     "op": "add",
+     "var": "bb",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  },
+  {
+   "name": "BNX__mixed",
+   "into": "r2027a",
+   "target": "mixed",
+   "matlab": "S.bnew = Simulink.Bus; S.bnew.Elements(1) = Simulink.BusElement; S.b0.Elements(end+1) = Simulink.BusElement;",
+   "ops": [
+    {
+     "op": "new",
+     "var": "bnew",
+     "tpl": "Simulink.Bus",
+     "sets": [],
+     "elements": [
+      "a"
+     ]
+    },
+    {
+     "op": "add",
+     "var": "b0",
+     "names": [
+      "a"
+     ]
+    }
+   ],
+   "verdicts": {
+    "R2023b": "PASS",
+    "R2024b": "PASS",
+    "R2027a": "PASS"
+   },
+   "bytes": "not compared: MATLAB writes an edited Bus again whole, as a new object"
+  }
+ ]
+}

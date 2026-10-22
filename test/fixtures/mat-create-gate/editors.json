@@ -1,0 +1,335 @@
+{
+ "source": "editors live gate of core T-D3 (gate-create in the research probes): each file saved through the session after the steps test/matEditorsGateGoldens.test.ts names for it, loaded by MATLAB R2027a, R2023b and R2024b against the original and MATLAB's own objects with the same assignments. PASS_NO_RESAVE: every check but the save-and-reload of what was loaded, which crashes that release for the original itself. PASS_CODERINFO_UNREAD: every check, the CoderInfo held to what that release reads of it, which is none of an R2027a-written one, the original's included.",
+ "cases": [
+  {
+   "name": "created__r2023b_none",
+   "original": "fixtures/mcos-templates/targets/r2023b/none.mat",
+   "sha256": "f83fa3af59318010c531f0b62c1218ce004235b4172bfc20f67a2b81228dec28",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "created__r2027a_param",
+   "original": "fixtures/mcos-templates/targets/r2027a/param.mat",
+   "sha256": "762c65eae2a585b5647a7b1674dfd721c811be67fedabbf3f47d21c9a2dda625",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "created__r2023b_mixed",
+   "original": "fixtures/mcos-templates/targets/r2023b/mixed.mat",
+   "sha256": "36624d7fe8df71a9a743a1990c03aea3f112e3550f7b4dde57de31ccd80f2d90",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "created__r2027a_mixed",
+   "original": "fixtures/mcos-templates/targets/r2027a/mixed.mat",
+   "sha256": "f8b0faec93ca705f44758330049510df759ab70a33228b77c5fe0e0a71cdce0e",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "created__cases",
+   "original": "parity/artifacts/mat/cases.mat",
+   "sha256": "8bcacf9fe769261ba3effaf3d5df02e5023920ca858c30be454f575f0c8236a8",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_NO_RESAVE",
+    "R2024b": "PASS_NO_RESAVE"
+   }
+  },
+  {
+   "name": "edited_s0_sig_signal__r23",
+   "original": "fixtures/mat-edits-gate/r23/s0.mat",
+   "sha256": "a044e030b921398a02d584c7c51e66865358b5f75615b468bc71621db39cd029",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_sset_sig_signal4__r23",
+   "original": "fixtures/mat-edits-gate/r23/sset.mat",
+   "sha256": "ec8ea777b949f2806a1bc902bca95f230672d9ddd967a46a9d16d8a77689b307",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_p0_p_parameter__r23",
+   "original": "fixtures/mat-edits-gate/r23/p0.mat",
+   "sha256": "ed1802b5175c8778ba32a4316524df9860e71569c3a3883250c3e8887fbed815",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_vt0_vt_valueType__r23",
+   "original": "fixtures/mat-edits-gate/r23/vt0.mat",
+   "sha256": "8cac2326b34d82fa26ac1175ab342498cc3d8b121104b285adcc202e0fcda498",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_at0_at_aliasType__r23",
+   "original": "fixtures/mat-edits-gate/r23/at0.mat",
+   "sha256": "b863d82f47ebb235f1111e1e8e0338ea956b3e72ab3d68eb5d8d065de2bb8c04",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_nt0_nt_ntBinary__r23",
+   "original": "fixtures/mat-edits-gate/r23/nt0.mat",
+   "sha256": "a99080f74c5ca50996c337a5f02a9ef46988429c37c63ba8bd3c159387d96a5f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntFixed__r23",
+   "original": "fixtures/mat-edits-gate/r23/ntf.mat",
+   "sha256": "5623896fd4c86d64ed34eec81204f39d32b2a37f03c43e528e24e6b4cc8829c2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntToDouble__r23",
+   "original": "fixtures/mat-edits-gate/r23/ntf.mat",
+   "sha256": "052f459173fbfdaaf3a456027d06eec3a2c1aab5f96824e57b365bf5c5b59c75",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_b2_b_bus__r23",
+   "original": "fixtures/mat-edits-gate/r23/b2.mat",
+   "sha256": "7d17803593829e81c3e1ad6d66d99e2c611a465e1e09d64f7ec2a10b92800366",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_s0_sig_signal__r24",
+   "original": "fixtures/mat-edits-gate/r24/s0.mat",
+   "sha256": "89cb6bd2b2da1210acf6af7b779c1515e7e4dae2c90dac0608f692cc7e111f0b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_sset_sig_signal4__r24",
+   "original": "fixtures/mat-edits-gate/r24/sset.mat",
+   "sha256": "123770c5c993434c4a52479a56bae43251d8c8757a0852750275ee497e889f58",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_p0_p_parameter__r24",
+   "original": "fixtures/mat-edits-gate/r24/p0.mat",
+   "sha256": "a842b6137a4b5c0625a72db3e700f6ca5a150bbdc7d2131d87890657b11586d9",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_vt0_vt_valueType__r24",
+   "original": "fixtures/mat-edits-gate/r24/vt0.mat",
+   "sha256": "df73016198bb7ce73a509949b6d64123c648267e81240a7044fe7549a4326ac6",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_at0_at_aliasType__r24",
+   "original": "fixtures/mat-edits-gate/r24/at0.mat",
+   "sha256": "35e5b89fd16b85dd7f8d00c45babf2f8c4a1030060a43d11b637e29aee42f976",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_nt0_nt_ntBinary__r24",
+   "original": "fixtures/mat-edits-gate/r24/nt0.mat",
+   "sha256": "a121ba08ae0217423fbd72a7fdff6f7a8bb17794d4ca58e013bafd0f802bb78b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntFixed__r24",
+   "original": "fixtures/mat-edits-gate/r24/ntf.mat",
+   "sha256": "6486e280cc4bfaade9b22a8bbd5a60a6eb8fc8338f3553271af8d1bfe04c37b7",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntToDouble__r24",
+   "original": "fixtures/mat-edits-gate/r24/ntf.mat",
+   "sha256": "e4b1687d566bbd827214439833696712973f778c52f3ddc02dadfb1b1c0e2249",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_b2_b_bus__r24",
+   "original": "fixtures/mat-edits-gate/r24/b2.mat",
+   "sha256": "badd6684cc8f34cc9a4fd88c94fac8ee2caf1181a6eb6d3b5c3062ea754c3c2b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_s0_sig_signal__r27",
+   "original": "fixtures/mcos-rules/s0.mat",
+   "sha256": "1c1632486d001d59ab08646f8fb7f2ad60f13d0da6121e33149ad22bdcb8a3fd",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_CODERINFO_UNREAD",
+    "R2024b": "PASS_CODERINFO_UNREAD"
+   }
+  },
+  {
+   "name": "edited_sset_sig_signal4__r27",
+   "original": "fixtures/mcos-rules/sset.mat",
+   "sha256": "de9e3e10a9136e09ba4614604227fb974be77900b2456630f6cfe8cecbd86d01",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_p0_p_parameter__r27",
+   "original": "fixtures/mcos-rules/p0.mat",
+   "sha256": "c807dfdb5e5c0d91f20a5d3462cc89552b7a4baf549b01c7423b349864d23b52",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_CODERINFO_UNREAD",
+    "R2024b": "PASS_CODERINFO_UNREAD"
+   }
+  },
+  {
+   "name": "edited_vt0_vt_valueType__r27",
+   "original": "fixtures/mcos-rules/vt0.mat",
+   "sha256": "3f2d22687026e689f1a8a81fe0c5cf33ee7f481d5dbe09ebeec172af5a0b7e56",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_at0_at_aliasType__r27",
+   "original": "fixtures/mcos-rules/at0.mat",
+   "sha256": "0ec219342f3e85453b92f8d63d907233d3c66b955f791f593e5897bc765bd3df",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_nt0_nt_ntBinary__r27",
+   "original": "fixtures/mcos-rules/nt0.mat",
+   "sha256": "449740366cf223c9c6d5f5a4b02228a7e9c80b0b4ce55d7051e3e8571dde5627",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntFixed__r27",
+   "original": "fixtures/mcos-rules/ntf.mat",
+   "sha256": "3db1c14a5eaf2a20250b98fc506bb7cc87abe9eea317afbb55455eb34d400541",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_ntf_nt_ntToDouble__r27",
+   "original": "fixtures/mcos-rules/ntf.mat",
+   "sha256": "73bf8dc8d0c152a2150265926a05a5b210dd64babf27992d13c316542b8ae517",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_b2_b_bus__r27",
+   "original": "fixtures/mcos-rules/b2.mat",
+   "sha256": "dbfda2b21dc5707e3590f4634168f46c6e713ace618382a4319b4f4660c72463",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edited_cases",
+   "original": "parity/artifacts/mat/cases.mat",
+   "sha256": "317229a2167c50c443f1bbe23cad0967e87e5563e92c63392822d110f3b26c2f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_NO_RESAVE",
+    "R2024b": "PASS_NO_RESAVE"
+   }
+  }
+ ]
+}

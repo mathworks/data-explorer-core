@@ -5,6 +5,7 @@ import type { SetPropertyResult } from '../DataNode.js';
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import { sourceNewChildProperties } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
@@ -244,7 +245,8 @@ export class BaseBusNode extends DataNode {
         let uniqueName = baseName;
         let i = 1;
         while (existing.has(uniqueName)) { uniqueName = baseName + i; i++; }
-        const props = { Name: uniqueName };
+        // As its source holds a new one (a MAT-file: MATLAB's default element), else its name alone.
+        const props = { ...sourceNewChildProperties(this), Name: uniqueName };
         const childSerial = { _rawElem: { _id: this._nextElementId(), _properties: props }, _properties: props };
         const childNode = this._createElementNode(uniqueName, props as Record<string, unknown>, childSerial as Record<string, unknown>);
         if (childNode) { this.addChild(childNode); this._markModified(); }

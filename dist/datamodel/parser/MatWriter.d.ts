@@ -58,6 +58,17 @@ export declare function writeUnderWay(): boolean;
  */
 export declare function oneWrite<T>(write: () => T): T;
 /**
+ * Runs `write` with each MCOS object held in a struct field or a cell written as the class-17
+ * element `elementOf` gives for it, the one it was read as: what a MAT-file's save does for a
+ * variable it writes fresh, a struct whose plain field was edited beside an object, say
+ * (MatFileWriter.freshElement), and the save says which elements it passes through
+ * (MatFileWriter.objectElementOf). The element names objects of the file's own subsystem, which the
+ * save writes beside it, so it is the object, as it was, or edited there. Nowhere else: a stream
+ * written into a dictionary has no subsystem of the file's, and an object member there is refused
+ * as it always was.
+ */
+export declare function withObjectMembers<T>(elementOf: (v: MatVariable) => Uint8Array | null, write: () => T): T;
+/**
  * Takes `bytes` of the write's budget for something a writer spells that no data backs —
  * `what`, in words — or, when not that much is left, takes nothing and refuses the write
  * (MatBudgetError).

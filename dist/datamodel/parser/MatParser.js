@@ -657,6 +657,16 @@ function parseOpaque(view, offset, end) {
 // Held beside the variable, as McosParser reads it (McosParser.enumerationValue), for the reason
 // mcosDecodedTable holds the decode beside it: the variable is the host's.
 const enumerationInstances = new WeakMap();
+// The element an MCOS object held in a cell was read as, by the variable parseMatrix made of it:
+// what a MAT-file's save writes for it when it writes the cell fresh (MatlabVariableNode.
+// _objectMemberOf). Beside the variable, not its `_rawBytes`, which a cell element keeps only for a
+// value it is the one reading of (an undecoded one, a sparse array), and which the decoder's scan
+// for a handle reads (McosParser.decodeMcosVariables): a struct field keeps its own there already.
+const opaqueElements = new WeakMap();
+/** The element an MCOS object held in a cell element was read as, or undefined (opaqueElements). */
+export function opaqueElementOf(variable) {
+    return opaqueElements.get(variable);
+}
 /** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
 export function enumerationInstanceOf(variable) {
     return enumerationInstances.get(variable);
@@ -1272,6 +1282,12 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
                 if (child.undecoded || child.isSparse || isUnheldStructArray(child)) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
+                }
+                else if (child.isOpaque) {
+                    // An MCOS object's element, beside it (opaqueElementOf), as a struct field
+                    // keeps its own in _rawBytes.
+                    const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
+                    opaqueElements.set(child, new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen)));
                 }
                 cells.push(child);
             }

@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import { parseMatrix } from './MatParser.js';
-import { encodeMatVariable } from './MatWriter.js';
+import { encodeMatVariable, MatWriteError } from './MatWriter.js';
 import { MCOS_HANDLE_MAGIC, objectHandleFromValue } from './McosHandle.js';
+import { cloneSubsystem, readSubsystem, replaceValueCell, verifySubsystem, writeSubsystem } from './McosSubsystemCodec.js';
 const MI_INT8 = 1;
 const MI_UINT8 = 2;
 const MI_INT32 = 5;
@@ -26,7 +27,6 @@ const FLAG_WORDS = { 0: 'a string-table index', 2: 'an integer', 3: 'an object i
 // this before it reads the blob, and readBlob then refuses a blob of any version but 4.0
 // ('unsupported'), so no subsystem read with this count of another version's is ever handed on.
 const TRAILING_CELLS = 3;
-const INT32_MAX = 0x7fffffff;
 const WIDTH = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 4, 6: 4, 7: 4, 9: 8, 12: 8, 13: 8 };
 class Refused extends Error {
     constructor(refusal) {
@@ -549,7 +549,7 @@ export function storedProperties(subsystem, objectId) {
             savedName: s.strings[t.name],
             flag: t.flag,
             cellIndex: t.flag === FLAG_CELL ? t.value + 2 : null,
-            refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? null,
+            refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? codecRefusal(s)?.reason ?? null,
         }));
         return { ok: true, className, properties };
     }
@@ -609,7 +609,7 @@ export function editMcosObjects(subsystem, objects) {
                 replaced.set(hits[0].value + 2, cell);
             }
         }
-        return { ok: true, bytes: rebuild(s, replaced) };
+        return { ok: true, bytes: rebuild(s, replaced, objects.map(({ objectId, edits }) => ({ objectId, properties: edits.map((e) => e.savedName) }))) };
     }
     catch (e) {
         if (e instanceof Refused) {
@@ -635,63 +635,60 @@ export function cellValueAt(subsystem, cellIndex) {
         return null;
     }
 }
-function concat(parts) {
-    let total = 0;
-    for (const p of parts) {
-        total += p.length;
+// What the codec reads of each subsystem read here: once per subsystem, for its every swap and
+// every storedProperties of it.
+const CODEC_READS = new WeakMap();
+function codecRead(s) {
+    let read = CODEC_READS.get(s);
+    if (!read) {
+        read = readSubsystem(s.bytes);
+        CODEC_READS.set(s, read);
     }
-    const out = new Uint8Array(total);
-    let at = 0;
-    for (const p of parts) {
-        out.set(p, at);
-        at += p.length;
-    }
-    return out;
-}
-/** A long-form tag: type, then byte count. */
-function tag(type, bytes) {
-    const out = new Uint8Array(8);
-    const view = new DataView(out.buffer);
-    view.setUint32(0, type, true);
-    view.setUint32(4, bytes, true);
-    return out;
-}
-function matrixOf(parts) {
-    const body = concat(parts);
-    return concat([tag(MI_MATRIX, body.length), body]);
+    return read;
 }
 /**
- * The subsystem re-emitted around its cells, `replaced` in place of the ones it names: the
- * cell array, the opaque, the struct, the payload and the element, each tag restated and
- * every other sub-element the bytes it was read as.
+ * Why the codec, which writes every swap, would not write this subsystem, as the refusal the swap
+ * makes ('unsupported' for one it would not write back as the bytes it was read as); or null.
  */
-function rebuild(s, replaced) {
-    const b = s.bytes;
-    const piece = (sub) => b.subarray(sub.at, sub.end);
-    const cells = s.cells.map((cell, i) => replaced.get(i) ?? piece(cell));
-    const cellArray = matrixOf([...s.cellArray.subs.slice(0, 3).map(piece), ...cells]);
-    const opaque = matrixOf([...s.opaque.subs.slice(0, 4).map(piece), cellArray]);
-    const struct = matrixOf(s.struct.subs.map((sub, i) => (i === s.mcosField ? opaque : piece(sub))));
-    const data = s.outer.subs[3];
-    const preamble = b.subarray(data.data, data.data + 8);
-    const rest = b.subarray(s.struct.end, data.data + data.bytes);
-    const n = preamble.length + struct.length + rest.length;
-    if (n > INT32_MAX) {
-        fail('bad-cell', `the subsystem would be ${n} bytes, past what its int32 dims can say`);
+function codecRefusal(s) {
+    const read = codecRead(s);
+    return read.ok ? null : { ok: false, reason: read.reason === 'malformed' ? 'malformed' : 'unsupported', message: read.message };
+}
+/**
+ * The subsystem re-emitted around its cells, `replaced` in place of the ones it names, by the
+ * codec (McosSubsystemCodec): read into records, the cells replaced, written from the records —
+ * the cell array, the opaque, the struct, the payload and the element each restated, every other
+ * sub-element the bytes it was read as — and read back and held to the records meant, and to the
+ * records read, with nothing changed but the properties `edited` names. Refused ('unsupported') where the codec would not write the subsystem back as the
+ * bytes it was read as, so no swap changes a byte it was not asked to.
+ */
+function rebuild(s, replaced, edited) {
+    const read = codecRead(s);
+    if (!read.ok) {
+        throw new Refused(codecRefusal(s));
     }
-    const dims = new Uint8Array(8);
-    new DataView(dims.buffer).setInt32(0, 1, true);
-    new DataView(dims.buffer).setInt32(4, n, true);
-    return matrixOf([
-        piece(s.outer.subs[0]),
-        concat([tag(MI_INT32, 8), dims]),
-        piece(s.outer.subs[2]),
-        tag(MI_UINT8, n),
-        preamble,
-        struct,
-        rest,
-        new Uint8Array(align8(n) - n),
-    ]);
+    const original = read.subsystem;
+    const records = cloneSubsystem(original);
+    for (const [cellIndex, cell] of replaced) {
+        // swapRefusal and newCellRefusal have refused every cell, old or new, holding an object
+        // reference, by a wider test than the codec's own.
+        replaceValueCell(records, cellIndex - 2, cell, { objectReference: true });
+    }
+    let bytes;
+    try {
+        bytes = writeSubsystem(records);
+    }
+    catch (e) {
+        if (e instanceof MatWriteError) {
+            fail('bad-cell', e.message);
+        }
+        throw e;
+    }
+    const verdict = verifySubsystem(bytes, records, original, { edited });
+    if (!verdict.ok) {
+        fail('not-verified', verdict.message);
+    }
+    return bytes;
 }
 /**
  * The id of element `index` (0-based, column-major, MATLAB's order) of the objects a handle

@@ -996,6 +996,31 @@ The same three kinds of claim as the `.slx` corpus:
   conversions reported no warning. The Toml one did, so it is compared against its own
   record instead.
 
+## The MCOS template corpus
+
+`gen_mcos_templates.m` writes what core creates an MCOS object in a `.mat` from: one small
+MAT-file per class it can create (`CREATABLE_MCOS_CLASSES`), each holding one
+default-constructed object, and `mcos_templates.truth.json`, MATLAB's account of each (its
+property values, recursively, and every class's saved-property order). The files themselves
+are not committed: `mcos_templates_module.mjs` turns them into
+`src/datamodel/parser/mcosTemplates.ts`, each template's subsystem record as MATLAB compressed
+it, and refuses one that holds a path or the account name it ran under.
+
+**Run it in MATLAB R2023b.** A merge from a template is what that release's own `save -append`
+writes, so the release decides who can load the result. Measured: objects merged from the
+R2023b templates load equal in R2023b, R2024b and R2027a; objects R2027a writes do not load in
+R2024b. R2023b is the oldest release this was run in.
+
+```bash
+matlab -nodesktop -batch "outdir='/tmp/mcos_templates'; run('$PWD/test/parity/matlab/gen_mcos_templates.m')"
+node test/parity/matlab/mcos_templates_module.mjs /tmp/mcos_templates
+```
+
+Prints `GEN_MCOS_TEMPLATES DONE 2023b templates=10`, then rewrites the module and the truth.
+Two runs of one release give the same module; another release gives other bytes, and other
+records (a Simulink.CoderInfo, say, is an MCOS object in R2027a and an object of the older
+class system before it), which `test/mcosTemplates.test.ts` will then report.
+
 ## Tiers, and which need `DEX_MATLAB_CMD`
 
 **Tier 1 — committed truth, no MATLAB, runs in CI on every PR.** Reads

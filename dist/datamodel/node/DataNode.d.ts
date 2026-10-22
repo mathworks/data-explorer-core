@@ -1,5 +1,5 @@
 import BaseNode from './BaseNode.js';
-import type { PropClass } from './BaseNode.js';
+import type { PropClass, SourceOfferedEditor } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { MatBudgetError, MatWriteError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
@@ -162,6 +162,10 @@ export default class DataNode extends BaseNode {
      */
     _isUnchangedCommit(propName: string, stringValue: string): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /** The editor this node's source offers of `key`, or null (BaseNode.sourceOfferedEditor). */
+    _offeredEditorOf(key: string): SourceOfferedEditor | null;
+    /** Whether this node's source judges a value an edit makes (BaseNode.sourceJudgesValues: a MAT-file, a dictionary value's MAT stream). */
+    _sourceJudgesValues(): boolean;
     /**
      * The refusal of `value`, what an edit of `propName` is about to make the property hold as this
      * node holds it, by this node's source (BaseNode.sourceValueRefusal: a MAT-file's object, whose

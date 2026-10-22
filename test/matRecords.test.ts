@@ -503,7 +503,7 @@ describe('an edit and its record', () => {
     expect(edit(by('aParam'), 'Value', '[1 2 3]')).toBe(true);
     expect([by('aParam').status, root.recordOf(by('aParam'))]).toEqual(['Modified', record]);
     // One it refuses leaves the node as it was.
-    expect(edit(by('aSignal'), 'Complexity', 'complex')).toMatchObject({ error: true });
+    expect(edit(by('aSignal'), 'dimensions', '[2 0]')).toMatchObject({ error: true });
     expect(by('aSignal').status).toBe('');
   });
 
@@ -528,9 +528,9 @@ describe('an edit and its record', () => {
     expect(root.recordOf(node)).toBe(record);
   });
 
-  it('a variable added since the file was read has no record, and no status to say it is new', () => {
+  it('a variable added since the file was read has no record, and its status says it is new, as a dictionary entry added is', () => {
     const { root } = casesMat();
     const { node } = root.execAddEntry();
-    expect([root.recordOf(node), node.status]).toEqual([null, '']);
+    expect([root.recordOf(node), node.status]).toEqual([null, 'New']);
   });
 });
