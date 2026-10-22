@@ -79,6 +79,20 @@ export function sourceEditRefused(node, key) {
     return sourceEditRefusal(node, key, false) !== null;
 }
 /**
+ * Whether the source `struct` is in renames its fields: `struct` a struct of one element (a struct,
+ * or an element of a struct array), whose rows are its fields. A MAT-file says so of a struct its
+ * save writes fresh (MatNode._renamesFieldsOf); every other source, which names a field by its own
+ * nodes (a dictionary's StructNode) or not at all, does not.
+ */
+export function sourceRenamesFields(struct) {
+    const { entry, source } = sourceOf(struct);
+    if (!entry) {
+        return false;
+    }
+    const renames = source?._renamesFieldsOf;
+    return typeof renames === 'function' && renames.call(source, entry, struct);
+}
+/**
  * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
  * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
  * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some

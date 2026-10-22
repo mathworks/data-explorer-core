@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode, { newFieldName } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
-import { encodedHolderOf, inMcosStream, sourceEditRefused, streamValueRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, sourceEditRefused, sourceRenamesFields, streamValueRefusal } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { OBJECT_ICON } from '../icons.js';
@@ -388,12 +388,36 @@ export default class MatlabVariableNode extends DataNode {
         return matlabVariableKind(this.isDerived);
     }
     // The rule just below, said from the parent's side so a child of ANOTHER class obeys
-    // it too: a decoded MCOS object in a struct field is a ParameterNode or a BusNode, and
-    // without this its name alone among the fields offered a rename. That rename could
-    // not reach the file either — it does not mark the struct's `_var` stale, so the
-    // struct would go on describing the field by its old name.
+    // it too: a decoded MCOS object in a struct field is a ParameterNode or a BusNode. The
+    // names of an array's, a cell's and a struct array's rows are their positions. A struct's
+    // fields are renamed where its source writes the struct anew under its rows' names
+    // (BaseNode.sourceRenamesFields: a MAT-file, _renameField), and only there: a value in a
+    // model workspace is its stream, and a dictionary's struct value is a StructNode.
     get fixesChildNames() {
-        return true;
+        return !this._holdsFields() || !sourceRenamesFields(this);
+    }
+    // Whether this value's rows are a struct's fields: a struct of one element, a struct array's
+    // element included, and not a struct array, whose rows are its elements.
+    _holdsFields() {
+        return !this._isOpaque && this._kind === 'scalar' && this._scalarType === 'struct' && elementCount(this._dims) === 1;
+    }
+    // A field of this struct renamed, whatever its node's class (an object's typed node too): the
+    // struct is written anew under its rows' names (_buildVarObject), and it and every value above
+    // it are edited. A struct array holds one list of fields, as StructNode._renameField says of a
+    // dictionary's: a field renamed in one element is renamed in each.
+    _renameField(from, to) {
+        super._renameField(from, to);
+        const array = this.parent;
+        if (this._holdsFields() && array instanceof MatlabVariableNode && array._scalarType === 'struct' && !array._holdsFields()) {
+            for (const element of array.children) {
+                for (const field of element === this ? [] : element.children) {
+                    if (field.name === from) {
+                        field.name = to;
+                    }
+                }
+            }
+        }
+        this._markModified();
     }
     get nameEditable() {
         // Inside a value still in its encoded stream, the names are part of the stream; the
@@ -402,7 +426,7 @@ export default class MatlabVariableNode extends DataNode {
         if (holder && holder !== this) {
             return false;
         }
-        if (this.parent && this.parent instanceof MatlabVariableNode) {
+        if (this.parent instanceof MatlabVariableNode && this.parent.fixesChildNames) {
             return false;
         }
         // A class property name is fixed by the class definition (see BaseNode).
@@ -1425,7 +1449,9 @@ export default class MatlabVariableNode extends DataNode {
     // TOP-LEVEL variable: a struct field's edit has to make the STRUCT's snapshot
     // stale, not just the field's own. See the _var getter for why.
     _markModified(edit = 'value') {
-        let node = this;
+        // A field's rename leaves its value as it was, what it was read as (_var): the structs above
+        // it, which name it, are what is written anew.
+        let node = edit === 'name' && this.parent instanceof MatlabVariableNode ? this.parent : this;
         while (node instanceof MatlabVariableNode) {
             node._varStale = true;
             // Whatever changed below a sparse array changed its non-zeros, however it got there,
@@ -3179,6 +3205,10 @@ export default class MatlabVariableNode extends DataNode {
             // (_keepStreamElement), not on the variable the reader made of it.
             if (this._sparse && this._rawBytes && !this._matVar._rawBytes) {
                 return { ...this._matVar, _rawBytes: this._rawBytes };
+            }
+            // A struct's field renamed is the value it was read as, under the name it has now.
+            if (this._matVar.name !== this.name && this.parent instanceof MatlabVariableNode && this.parent._holdsFields()) {
+                return { ...this._matVar, name: this.name };
             }
             return this._matVar;
         }

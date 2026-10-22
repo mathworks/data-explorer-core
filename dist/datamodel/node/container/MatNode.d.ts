@@ -96,6 +96,9 @@ export default class MatNode extends ContainerNode {
      *   - every edit of a variable stored after the subsystem, its name included: MATLAB does
      *     not read it there, and moved, what MATLAB loads would change. It can be deleted;
      *   - a variable's own name: taken, and written as its record with the name replaced;
+     *   - a struct field's name, where the struct's fields take a rename (_renamesFieldsOf): an edit
+     *     of the struct's value, which writes it fresh under its rows' names, the field's value as it
+     *     was read (an MCOS object's, as the element it was read as);
      *   - a property of an MCOS object, at the top of the file, in a struct field or a cell, or an
      *     element of an object array (anything at or under its node, mcosObjectEdit.objectNodeAt),
      *     which a save writes into the subsystem cell that holds it and leaves the variable's
@@ -114,6 +117,15 @@ export default class MatNode extends ContainerNode {
      *     which the tree did not show.
      */
     _editRefusal(entry: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
+    /**
+     * Whether the fields of `struct`, `entry` or a node under it, take a rename
+     * (BaseNode.sourceRenamesFields): where `struct` holds fields (MatlabVariableNode._holdsFields) a
+     * save writes fresh under its rows' names, which is anywhere but at or under an MCOS object, whose
+     * value a save writes into the file's objects by the rules for them, or as it was read
+     * (objectNodeAt, MatlabVariableNode._objectMemberOf). Whether a save writes the variable at all
+     * is _editRefusal's, of the field's Name.
+     */
+    _renamesFieldsOf(entry: BaseNode, struct: BaseNode): boolean;
     /**
      * Why an edit of `key` at `node`, at or under `object`, the node of an MCOS object in `entry`, is
      * refused whatever its value, or null where the value decides (_editValueRefusal): the edit of a

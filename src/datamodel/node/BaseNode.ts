@@ -242,6 +242,21 @@ export function sourceEditRefused(node: BaseNode, key: string): boolean {
   return sourceEditRefusal(node, key, false) !== null;
 }
 
+/**
+ * Whether the source `struct` is in renames its fields: `struct` a struct of one element (a struct,
+ * or an element of a struct array), whose rows are its fields. A MAT-file says so of a struct its
+ * save writes fresh (MatNode._renamesFieldsOf); every other source, which names a field by its own
+ * nodes (a dictionary's StructNode) or not at all, does not.
+ */
+export function sourceRenamesFields(struct: BaseNode): boolean {
+  const { entry, source } = sourceOf(struct);
+  if (!entry) {
+    return false;
+  }
+  const renames = (source as unknown as { _renamesFieldsOf?: (entry: BaseNode, struct: BaseNode) => boolean } | null)?._renamesFieldsOf;
+  return typeof renames === 'function' && renames.call(source, entry, struct);
+}
+
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
 export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string, describe?: boolean) => string | null;
 

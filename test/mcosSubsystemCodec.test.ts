@@ -67,13 +67,13 @@ const same = (a: Uint8Array, b: Uint8Array): boolean => Buffer.compare(Buffer.fr
 
 // The subsystems MATLAB R2023b or R2024b wrote, or a merge of R2023b's templates made: the template
 // merge's fixtures, the 'handle' opaque CoderInfo edits (test/mcosHandleOpaque.test.ts), and the
-// older releases' files the creation gate and the rules' parity cases start from, whose names say
-// their release.
+// older releases' files the creation gate, the struct field rename gate and the rules' parity
+// cases start from, whose names say their release.
 const byOlderRelease = (where: string): boolean =>
   where.startsWith('fixtures/mcos-templates/') ||
   where.startsWith('fixtures/mcos-handle/') ||
   /^fixtures\/mat-edits-gate\/r2[34]\//.test(where) ||
-  /^fixtures\/mat-create-gate\/targets\/[^/]*_r202[34]b\.mat/.test(where) ||
+  /^fixtures\/mat-(create-gate|field-rename)\/targets\/[^/]*_r202[34]b\.mat/.test(where) ||
   /^fixtures\/mcos-rules-parity\/originals\/(ci|r)2[34]_/.test(where);
 
 function read(bytes: Uint8Array): McosSubsystemRecords {

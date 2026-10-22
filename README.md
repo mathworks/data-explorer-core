@@ -133,7 +133,10 @@ record the reader could not read; the header keeps its text. A variable only
 renamed is its own bytes with the new name in them. One whose value was edited,
 and one added, is written from the model, after the last variable and before the
 objects, and compressed only if the file already holds a compressed record, so a
-`-v6` file stays one. Written from the model, a variable is still the one it was
+`-v6` file stays one. A struct's field takes a rename as a dictionary's does, at
+any depth and in every element of a struct array, with the same refusals; its
+variable is then written from the model, an object it holds as the element it was
+read as. Written from the model, a variable is still the one it was
 read as in every part it holds: a struct array of no element keeps its field
 names, an empty its complexity, a zero its sign, and a variable saved as global
 stays global. Before the bytes are handed back, every record written anew is

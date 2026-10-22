@@ -1,0 +1,415 @@
+{
+ "source": "struct field rename live gate (field-rename in the research probes): each file saved through the session after the steps test/matFieldRenameGoldens.test.ts names for it, loaded by MATLAB R2027a, R2023b and R2024b against the original with MATLAB's own rename of the same fields (cell2struct over struct2cell, each field kept in its place), every field's order held too. CAUGHT: the negative control, whose rename the gate is told is another, failed as it must.",
+ "cases": [
+  {
+   "name": "s_first__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "436284340642be220c3822455c5556d31a966f52443924db45c8b8ae2003f166",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "n_deep__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "ccaa9a1d654b30ea7acd77f8130044f5457e9d195d0e457253dac47b5f89f8e0",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sa_b__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "b3b7dd8e5a8cc1b7949c6739bcfcf07b3a1147a54b67775c61f5f4cbb8a90a09",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sm_v__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "5e1d02b833f3e5c816a830309b34fbae09c19d83b3daaaffecef622276f787d3",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_obj__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "e4ba4b91eb3b1f49c5fb2b0698440cfbce30e5b30646a8dd900d9c7e11b7720c",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_plain__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "083a7746cafdcec331f2ef60e5ccaa3e0a1fc62ba0269ee4b1cac16e0292fdd8",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edit_after__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "4f4f53eb7a6c339875eff6a4c7d4c44dfcd716e1ed36a1d7cdbc75f81fd31172",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "long__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "06d41f95c2d98b9a44a5acd4cd2ef6b0e05255578a77cb51fd25582be0569b5a",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "undo_mix__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "0194de2641b867845706fb007895fffd02133c4e405499ed77c2c30f9f34ed7b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "b25ebaacddd3ad66c3e36b491e676b285a75b7ae8ee33bd761f9a9fdb2d2d99d",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "s_first__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "681ae72171479bbd118b5c695ba36e8d3e355661f600d0439567c8d87065f277",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "n_deep__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "40d57341f10060dee67269052c0a41c2f781fefee46a7475876fff7a018f65b9",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sa_b__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "106f973e7d20bb55a5abe62f3bb0d37f7f7fbe671790e5e02555b56770155fdc",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sm_v__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "297b1af36d3569964c506704e7fcb200061a206fa6ea900030e8444c69bf20a2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_obj__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "0e89959c89433f76032861187f12d71f47cee571f551bc1e3b679694f4417897",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_plain__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "dde724d5606de66c34ba8952347da2a27ea2714e600f1de123096a10403fd62c",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edit_after__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "36b5bcd160b3e6e08881d23568dac3d9f598320d78c6bbd9fc7650f1625eb463",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "long__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "78dda96fa5472d5d4215c34668a855b0e3bb471039f13d0179329ed15c5e15cf",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "undo_mix__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "a784c1e63763781ab01bda164f4eae1eac15015cdb9db0ea2754b99c450fec7f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all__t_v6_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2023b.mat",
+   "sha256": "fd528c46c5c1fb832d3b512505722315021479f0e64a454cdf5bee8b4924dbde",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "s_first__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "01e5f4db4c1bdffb54cc504f44b40e68d4000229f4191bfee6ac255b6f31eb03",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "n_deep__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "d66347ae862ec5793d8a9964b082c655077100839a3a8e9f97a0af4b7512a630",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sa_b__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "b75e2f4830fd4b2bb7605efa18daf707121740457ea73e50521c6624685278ca",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sm_v__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "9da411a1a91487c81d599ff38808abe71b4c927d3ba880c17912059d7f095d6f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_obj__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "6834353537a84aeb83a2af4c15e27df3af0ef92b8eb0b539002a94fe39d4c267",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_plain__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "62a6a7d515175772114b94c85deea561f48aab2bc125c158e7a3078be5ae9ba0",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edit_after__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "873f1dea3a8b42ab60c8fe706acb03a3b5c07d638f88ae1ac5219c4b6d7818e3",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "long__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "259a38f5391462adc9f89fdeb05d9c562d9ae17629bb9ba36345e17d5d4d3ce1",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "undo_mix__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "78e7629be40fe1ff760f293b7334f6b0aa6ff04bac0c521f39161ace0e0ed6d2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all__t_v7_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2027a.mat",
+   "sha256": "19644edfca5207cd86e99fca708e519e48a29724c2d5c1a4b8b43b50bb85517e",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "s_first__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "c34037c503961b721148224d483fa38496c255f0157a922a347ec3bb1afbf332",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "n_deep__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "f5f51b1e744d4b5cc57408cc71d8a5cea8f901cc1488343045ad89386eacc48b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sa_b__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "9e161ba5e0f9b113d8206f8b7c9a79848116cd2765f97bd0c19b1bf5629a4739",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "sm_v__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "a0e0a3b865c94707f7d006ed9f87b294c403af7a46b548d2a0575867e3a518bb",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_obj__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "3f1df6c742bb91bf349c5bae8896c5e08cb1be8872794931b6ad1ca5b0a420b2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "so_plain__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "32f1e343292ed081265f1d64698583f50c42a10069c174b7be916ee8ca2fe8c4",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "edit_after__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "27a8df66b529c43196cf5202d55e8d5f27d3a4b43b227ebdb5943913dd5f545a",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "long__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "3a93b6ee616b885bd1adcfd946365874ba885998d2d6b7461b732c1088fe313b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "undo_mix__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "b14143f4a2d5695c666c4176515103df4a2f06a09c81c05f1d2246a9041d48c4",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all__t_v6_r2027a",
+   "original": "fixtures/mat-field-rename/targets/t_v6_r2027a.mat",
+   "sha256": "9d8c8a720ff161e8906e5cae6a05196739d462f344e7f3e08b80a3967c0dacdd",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "ctl_wrong_name__t_v7_r2023b",
+   "original": "fixtures/mat-field-rename/targets/t_v7_r2023b.mat",
+   "sha256": "436284340642be220c3822455c5556d31a966f52443924db45c8b8ae2003f166",
+   "verdicts": {
+    "R2027a": "CAUGHT",
+    "R2023b": "CAUGHT",
+    "R2024b": "CAUGHT"
+   }
+  }
+ ]
+}
