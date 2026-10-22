@@ -21,6 +21,7 @@ import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel
 import { compressedRecordOf, serializeMatFile } from '../src/datamodel/parser/MatFileWriter.js';
 import { checkMatFile, violationsAdded } from '../src/datamodel/parser/MatFileCheck.js';
 import { createSession } from '../src/index.js';
+import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
 import { CLASS, MI, cellVar, matFile, numericVar, u32le } from './tools/matBytes.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -506,16 +507,10 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
   it("is set by the rename of anything under the entry, a bus element's, which changes the entry's value", () => {
     const { by, edit, save } = casesMat();
     const element = by('aBus').children[0];
-    // Refused by the editor, as every edit of an object of a MAT-file but its own rename is; made
-    // around it, as DataNode.setProperty's rename makes one.
-    expect(edit(element, 'Name', 'renamedElement')).toMatchObject({ error: true });
-    element.name = 'renamedElement';
-    element._markModified('name');
-    expect([by('aBus').status, by('aBus')._valueEdited, by('aBus')._objectEdited]).toEqual(['Modified', true, true]);
-    // And a bus is an object no edit of whose properties this writer can write.
-    expect(thrownBy(save).message).toBe(
-      'Cannot write "aBus": aBus is a Simulink.Bus, whose properties this editor does not write into a MAT-file. Nothing was written.',
-    );
+    // A bus element's Name is a property of its own object, which the save writes into the subsystem.
+    expect(edit(element, 'Name', 'renamedElement')).toBe(true);
+    expect([by('aBus').status, by('aBus')._valueEdited, by('aBus')._objectEdited, by('aBus')._plainEdited]).toEqual(['Modified', true, true, undefined]);
+    expect(reopened(save()).by('aBus').children[0].name).toBe('renamedElement');
   });
 });
 
@@ -528,8 +523,8 @@ describe('a save that cannot write a variable as what it is is refused, naming i
 
   it("an object's property a save does not write, edited; the variable deleted, the file saves", () => {
     const { by, edit, remove, save } = opened(fixture(CASES), 'cases.mat');
-    expect(edit(by('aParam'), 'DataType', 'int8')).toMatchObject({ error: true });
-    by('aParam').DataType = 'int8';
+    expect(edit(by('aParam'), 'typeQualifier', 'const')).toMatchObject({ error: true });
+    by('aParam').serial._properties.CoderInfo._properties.TypeQualifier = 'const';
     by('aParam')._markModified();
     const thrown = thrownBy(save);
     expect([thrown instanceof MatWriteError, thrown.message]).toEqual([
@@ -540,20 +535,35 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     expect(reopened(save()).by('aParam')).toBeUndefined();
   });
 
-  it('a string edited', () => {
-    const { by, edit, save } = opened(fixture(CASES), 'cases.mat');
-    expect(edit(by('strScalar'), 'Value', '"xyz"')).toMatchObject({ error: true });
-    by('strScalar')._markModified();
-    expect(thrownBy(save).message).toBe(editRefused('strScalar', 'a string'));
+  it('a string edited: its text written into its payload, and its record as it was read', () => {
+    const original = fixture(CASES);
+    const { by, edit, save } = opened(original, 'cases.mat');
+    expect(edit(by('strScalar'), 'Value', '"xyz"')).toBe(true);
+    const saved = save();
+    expect(reopened(saved).by('strScalar').displayValue).toBe('"xyz"');
+    const records = (b: Uint8Array | ArrayBuffer) => {
+      const parsed = parseMat(b instanceof Uint8Array ? (b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer) : b);
+      return parsed.records.filter((r) => r.name === 'strScalar').map((r) => Array.from(r.bytes).join(','));
+    };
+    expect(records(saved)).toEqual(records(original));
   });
 
-  it('a struct holding an object, edited at another field', () => {
+  it('a struct holding an object whose element is not one written back as read, edited at another field', () => {
     const { by, edit, save } = opened(fixture('fixtures/mcos/complex_objects.mat'), 'complex_objects.mat');
-    const z = by('s').children.find((c: any) => c.name === 'z');
+    const s = by('s');
+    // Its element as the reader holds it, its type system's name spelled 'MCOX': no element this
+    // package would write for its handle, so not passed through.
+    const p = s.children.find((c: any) => c.name === 'p');
+    const variable = mcosPlaceOf(p)!.variable;
+    const raw = variable._rawBytes!.slice();
+    const at = raw.findIndex((_b, i) => raw[i] === 0x4d && raw[i + 1] === 0x43 && raw[i + 2] === 0x4f && raw[i + 3] === 0x53);
+    raw[at + 3] = 0x58;
+    variable._rawBytes = raw;
+    const z = s.children.find((c: any) => c.name === 'z');
     expect(edit(z, 'Value', '5')).toMatchObject({ error: true });
     z._markModified();
     expect(thrownBy(save).message).toBe(
-      'Cannot write "s": s.p is a Simulink.Parameter, which this package cannot write into a MAT-file. Nothing was written.',
+      'Cannot write "s": s.p holds an object whose element is not one this package writes back as it was read, so a save could not write it as it is. Nothing was written.',
     );
   });
 

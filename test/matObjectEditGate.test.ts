@@ -123,6 +123,16 @@ function derivedOf(root: any, node: any): Set<string> {
 
 /** The values a sweep types into `key` of `node`, each one an edit of some value MATLAB takes. */
 function candidates(node: any, object: any, key: string): string[] {
+  // A select (a Storage Class, a Complexity, a DimensionsMode): every option it offers.
+  const prop = node.getProperties().find((p: any) => p.key === key);
+  const options = prop && prop.editor === 'select' ? node.getPropInfo(prop).options ?? prop.options : null;
+  if (Array.isArray(options) && options.length > 0) {
+    return options.map(String);
+  }
+  // A string's text, whole or an element: a string, or for an element a char too.
+  if (node.className === 'string' || node.parent?._kind === 'string') {
+    return ['"zz edited"', '"7"', "'zz'"];
+  }
   if (node !== object) {
     // A row of a Value: an element, a field, the Value's own row; its Data Type the class its
     // value is made.
@@ -131,6 +141,10 @@ function candidates(node: any, object: any, key: string): string[] {
     }
     if (key === 'Name') {
       return ['renamedField'];
+    }
+    // A bus element's Dimensions: a row of positive whole numbers.
+    if (key === 'dimensions') {
+      return ['[2 3]', '4', '1'];
     }
     if (node.parent?._kind === 'array' && node.parent?._scalarType === 'logical') {
       return [node.displayValue === 'true' ? 'false' : 'true'];
@@ -153,6 +167,12 @@ function candidates(node: any, object: any, key: string): string[] {
     case 'DataType':
     case 'dataType':
       return ['double', 'int8', 'fixdt(1,16,4)', 'boolean', 'single'];
+    case 'BaseType':
+      return ['int16', ' int8', 'single', 'Bus: B'];
+    case 'alignment':
+      return ['8', '16', '256'];
+    case 'dimensions':
+      return ['[2 3]', '4', '-1', '0', '[1 2 3]'];
     default:
       return ['7', "'zz'"];
   }
@@ -330,5 +350,99 @@ describe('the gate is the writer, for every object of every fixture', () => {
     }
     expect(valueRows.add).toContain('fixtures/mat-allowlist/al_shape.mat: spI.Value');
     expect(valueRows.remove).toContain('fixtures/mat-allowlist/al_shape.mat: spI.Value');
+  });
+});
+
+// ---- The rows only a Property Inspector shows ------------------------------------------------------
+//
+// A MAT-file offers an editor of an object's property its node shows only in its Property
+// Inspector (BaseNode.sourceOfferedEditor): a Signal's InitialValue and SampleTime, a Bus's
+// HeaderFile, a NumericType's WordLength. Each one offered, edited through the session with each
+// representative value, is taken, saved and read back as the node shows it, every row of its
+// Property Inspector; or refused by its value, and the file saved is the file.
+
+/** Every row a node's Property Inspector shows, its key and text. */
+function inspectorShown(node: any): string[] {
+  return (node.getPILayout() ?? []).flatMap((g: any) => g.items.map((p: any) => `${p.key} = ${node.getPropInfo(p).displayValue}`));
+}
+
+/** The values a sweep types into `key`, a row only `node`'s Property Inspector shows. */
+function inspectorCandidates(node: any, prop: any): string[] {
+  const info = node.getPropInfo(prop);
+  if (info.editor === 'select' && Array.isArray(info.options) && info.options.length > 0) {
+    return info.options.map(String);
+  }
+  switch (prop.key) {
+    case 'initialValue':
+      return ['0.5', 'zz', ' 1'];
+    case 'sampleTime':
+      return ['0.1', '[0.2 0.1]', '-1', '[0.1 0.2]'];
+    case 'headerFile':
+      return ['zz.h', '', ' a.h'];
+    case 'identifier':
+      return ['zzId', '7', ''];
+    case 'alignment':
+      return ['8', '16', '3'];
+    case 'wordLength':
+      return ['8', '32'];
+    case 'fractionLength':
+      return ['3', '-2'];
+    case 'slope':
+      return ['0.5', '0.75', '2'];
+    case 'bias':
+      return ['2', '0.5'];
+    default:
+      return ['7', "'zz'"];
+  }
+}
+
+describe('every row only a Property Inspector shows that a MAT-file offers an editor of takes an edit', () => {
+  const totals = { offered: 0, taken: 0, refused: 0 };
+  for (const file of FIXTURES) {
+    it(shown(file), { timeout: 120_000 }, () => {
+      const original = new Uint8Array(readFileSync(file));
+      const probe = opened(original);
+      const all = nodesWithPaths(probe.root);
+      for (const { node: seen, path } of all) {
+        if (!mcosPlaceOf(seen) && !(seen.parent && mcosPlaceOf(seen.parent) && seen.className === 'Simulink.BusElement')) {
+          continue;
+        }
+        const columns = new Set(seen.getProperties().map((p: any) => p.key));
+        const rows = (seen.getPILayout() ?? []).flatMap((g: any) => g.items).filter((p: any) => !columns.has(p.key));
+        for (const prop of rows) {
+          if (!seen.getPropInfo(prop).editable) {
+            continue;
+          }
+          totals.offered++;
+          let taken = 0;
+          for (const value of inspectorCandidates(seen, prop)) {
+            if (value === seen.getPropInfo(prop).displayValue) {
+              continue;
+            }
+            const { root, edit, save } = opened(original);
+            const node = at(root, path);
+            const what = `${shown(file)}: ${node.matlabPath} ${prop.key} = ${JSON.stringify(value)}`;
+            const answer: any = edit(node, prop.key, value);
+            if (answer !== true) {
+              expect(answer, what).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot edit "/) });
+              expect(sameBytes(save(), original), what + ': the file as it was').toBe(true);
+              totals.refused++;
+              continue;
+            }
+            expect(thrownBy(save)?.message, what).toBeUndefined();
+            expect(inspectorShown(at(opened(save(), 'saved.mat').root, path)), what).toEqual(inspectorShown(node));
+            taken++;
+            totals.taken++;
+          }
+          expect(taken, `${shown(file)}: ${seen.matlabPath} ${prop.key}: no value of it was taken`).toBeGreaterThan(0);
+        }
+      }
+    });
+  }
+
+  it('reaches the rows of every class that has them', () => {
+    expect(totals.offered).toBeGreaterThanOrEqual(50);
+    expect(totals.taken).toBeGreaterThanOrEqual(100);
+    expect(totals.refused).toBeGreaterThanOrEqual(10);
   });
 });

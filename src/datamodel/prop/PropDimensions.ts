@@ -12,6 +12,8 @@ export default class PropDimensions {
     static key = 'dimensions';
     static displayName = 'Dimensions';
     static editor = 'label';
+    // Which a node's source may offer an editor of (BaseNode.sourceOfferedEditor): a MAT-file's.
+    static sourceEditable = true;
     static column: string | null = 'dimensions';
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.

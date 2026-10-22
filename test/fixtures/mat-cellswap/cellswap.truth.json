@@ -212,7 +212,16 @@
    ],
    "matlab": "PASS",
    "matlabNote": null,
-   "sameAsMatlabSave": false
+   "sameAsMatlabSave": false,
+   "rules": {
+    "subsystemSha256": "fcbeaa77b7c4565a919fd22900e4c27ed47707c0b1b0a3c8a9a604dfb8877775",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "complex_value_only",
@@ -245,7 +254,16 @@
    ],
    "matlab": "PASS",
    "matlabNote": null,
-   "sameAsMatlabSave": false
+   "sameAsMatlabSave": false,
+   "rules": {
+    "subsystemSha256": "137705d6c3c680c692a1920d325632d1b518c76838b076250d6ce8e59d8d3542",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "typed_value",
@@ -665,5 +683,6 @@
    "matlabNote": null,
    "sameAsMatlabSave": null
   }
- ]
+ ],
+ "rulesNote": "rules: the subsystem the property rules (McosPropertyRules) write for the case, through the session or, for an edit no host types, beneath it, where that is not the probe's swap; each saved file loaded in MATLAB R2027a, R2023b and R2024b equal to that release's own assignment, quiet, re-save equal (the live gate of T-D1b)."
 }

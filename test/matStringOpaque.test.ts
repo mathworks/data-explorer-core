@@ -18,7 +18,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadFile, findEntry } from './parity/loadFile.js';
+import { loadFile, loadBytes, bytesOf, findEntry } from './parity/loadFile.js';
+import { createSession } from '../src/index.js';
+import { ingest } from '../src/core/ingest.js';
 
 // MATLAB's own answers for every case in strings.mat: class, size, ismissing,
 // strlength, the text, the code units — all flat and column-major.
@@ -356,20 +358,20 @@ describe('MAT/SLX string vs the dictionary formats', () => {
   });
 });
 
-describe('a decoded MCOS string stays read-only', () => {
-  // Nothing in this package writes a .mat MCOS subsystem: an opaque variable's own bytes
-  // go back out verbatim. So a decoded string is a value you can now READ, and an edit
-  // committed against it would update the node and change nothing in the file — the
-  // node and the bytes disagreeing is worse than not offering the edit.
-  //
-  // A decoded string is also the first opaque node to have CHILD rows and to display
-  // ordinary editable-looking text, so it is the first one for which these gates matter.
-  it('offers no editor, on the array or on its elements', () => {
+describe('a decoded MCOS string takes an edit of its text, and keeps its shape', () => {
+  // A MAT-file's save writes a string's text into its payload, an object of the subsystem
+  // (matObjectEdit), and the variable that holds it as it was read: so its text takes an edit,
+  // whole or an element at a time. A row added or removed does not: Add gives a 1x1 a row a file
+  // read again would not show.
+  it('offers an editor, on the array and on its elements', () => {
     for (const name of CASES) {
       const n = entryNamed(name);
-      expect(n.valueEditable, name).toBe(false);
+      // What shows a summary (an N-D or an empty one) or <missing> is no literal to type over:
+      // everything else takes the edit.
+      const literal = (x: any) => !/^<.*>$/.test(x.displayValue);
+      expect(n.valueEditable, name).toBe(literal(n) && n.dims.length <= 2);
       for (const c of n.children) {
-        expect(c.valueEditable, name + '/' + c.name).toBe(false);
+        expect(c.valueEditable, name + '/' + c.name).toBe(literal(c));
       }
     }
   });
@@ -384,19 +386,19 @@ describe('a decoded MCOS string stays read-only', () => {
     }
   });
 
-  it('refuses a Value set on an element rather than accepting it silently', () => {
-    const child = entryNamed('sRow').children[0];
-    const result = child.setProperty('Value', '"zulu"');
-    expect(result).toMatchObject({ error: true, invalidValue: '"zulu"', validValue: '"alpha"' });
-    // And the value did not move.
-    expect(entryNamed('sRow').elements).toEqual(['alpha', 'beta', 'gamma']);
-    expect(child.displayValue).toBe('"alpha"');
+  it('takes a Value set on an element, which the save writes into the payload', () => {
+    const session = createSession();
+    const own: any = ingest(session, bytesOf('../fixtures/strings.mat'), { filename: 'strings.mat' });
+    const row = findEntry(own, 'sRow');
+    expect(row.children[0].setProperty('Value', '"zulu"')).toBe(true);
+    expect([row.elements, row.children[0].displayValue]).toEqual([['zulu', 'beta', 'gamma'], '"zulu"']);
+    const saved = (session.serializeSource('strings.mat') as { bytes: Uint8Array }).bytes;
+    const again = findEntry(loadBytes(saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength) as ArrayBuffer, 'strings.mat'), 'sRow');
+    expect(again.elements).toEqual(['zulu', 'beta', 'gamma']);
   });
 
   it('hands the variable back byte-for-byte, so an untouched file round-trips', () => {
-    // The hazard the read-only gates exist to prevent, stated as an assertion: if a
-    // string node ever became editable, `_var` would stop returning the MCOS variable
-    // and _buildVarObject would emit a `char` beside the file's own stale payload.
+    // An untouched string is the MCOS variable it was read as: its record is written as it was.
     const n: any = entryNamed('sRow');
     expect(n._isOpaque).toBe(true);
     expect(n._var).toBe(n._matVar);

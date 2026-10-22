@@ -1,0 +1,195 @@
+{
+ "matlabVersions": {
+  "r2023b": "23.2.0.3186351 (R2023b) Update 11",
+  "r2024b": "24.2.0.3425179 (R2024b) Update 11"
+ },
+ "about": "Edits of a CoderInfo saved as a 'handle' opaque, by MATLAB R2023b and R2024b. Each original holds an object that release made, or (x_*) one the template merge wrote, merged from the R2023b templates; each matlabSave is that release's own save of `statements` on S = load(original). `edits` are the saved values (StorageClass 'Model default' is saved as 'SimulinkGlobal'; Identifier is saved as Alias). The codec's edit of the original's CoderInfo cell is MATLAB's own cell byte for byte in every case; `sameSubsystem`: so is the whole subsystem with that cell in it (where not, MATLAB's own save wrote other records of the subsystem again).",
+ "cases": [
+  {
+   "name": "p0_sc_0",
+   "release": "r2023b",
+   "original": "r2023b/p0.mat",
+   "matlabSave": "r2023b/exp_ci_p0_sc_0.mat",
+   "variable": "p",
+   "statements": [
+    "S.p.CoderInfo.StorageClass = 'ExportedGlobal';"
+   ],
+   "edits": {
+    "StorageClass": "ExportedGlobal"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "p0_sc_2",
+   "release": "r2023b",
+   "original": "r2023b/p0.mat",
+   "matlabSave": "r2023b/exp_ci_p0_sc_2.mat",
+   "variable": "p",
+   "statements": [
+    "S.p.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "edits": {
+    "StorageClass": "ImportedExternPointer"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "p0_combo",
+   "release": "r2023b",
+   "original": "r2023b/p0.mat",
+   "matlabSave": "r2023b/exp_ci_p0_combo.mat",
+   "variable": "p",
+   "statements": [
+    "S.p.CoderInfo.StorageClass = 'ExportedGlobal';",
+    "S.p.CoderInfo.Identifier = 'g_x';",
+    "S.p.CoderInfo.Alignment = 8;"
+   ],
+   "edits": {
+    "StorageClass": "ExportedGlobal",
+    "Identifier": "g_x",
+    "Alignment": 8
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "pexp_id",
+   "release": "r2023b",
+   "original": "r2023b/pexp.mat",
+   "matlabSave": "r2023b/exp_ci_pexp_id.mat",
+   "variable": "p",
+   "statements": [
+    "S.p.CoderInfo.Identifier = 'g_p';"
+   ],
+   "edits": {
+    "Identifier": "g_p"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "pexp_back",
+   "release": "r2023b",
+   "original": "r2023b/pexp.mat",
+   "matlabSave": "r2023b/exp_ci_pexp_back.mat",
+   "variable": "p",
+   "statements": [
+    "S.p.CoderInfo.StorageClass = 'Auto';"
+   ],
+   "edits": {
+    "StorageClass": "Auto"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "x_par_n_combo",
+   "release": "r2023b",
+   "original": "r2023b/x_par_n.mat",
+   "matlabSave": "r2023b/exp_ci_x_par_n_combo.mat",
+   "variable": "pnew",
+   "statements": [
+    "S.pnew.CoderInfo.StorageClass = 'ExportedGlobal';",
+    "S.pnew.CoderInfo.Identifier = 'g_x';",
+    "S.pnew.CoderInfo.Alignment = 8;"
+   ],
+   "edits": {
+    "StorageClass": "ExportedGlobal",
+    "Identifier": "g_x",
+    "Alignment": 8
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "x_sig_p_sc_2",
+   "release": "r2023b",
+   "original": "r2023b/x_sig_p.mat",
+   "matlabSave": "r2023b/exp_ci_x_sig_p_sc_2.mat",
+   "variable": "snew",
+   "statements": [
+    "S.snew.CoderInfo.StorageClass = 'ImportedExternPointer';"
+   ],
+   "edits": {
+    "StorageClass": "ImportedExternPointer"
+   },
+   "sameSubsystem": false
+  },
+  {
+   "name": "s0_sc_3",
+   "release": "r2024b",
+   "original": "r2024b/s0.mat",
+   "matlabSave": "r2024b/exp_ci_s0_sc_3.mat",
+   "variable": "sig",
+   "statements": [
+    "S.sig.CoderInfo.StorageClass = 'Model default';"
+   ],
+   "edits": {
+    "StorageClass": "SimulinkGlobal"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "s0_combo2",
+   "release": "r2024b",
+   "original": "r2024b/s0.mat",
+   "matlabSave": "r2024b/exp_ci_s0_combo2.mat",
+   "variable": "sig",
+   "statements": [
+    "S.sig.CoderInfo.StorageClass = 'ImportedExternPointer';",
+    "S.sig.CoderInfo.Identifier = 'ext_x';"
+   ],
+   "edits": {
+    "StorageClass": "ImportedExternPointer",
+    "Identifier": "ext_x"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "lt1_sc_1",
+   "release": "r2024b",
+   "original": "r2024b/lt1.mat",
+   "matlabSave": "r2024b/exp_ci_lt1_sc_1.mat",
+   "variable": "lt",
+   "statements": [
+    "S.lt.CoderInfo.StorageClass = 'ImportedExtern';"
+   ],
+   "edits": {
+    "StorageClass": "ImportedExtern"
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "bp1_combo",
+   "release": "r2024b",
+   "original": "r2024b/bp1.mat",
+   "matlabSave": "r2024b/exp_ci_bp1_combo.mat",
+   "variable": "bp",
+   "statements": [
+    "S.bp.CoderInfo.StorageClass = 'ExportedGlobal';",
+    "S.bp.CoderInfo.Identifier = 'g_x';",
+    "S.bp.CoderInfo.Alignment = 8;"
+   ],
+   "edits": {
+    "StorageClass": "ExportedGlobal",
+    "Identifier": "g_x",
+    "Alignment": 8
+   },
+   "sameSubsystem": true
+  },
+  {
+   "name": "x_lt_p_combo",
+   "release": "r2024b",
+   "original": "r2024b/x_lt_p.mat",
+   "matlabSave": "r2024b/exp_ci_x_lt_p_combo.mat",
+   "variable": "ltnew",
+   "statements": [
+    "S.ltnew.CoderInfo.StorageClass = 'ExportedGlobal';",
+    "S.ltnew.CoderInfo.Identifier = 'g_x';",
+    "S.ltnew.CoderInfo.Alignment = 8;"
+   ],
+   "edits": {
+    "StorageClass": "ExportedGlobal",
+    "Identifier": "g_x",
+    "Alignment": 8
+   },
+   "sameSubsystem": false
+  }
+ ]
+}

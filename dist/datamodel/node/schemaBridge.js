@@ -113,8 +113,16 @@ function toPropClass(prop, column, editorOverride) {
         const opts = prop.options;
         pc.readOptions = () => opts;
     }
+    // A label here, which a node's source may offer an editor of, and a select whose options a
+    // source may give its own (BaseNode.sourceOfferedEditor).
+    if (pc.editor === 'label' || pc.editor === 'select') {
+        pc.sourceEditable = true;
+    }
     if (isAlignment(prop)) {
-        pc.editableFor = (node) => storageClassOf(node) !== 'Auto';
+        pc.editableFor = (node) => storageClassOf(node) !== 'Auto' && !heldOpaqueRefusal(node, prop);
+    }
+    else if (prop.sourcePath.startsWith('CoderInfo.')) {
+        pc.editableFor = (node) => !heldOpaqueRefusal(node, prop);
     }
     return pc;
 }
@@ -192,13 +200,26 @@ export function trySetSchemaProperty(node, key, stringValue) {
     // fall through below unvalidated, so adding one means adding its validation
     // alongside; there is deliberately no generic branch for a type (notably `int`:
     // Number.isInteger accepts 3, which MATLAB refuses as an Alignment).
+    const opaque = heldOpaqueRefusal(node, prop);
+    if (opaque) {
+        return { error: true, reason: opaque, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(propertiesOf(node), prop)) };
+    }
     if (isAlignment(prop)) {
         return setAlignment(node, prop, stringValue);
     }
     if (prop.editor === 'select') {
-        const options = prop.options ?? [];
+        // The node's source's options where it offers its own (a MAT-file's storage classes).
+        const offered = node._offeredEditorOf?.(key);
+        const options = offered?.options ?? prop.options ?? [];
         if (options.length > 0 && !options.includes(stringValue)) {
             return { error: true, reason: 'Invalid value for ' + prop.label, invalidValue: stringValue, validValue: '' };
+        }
+        // And by the node's source, which writes some of the options and not others (a MAT-file's
+        // object takes no custom storage class: DataNode._refuseSourceValue).
+        const refuseSource = node._refuseSourceValue;
+        const sourceRefusal = refuseSource?.call(node, key, stringValue, stringValue, formatSchemaValue(hydrate(propertiesOf(node), prop)));
+        if (sourceRefusal) {
+            return sourceRefusal;
         }
     }
     const props = propertiesOf(node);
@@ -217,6 +238,22 @@ export function trySetSchemaProperty(node, key, stringValue) {
     }
     node._markModified?.();
     return true;
+}
+// Why an edit of `prop`, a property of the node's CoderInfo, is refused because that CoderInfo is a
+// 'handle' opaque (MATLAB R2024b and earlier, and objects made from the R2023b templates), whose
+// StorageClass, Identifier and Alignment are shown as read (McosParser) and are not the opaque,
+// which is what the file holds: refused unless the node's source writes it into the opaque and
+// judges the value (a MAT-file: BaseNode.sourceJudgesValues), as nothing else writes one. Null
+// otherwise.
+function heldOpaqueRefusal(node, prop) {
+    if (!prop.sourcePath.startsWith('CoderInfo.')) {
+        return null;
+    }
+    const coder = propertiesOf(node)?.CoderInfo;
+    const judges = node._sourceJudgesValues?.() ?? false;
+    return coder?._handleOpaque && !judges
+        ? 'Cannot set ' + prop.label + ": its CoderInfo is held as MATLAB's own handle data, which this editor shows but writes only into a MAT-file."
+        : null;
 }
 function propertiesOf(node) {
     return node.serial?._properties;
@@ -291,6 +328,13 @@ function setAlignment(node, prop, stringValue) {
     }
     if (n !== -1 && storageClassOf(node) === 'Auto') {
         return refuse(ALIGNMENT_AUTO);
+    }
+    // And by the node's source, which writes some alignments and not others (a MAT-file's object
+    // takes one up to 128: DataNode._refuseSourceValue).
+    const refuseSource = node._refuseSourceValue;
+    const sourceRefusal = refuseSource?.call(node, prop.key, n, stringValue, shown);
+    if (sourceRefusal) {
+        return sourceRefusal;
     }
     const leaf = sourceLeaf(propertiesOf(node), prop.sourcePath);
     if (!leaf) {

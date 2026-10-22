@@ -8,7 +8,9 @@ import type { MatVariable } from './MatParser.js';
  *   that is not there.
  * - `unsupported`: it parses, as a blob this editor was not measured on: a version other
  *   than 4.0, big-endian, or a file header holding more than the one table MATLAB R2027a
- *   writes there. Any of them could hold a reference to a cell this cannot see.
+ *   writes there. Any of them could hold a reference to a cell this cannot see. Or it parses,
+ *   and McosSubsystemCodec, which writes the edited subsystem, would not write it back as the
+ *   bytes it was read as (a padding byte that is not zero, say).
  * - `bad-object`: the id names no object: 0 (the null object, which MATLAB writes for a
  *   deleted handle), past the object table, or not a whole number.
  * - `not-stored`: the object's property list has no such property. It is at its class
@@ -29,8 +31,11 @@ import type { MatVariable } from './MatParser.js';
  * - `bad-cell`: the new cell is not one whole nameless miMATRIX whose payloads hold what
  *   its dims declare, or the subsystem it makes is past what its int32 dims can say.
  * - `duplicate-edit`: two edits name one property.
+ * - `not-verified`: the subsystem written did not read back as the records meant
+ *   (McosSubsystemCodec.verifySubsystem): a fault of this writer, not of the file, and nothing is
+ *   written.
  */
-export type McosEditRefusal = 'malformed' | 'unsupported' | 'bad-object' | 'not-stored' | 'not-a-cell' | 'shared-cell' | 'shared-list' | 'object-reference' | 'bad-cell' | 'duplicate-edit';
+export type McosEditRefusal = 'malformed' | 'unsupported' | 'bad-object' | 'not-stored' | 'not-a-cell' | 'shared-cell' | 'shared-list' | 'object-reference' | 'bad-cell' | 'duplicate-edit' | 'not-verified';
 export interface McosRefusal {
     ok: false;
     reason: McosEditRefusal;

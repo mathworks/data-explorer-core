@@ -160,8 +160,17 @@ function propertyEdit(edit: (prop: string, value: string) => unknown, node: any,
     return valueEdit(edit, node);
   }
   const bound = (b: unknown) => (typeof b === 'number' ? b : null);
-  const candidates =
-    key === 'Min'
+  // A select (a Storage Class, a Complexity, a DimensionsMode): every option it offers but the one shown.
+  const prop = node.getProperties().find((p: any) => p.key === key);
+  const info = prop ? node.getPropInfo(prop) : null;
+  const options: string[] | null = prop && prop.editor === 'select' ? (info.options ?? prop.options ?? null) : null;
+  const candidates = options
+    ? options.map(String).filter((o) => o !== info.displayValue)
+    : key === 'alignment'
+      ? ['8', '16']
+    : key === 'dimensions'
+      ? ['[2 3]', '4', '[1 2]']
+    : key === 'Min'
       ? [String((bound(node.Max) ?? 1) - 1), '0', '-1']
       : key === 'Max'
         ? [String((bound(node.Min) ?? 0) + 1), '9', '1']
@@ -178,8 +187,11 @@ function propertyEdit(edit: (prop: string, value: string) => unknown, node: any,
 function valueEdit(edit: (prop: string, value: string) => unknown, node: any): string | null {
   const parent = node.parent;
   const inArray = parent && parent._kind === 'array';
+  // A string's text, whole or an element: a string, or for an element a char too.
   const candidates =
-    inArray && parent._scalarType === 'logical'
+    node.className === 'string' || parent?._kind === 'string'
+      ? ['"zz edited"', "'zz'"]
+      : inArray && parent._scalarType === 'logical'
       ? ['false', 'true']
       : inArray
         ? ['7', '8']
@@ -400,7 +412,10 @@ describe('every cell the save would refuse has no editor anywhere a host looks, 
             expect(edit(node, 'Value', value), label + ' = ' + value).toMatchObject({ error: true });
             expect(node.setProperty('Value', value), label + ' = ' + value).toMatchObject({ error: true });
           }
-          if (node.parent !== root) {
+          // An object beside plain values of a struct or a cell a save writes fresh is written as it
+          // was read, and its own rows take no edit; its parent takes its delete, which is an edit
+          // of the parent's.
+          if (node.parent !== root && sourceEditRefusal(node.parent, 'Value')) {
             session.setActive(root, node);
             expect(session.deleteNodeById(node.id), label).toBe(false);
           }
@@ -411,7 +426,8 @@ describe('every cell the save would refuse has no editor anywhere a host looks, 
       expect(root.dirty).toBe(false);
       expect(sameBytes(save(), original)).toBe(true);
       if (refused === 0) {
-        expect(root.children.every((c: any) => !sourceEditRefusal(c, 'Value'))).toBe(true);
+        // Of a variable that has a Value: an object of a class with none (an AliasType) refuses one.
+        expect(root.children.every((c: any) => !c.getProperties().some((p: any) => p.key === 'Value') || !sourceEditRefusal(c, 'Value'))).toBe(true);
       }
     });
   }
@@ -429,24 +445,29 @@ describe('what each kind of variable of a .mat takes', () => {
     // a Description; it is at its default for every other property but those MATLAB derives.
     const deep = opened(fixture('fixtures/mcos/ParamMat.mat')).root.children[0];
     expect(deep.flatten().length).toBe(8);
+    // A property at its default takes an edit too: the save inserts its triple (McosPropertyRules).
     for (const node of deep.flatten()) {
       const offered = node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key);
-      expect(offered, node.matlabPath).toEqual(node === deep ? ['Name', 'Value', 'Description'] : ['Value']);
+      expect(offered, node.matlabPath).toEqual(node === deep ? ['Name', 'Value', 'DataType', 'Min', 'Max', 'Unit', 'Description', 'storageClass'] : ['Value']);
     }
     const { session, root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
     const param = by('aParam');
     expect(param.constructor.name).toBe('ParameterNode');
-    expect(param.getProperties().filter((p: any) => param.getPropInfo(p).editable).map((p: any) => p.key)).toEqual(['Name', 'Value', 'Min', 'Max', 'Description']);
+    expect(param.getProperties().filter((p: any) => param.getPropInfo(p).editable).map((p: any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Min', 'Max', 'Unit', 'Description', 'storageClass']);
     // What it does not take, refused in the save's own words, by the session and by the node.
     for (const [prop, why] of [
-      ['DataType', 'aParam.DataType follows its Value, and is written only with it: set on its own, MATLAB converts a Value that is not double to double on every load'],
-      ['complexity', "aParam.Complexity is held as an index into the file's text, not as a value, and MATLAB derives it from the Value as it loads"],
-      ['storageClass', 'aParam.StorageClass belongs to its CoderInfo, an object of its own, which a save does not rewrite'],
+      ['complexity', 'aParam.Complexity follows its Value, and is written only with it'],
+      ['dimensions', 'aParam.Dimensions follows its Value, and is written only with it'],
+      ['alignment', "aParam.CoderInfo.Alignment is set only under a StorageClass other than 'Auto', which MATLAB refuses it under"],
     ]) {
       const reason = 'Cannot edit "aParam": ' + why + '.';
       expect(edit(param, prop, 'int8'), prop).toEqual({ error: true, reason, invalidValue: 'int8', validValue: expect.any(String) });
       expect(param.setProperty(prop, 'int8'), prop).toMatchObject({ error: true, reason });
     }
+    // A custom storage class, which the rules refuse by its value, and so the file offers no
+    // choice of: refused as none of the choices it offers.
+    expect(param.getPropInfo(param.getProperties().find((p: any) => p.key === 'storageClass')).options).not.toContain('Custom');
+    expect(edit(param, 'storageClass', 'Custom')).toMatchObject({ error: true, reason: 'Invalid value for Storage Class' });
     expect([param.status, root.dirty]).toEqual(['', false]);
     // What it takes is written into the object's cells, and the variable's record is as it was. Its
     // Unit, which the file holds, takes an edit too, by a host that asks for one: the table offers
@@ -461,11 +482,18 @@ describe('what each kind of variable of a .mat takes', () => {
     expect(opened(arrayBufferOf(save())).by('renamedParam')).toBeUndefined();
   });
 
-  it('a string, a function handle, a value not decoded: renamed and deleted, their values not edited', () => {
+  it('a function handle, a value not decoded: renamed and deleted, their values not edited; a string, its text edited', () => {
+    // A string's text is written into its payload, an object of the file's (matObjectEdit); a value
+    // of another class typed over it is refused, as another variable.
+    const strings = opened(fileBytes(CASES));
+    const str = strings.by('strScalar');
+    expect([str.nameEditable, str.valueEditable]).toEqual([true, true]);
+    expect(strings.edit(str, 'Value', '5')).toMatchObject({ error: true, reason: expect.stringMatching(/strScalar is a string, which a save writes as the object it is, so it takes only a string/) });
+    expect(strings.edit(str, 'Value', '"xyz"')).toBe(true);
+    expect(readBack(strings.save(), strings.root.children.indexOf(str))).toEqual(shownAs(str));
     const z = numericVar({ name: 'z', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [3], imag: [4] });
     z[16] = 0xff;
     const cases: [ArrayBuffer, string, string][] = [
-      [fileBytes(CASES), 'strScalar', 'a string'],
       [fixture('fixtures/display/dispcat_opaque.mat'), 'fh_sin', 'a function handle'],
       [matFile([scalar('a', 1), z]), 'z', 'a value that was not decoded'],
     ];
@@ -483,15 +511,14 @@ describe('what each kind of variable of a .mat takes', () => {
     }
   });
 
-  it('a plain variable holding an object, at any depth: renamed and deleted, nothing in it edited', () => {
+  it('a plain variable holding an object, at any depth: a plain field beside it, renamed and deleted', () => {
     const { root, by, edit, save } = opened(fixture('fixtures/mcos/complex_objects.mat'));
     const s = by('s');
     const z = s.children.find((c: any) => c.name === 'z');
-    const why = 'Cannot edit "s": s.p is a Simulink.Parameter, which this package cannot write into a MAT-file.';
-    expect([s.valueEditable, z.valueEditable, z.nameEditable, s.canAddChild()]).toEqual([false, false, false, false]);
-    expect(edit(z, 'Value', '5')).toMatchObject({ error: true, reason: why });
-    expect(sourceEditRefusal(z, 'Value')).toBe(why);
-    expect(root.dirty).toBe(false);
+    // The struct is written fresh, its objects as the elements they were read as.
+    expect([z.valueEditable, s.canAddChild()]).toEqual([true, true]);
+    expect(sourceEditRefusal(z, 'Value')).toBeNull();
+    expect(edit(z, 'Value', '5')).toBe(true);
     expect(edit(s, 'Name', 'sR')).toBe(true);
     expect(readBack(save(), root.children.indexOf(s))).toEqual(shownAs(s));
   });
@@ -720,6 +747,7 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
       session.setActive(root, node);
       expect(session.deleteNodeById(node.id), what).toBe(false);
       expect(session.addEntry('', 'MatlabVariable'), what).toBeNull();
+      expect([root.getAllowedTypes(), session.addEntry('', 'Simulink.Parameter'), session.addEntry('', 'string')], what).toEqual([[], null, null]);
       expect([root.children[0], root.dirty], what).toEqual([node, false]);
     }
   });
@@ -762,7 +790,7 @@ describe('the session, on a .mat', () => {
     expect(session.addEntry('', 'MatlabVariable', 'myVar').name).toBe('myVar');
     expect(session.addEntry('', 'MatlabVariable', 'kp')).toBeNull();
     expect(session.addEntry('', 'MatlabVariable', '1bad')).toBeNull();
-    expect(session.addEntry('', 'Simulink.Parameter')).toBeNull();
+    expect(session.addEntry('', 'Simulink.ConfigSet')).toBeNull();
     expect(parseMat(arrayBufferOf(save())).records.slice(-3).map((r) => r.name)).toEqual(['var', 'myVar', '']);
   });
 

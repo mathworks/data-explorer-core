@@ -9,6 +9,8 @@ export default class PropDimensions {
     static { this.key = 'dimensions'; }
     static { this.displayName = 'Dimensions'; }
     static { this.editor = 'label'; }
+    // Which a node's source may offer an editor of (BaseNode.sourceOfferedEditor): a MAT-file's.
+    static { this.sourceEditable = true; }
     static { this.column = 'dimensions'; }
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.

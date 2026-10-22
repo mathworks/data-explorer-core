@@ -5,7 +5,7 @@ import MatlabVariableNode from '../data/MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import type BaseNode from '../BaseNode.js';
-import type { PropClass, PIGroupDef } from '../BaseNode.js';
+import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceSetResult } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
@@ -26,33 +26,59 @@ import {
   unwritableIn,
 } from '../../parser/MatFileWriter.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
-import { readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { objectEditCells } from '../../parser/McosEditRules.js';
+import { cloneSubsystem, measuredVersion, readSubsystem, stringObjectOf, writeSubsystem, type McosSubsystemRecords } from '../../parser/McosSubsystemCodec.js';
 import {
-  classRefusal,
+  CREATABLE_MCOS_CLASSES,
+  createAppendSession,
+  createTemplateSubsystem,
+  mergeTemplateObject,
+  newObjectVariable,
+  type McosAppendSession,
+  type McosNewObject,
+} from '../../parser/McosTemplateMerge.js';
+import { editedObjects, elementValue } from '../../parser/McosObjectWrite.js';
+import * as NodeRegistry from '../NodeRegistry.js';
+import { objectIdOf } from '../../parser/McosSubsystemEdit.js';
+import {
   memberRefusal,
-  nodePropertyValue,
-  objectEditsOf,
   objectNodeAt,
   objectNodesUnder,
-  objectStateOf,
-  objectSubsystemEdit,
-  propertyAt,
-  shownDataType,
   mirrorTwins,
   twinGroupByNode,
   twinGroupsOf,
   twinMasterRefusal,
   twinsTouching,
-  McosPropertyVerdicts,
-  type McosObjectState,
-  type McosPlannedCell,
   type McosTwin,
   type McosTwinGroup,
 } from '../data/mcosObjectEdit.js';
-import { mcosPlaceOf } from '../mcosPlace.js';
+import {
+  matClassRefusal,
+  matEditsRefusal,
+  matObjectStateOf,
+  matObjectSubsystemEdit,
+  matPropertyAt,
+  matShownDataType,
+  projectedBusState,
+  spotValue,
+  matBagEditorOf,
+  matBagEditorsOf,
+  matBagEditorShown,
+  matOffersSpot,
+  matNumericTypeAfter,
+  BUS_ELEMENTS,
+  ELEMENTS_SAVED,
+  type MatBagEditor,
+  MatSpotVerdicts,
+  type MatObjectState,
+  type MatObjectsWritten,
+  type MatSharing,
+} from '../data/matObjectEdit.js';
+import { mcosPlaceOf, setMcosPlace } from '../mcosPlace.js';
 import { validateMatlabName } from '../../matlabName.js';
 import { owningEntryOf } from '../DataNode.js';
+import type DataNode from '../DataNode.js';
+import { propertyChoices } from '../../parser/McosPropertyRules.js';
+import { sourceLeaf, writeSourcePath } from '../../schema/index.js';
 import { basenameOf } from '../../fileKinds.js';
 
 // What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
@@ -99,19 +125,48 @@ export default class MatNode extends ContainerNode {
   // dictionary's section's is (SectionNode._entriesVersion): BaseNode._replaceWith moves it too,
   // so that a slot that changes hands has its names counted again.
   _entriesVersion: number;
-  // The subsystem as a save swaps cells in it (_mcosSubsystem), read once, or why it cannot be;
+  // The subsystem as a save writes edits into it (_mcosSubsystem), read once, or why it cannot be;
   // and what the editor found of each object's node the first time it asked (_objectState), kept
   // for as long as the node is: what the file holds of the object never changes, and what the
   // node held then is what an edit is told from.
-  _objects: { record: MatRecord; subsystem: McosSubsystem } | string | undefined;
-  _objectStates: WeakMap<BaseNode, McosObjectState | string>;
+  _objects: { record: MatRecord; records: McosSubsystemRecords } | string | undefined;
+  _objectStates: WeakMap<BaseNode, MatObjectState | string>;
   // What the gate found of each object's property whatever its value (_objectKeyRefusal), kept
   // until an edit at or under the object's node (_nodeEdited).
-  _propertyVerdicts: McosPropertyVerdicts;
+  _propertyVerdicts: MatSpotVerdicts;
   // The nodes of each object two or more nodes of the file are (_twinGroups), found once, and the
   // group of each of them.
   _twins: McosTwinGroup[] | undefined;
   _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
+  // The nodes of the file's objects by object id (_sharingOf), found once.
+  _objectNodesById: Map<number, BaseNode[]> | undefined;
+  // The objects created in this file since it was read (execAddEntry of a class with a template):
+  // the subsystem they are merged into, a copy of the file's (or one from nothing, for a file that
+  // has none) that only grows, the one append session of its saves, and each new variable's node and
+  // object. A save writes this subsystem while any of them is in the tree, and the file's otherwise.
+  _creation:
+    | {
+        records: McosSubsystemRecords;
+        original: McosSubsystemRecords;
+        session: McosAppendSession;
+        created: Map<BaseNode, McosNewObject>;
+        // The ids of the object rows each creation's merge appended, in order: its object's and those
+        // it holds (a LookupTable's Table, a ValueType's element), which a rebuild maps one to one.
+        rows: Map<BaseNode, number[]>;
+      }
+    | undefined;
+  // Of each Bus whose element rows were added to or removed (_objectStateNow): the rows it was
+  // projected for, and its state then.
+  _busProjections: WeakMap<BaseNode, { rows: BaseNode[]; state: MatObjectState | string }>;
+  // What an edit of a NumericType about to be made leaves its node showing (_editValueRefusal),
+  // for its setter to show (_setOffered).
+  _followed: { node: BaseNode; key: string; values: Record<string, unknown> } | undefined;
+  // Why the last execAddEntry added nothing (addEntryRefusal), or null.
+  _addRefused: string | null = null;
+  // Why each class of MAT_CREATABLE_CLASSES is not created in this file, or null (_classRefusal).
+  _classVerdicts: Map<string, string | null> | undefined;
+  // The subsystem a save writes the live creations into (_liveCreation), for the set it was made of.
+  _rebuilt: { from: McosSubsystemRecords; live: BaseNode[]; made: { records: McosSubsystemRecords; session: McosAppendSession; objects: Map<BaseNode, McosNewObject>; remap: (node: BaseNode, state: MatObjectState) => MatObjectState } } | undefined;
 
   constructor(name: string) {
     super(name, null);
@@ -122,7 +177,8 @@ export default class MatNode extends ContainerNode {
     this._countedAt = -1;
     this._entriesVersion = 0;
     this._objectStates = new WeakMap();
-    this._propertyVerdicts = new McosPropertyVerdicts();
+    this._busProjections = new WeakMap();
+    this._propertyVerdicts = new MatSpotVerdicts();
     this._anonymousElements = [];
     this.headerBytes = null;
     this.records = null;
@@ -296,6 +352,16 @@ export default class MatNode extends ContainerNode {
     if (object) {
       return this._objectKeyRefusal(entry, object, node, key, describe);
     }
+    // At or under an MCOS object a save writes as the element it was read as, beside a plain value
+    // of the variable it writes fresh (MatlabVariableNode._objectMemberOf): an object array's own
+    // row, a string's, an opaque object's. Its element names the file's objects, and nothing of it
+    // but an object's property, which objectNodeAt finds, is an edit a save writes.
+    for (let n: BaseNode | null = node; n && n !== entry; n = n.parent) {
+      if (MatlabVariableNode._objectMemberOf(n)) {
+        return cannotEdit(entry.name, n.matlabPath + ' is ' + (n === node ? '' : 'part of ') + 'an object of the file, which a save writes as it was read: '
+          + 'only the properties of an object it takes are written into the file\'s objects');
+      }
+    }
     let verdict = this._valueVerdicts.get(entry);
     if (verdict === undefined) {
       const refused = freshRefusal(entry, record);
@@ -322,7 +388,7 @@ export default class MatNode extends ContainerNode {
    * Why an edit of `key` at `node`, at or under `object`, the node of an MCOS object in `entry`, is
    * refused whatever its value, or null where the value decides (_editValueRefusal): the edit of a
    * variable one of two of one name (duplicateWhy), of a part of the object that is no property a
-   * save writes (mcosObjectEdit.propertyAt), of a file whose objects a save cannot read, of an
+   * save writes (matObjectEdit.matPropertyAt), of a file whose objects a save cannot read, of an
    * object it cannot find in them, and of a property the rules refuse (propertyRefusal). The
    * object's state is what this asks first, and is made then (_objectState). With `describe` false
    * (an editor drawn, BaseNode.sourceEditRefused) a part of the object refused is not described
@@ -332,13 +398,44 @@ export default class MatNode extends ContainerNode {
     if (this._namespaceHolds(entry.name) > 1) {
       return cannotEdit(entry.name, duplicateWhy(entry.name));
     }
-    const state = this._objectState(object);
+    const state = this._objectStateNow(object);
     if (typeof state === 'string') {
       return cannotEdit(entry.name, state);
     }
-    const at = propertyAt(object, node, key, describe);
-    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : this._propertyVerdicts.of(state, object, at.property)) ?? this._twinRefusal(object);
+    const unruled = matClassRefusal(state, object);
+    if (unruled) {
+      return cannotEdit(entry.name, unruled);
+    }
+    const at = matPropertyAt(state, object, node, key, describe);
+    const refused = ('why' in at ? at.why : this._propertyVerdicts.of(state, object, at.key, this._sharingOf(object))) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * Which other node of the file the object at `object` is too, and how (matObjectEdit.MatSharing):
+   * a Parameter's or a Signal's twins (_twinGroups), each shown the edits of the others; any other
+   * object another node holds the handle of, which would show none. Null for one no other node is.
+   */
+  _sharingOf(object: BaseNode): MatSharing {
+    const group = this._twinGroupOf(object);
+    const twin = group?.members.find((m) => m.node !== object)?.node;
+    if (twin) {
+      return { kind: 'twins', with: twin };
+    }
+    if (this._objectNodesById === undefined) {
+      this._objectNodesById = new Map();
+      for (const n of this._objectNodesOfFile()) {
+        const place = mcosPlaceOf(n);
+        const id = place ? objectIdOf(place.variable.mcosHandle, place.index) : null;
+        if (id !== null) {
+          this._objectNodesById.set(id, [...(this._objectNodesById.get(id) ?? []), n]);
+        }
+      }
+    }
+    const place = mcosPlaceOf(object);
+    const id = place ? objectIdOf(place.variable.mcosHandle, place.index) : null;
+    const other = id === null ? undefined : this._objectNodesById.get(id)?.find((n) => n !== object);
+    return other ? { kind: 'value', with: other } : null;
   }
 
   /**
@@ -386,10 +483,23 @@ export default class MatNode extends ContainerNode {
    */
   _twinGroups(): McosTwinGroup[] {
     if (this._twins === undefined) {
-      this._twins = twinGroupsOf(objectNodesUnder(this), (n) => this._objectState(n));
+      this._twins = twinGroupsOf(this._objectNodesOfFile(), (n) => this._objectState(n));
       this._twinOf = twinGroupByNode(this._twins);
     }
     return this._twins;
+  }
+
+  // The nodes of every object the file's records hold, those of a variable deleted since included:
+  // so that which nodes are one object does not depend on whether a delete came before it was first
+  // asked, and an object one of whose holders is deleted is still one, which its undo shows.
+  _objectNodesOfFile(): BaseNode[] {
+    const out = objectNodesUnder(this);
+    for (const node of this._recordNodes.values()) {
+      if (node.parent !== this) {
+        out.push(...objectNodesUnder(node));
+      }
+    }
+    return out;
   }
 
   /** The group of the nodes that are the object `object` is, or null where no other node is it. */
@@ -468,7 +578,7 @@ export default class MatNode extends ContainerNode {
    * as the node would hold it (a bound as a number or undefined, text as a string, a Value as the
    * value node the edit makes), cannot be written into this file, or null where it can, or where
    * `node` is no object's. Judged with the object's other edits as the save will judge them
-   * (McosEditRules.objectEditCells): a Min above its Max, a Value out of its DataType's range.
+   * (McosPropertyRules.planPropertyEdits): a Min above its Max, a Value out of its DataType's range.
    * Asked by the setters before they set it (BaseNode.sourceValueRefusal), so that the edit is not
    * taken, rather than taken and then refused by the save.
    */
@@ -481,29 +591,186 @@ export default class MatNode extends ContainerNode {
     if (keyRefused) {
       return keyRefused;
     }
-    const state = this._objectState(object) as McosObjectState;
-    const at = propertyAt(object, node, key) as { property: string };
+    const state = this._objectStateNow(object) as MatObjectState;
+    const at = matPropertyAt(state, object, node, key) as { key: string };
+    if (at.key === BUS_ELEMENTS) {
+      return null;
+    }
     // A struct row of a Value takes a row added or removed, and an edit of each of its fields: a
     // value typed over it whole is text no setter makes a value of.
-    if (at.property === 'Value' && typeof value === 'string' && node !== object && (node as unknown as { className?: string }).className === 'struct') {
+    if (at.key === 'Value' && typeof value === 'string' && node !== object && (node as unknown as { className?: string }).className === 'struct') {
       return cannotEdit(entry.name, node.matlabPath + ' is a struct, which takes an edit of each of its fields, and not a value typed over it whole');
     }
-    const pending = nodePropertyValue(object, at.property, { value });
+    const spot = state.spots.get(at.key)!;
+    const pending = spotValue(spot.holder, spot.spot.property, { value });
     if (typeof pending === 'string') {
-      return cannotEdit(entry.name, object.matlabPath + '.' + at.property + ' ' + pending);
+      return cannotEdit(entry.name, (spot.holder === object ? object.matlabPath : spot.holder.matlabPath) + '.' + spot.spot.property + ' ' + pending);
     }
-    const found = objectEditsOf(state, object, { property: at.property, value: pending });
-    if ('why' in found) {
-      return cannotEdit(entry.name, found.why);
+    // A NumericType's property its mode gates: as MATLAB's setter takes it from what the node holds
+    // now, and the node is to show what that leaves (_setOffered), which the save must write.
+    if (state.held.className === 'Simulink.NumericType' && matBagEditorOf(state.held.className, key)) {
+      const after = matNumericTypeAfter(state, object, spot.spot.property, pending);
+      if ('why' in after) {
+        return cannotEdit(entry.name, after.why);
+      }
+      const shown = new Map<string, MatVariable>();
+      for (const [k, s] of state.spots) {
+        const editor = matBagEditorOf(state.held.className, k.charAt(0).toLowerCase() + k.slice(1));
+        const v = editor?.bag && Object.prototype.hasOwnProperty.call(after.values, editor.bag) ? spotValue(s.holder, k, { value: after.values[editor.bag] }) : null;
+        if (v && typeof v !== 'string') {
+          shown.set(k, v);
+        }
+      }
+      const refused = matEditsRefusal(state, object, undefined, shown);
+      if (refused) {
+        return cannotEdit(entry.name, refused);
+      }
+      this._followed = { node: object, key, values: after.values };
+      return null;
     }
-    const ruled = objectEditCells(state.held, found.edits, object.matlabPath);
-    return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
+    const refused = matEditsRefusal(state, object, { key: at.key, value: pending });
+    return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * The rows of `node`'s Property Inspector this file offers in its property groups
+   * (BaseNode.sourceInspectorRows), where `node` is an object's or a row under one: its Name; where
+   * it stands, its Kind and Class; of a string, its DataType, as of every MATLAB value; and the
+   * properties a save writes into the object
+   * (matObjectEdit.matPropertyAt finds a spot of them), each of which takes an edit in some state of
+   * it (a storage class other than Auto opens an Identifier; a NumericType's mode opens its scaling).
+   * A property it saves no edit of (a Parameter's Dimensions, which follow its Value; a CoderInfo's
+   * custom attributes) is shown read-only in "Other". The saved keys a row shows already are not
+   * shown again there, stale until a save: a NumericType's SignednessBool, FixedExponent and
+   * SlopeAdjustmentFactor, which its Signedness, FractionLength and Slope show; a Bus's elements,
+   * which its rows are; a ValueType's own element. Of a MATLAB value, every row, and none of a
+   * Description, which no MATLAB value has.
+   */
+  _inspectorRows(entry: BaseNode, node: BaseNode): SourceInspectorRows | null {
+    const object = objectNodeAt(entry, node);
+    if (!object) {
+      return { shows: () => true, hides: (key) => key === 'Description', skips: [] };
+    }
+    const skips = ['SignednessBool', 'FixedExponent', 'SlopeAdjustmentFactor', 'Elements_internal', 'be'];
+    const identity = (key: string) => key === 'Name' || key === 'Kind' || key === 'Class' || (key === 'DataType' && node instanceof MatlabVariableNode);
+    const state = this._objectStateNow(object);
+    if (typeof state === 'string') {
+      return { shows: identity, hides: () => false, skips };
+    }
+    return { shows: (key) => identity(key) || 'key' in matPropertyAt(state, object, node, key, false), hides: () => false, skips };
+  }
+
+  /**
+   * The editor this file offers of `key` at `node` (of `entry`), a property of an object's node
+   * shown read-only in every other source (BaseNode.sourceOfferedEditor): one a save writes into
+   * the object (matObjectEdit.matBagEditorOf), a text box, or a dropdown of the rules' choices or
+   * true and false; null for any other. Whether it takes an edit now is _editRefusal's.
+   */
+  _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null {
+    const cls = String((node as unknown as { className?: string }).className ?? '');
+    const object = objectNodeAt(entry, node);
+    // A CoderInfo's storage class, of the rules' choices as saved, and its Alignment: the columns
+    // and Property Inspector rows of a Parameter's and a Signal's, which the schema's setters write.
+    if (object === node && (cls === 'Simulink.Parameter' || cls === 'Simulink.Signal')) {
+      if (key === 'storageClass') {
+        return { editor: 'select', options: [...(propertyChoices('Simulink.CoderInfo', 'StorageClass') ?? [])] };
+      }
+      if (key === 'alignment') {
+        return { editor: 'text' };
+      }
+    }
+    const editor = object ? matBagEditorOf(cls, key) : null;
+    // A DataType or a Unit of a class whose save writes it, which the node's own setter sets: a text
+    // box, of the class alone (whether this object takes it is _editRefusal's, asked next).
+    if (!editor && object && (key === 'DataType' || key === 'Unit')) {
+      return matOffersSpot(object === node ? cls : null, cls, key) ? { editor: 'text' } : null;
+    }
+    if (!editor) {
+      return null;
+    }
+    if (editor.kind === 'flag') {
+      return { editor: 'select', options: ['true', 'false'] };
+    }
+    const choices = editor.kind === 'choice' ? propertyChoices(cls, editor.property) : null;
+    return choices ? { editor: 'select', options: [...choices] } : { editor: 'text' };
+  }
+
+  /**
+   * The edit of `key` at `node` (of `entry`) to `text`, of a property this file offers an editor of
+   * (_offeredEditor): the text taken as the editor takes it, held to what a save writes
+   * (DataNode._refuseSourceValue, _editValueRefusal), and written into the node's property bag where
+   * the node shows it, its field too where one shows it; for a NumericType, with what MATLAB's setter
+   * changes beside it. Null for a key it offers no editor of, which the node's own setter takes.
+   */
+  _setOffered(entry: BaseNode, node: BaseNode, key: string, text: string): SourceSetResult | null {
+    const cls = String((node as unknown as { className?: string }).className ?? '');
+    const editor = objectNodeAt(entry, node) ? matBagEditorOf(cls, key) : null;
+    const bag = (node as unknown as { serial?: { _properties?: Record<string, unknown> } }).serial?._properties;
+    if (!editor || !bag) {
+      return null;
+    }
+    const shown = offeredText(matBagEditorShown(node, editor));
+    const parsed = offeredValue(text, editor.kind);
+    if (typeof parsed === 'string') {
+      return { error: true, reason: cannotEdit(entry.name, node.matlabPath + '.' + editor.property + ' ' + parsed), invalidValue: text, validValue: shown };
+    }
+    const data = node as unknown as DataNode;
+    this._followed = undefined;
+    const refused = data._refuseSourceValue(key, parsed.value, text, shown);
+    if (refused) {
+      return refused as SourceSetResult;
+    }
+    const followed = this._followed as { node: BaseNode; key: string; values: Record<string, unknown> } | undefined;
+    this._followed = undefined;
+    for (const path of [editor.bag, editor.mirror]) {
+      if (path) {
+        writeSourcePath(bag, path, parsed.value);
+      }
+    }
+    if (editor.field) {
+      (node as unknown as Record<string, unknown>)[editor.field] = parsed.value;
+    }
+    if (followed && followed.node === node && followed.key === key) {
+      Object.assign(bag, followed.values);
+    }
+    data._markModified();
+    return true;
+  }
+
+  /**
+   * What puts `key` of `node` (of `entry`) back as it stands now, a property this file offers an
+   * editor of (_offeredEditor): every bag key and field its class's editors write, as they are, an
+   * edit of a NumericType's changing more than its own. Null for any other key.
+   */
+  _offeredRestorer(entry: BaseNode, node: BaseNode, key: string): (() => void) | null {
+    const cls = String((node as unknown as { className?: string }).className ?? '');
+    const bag = (node as unknown as { serial?: { _properties?: Record<string, unknown> } }).serial?._properties;
+    if (!bag || !objectNodeAt(entry, node) || !matBagEditorOf(cls, key)) {
+      return null;
+    }
+    // Each key's leaf as it stands, absent included, and each field.
+    const leaves = matBagEditorsOf(cls).flatMap((e) => [e.bag, e.mirror]).filter((p): p is string => !!p).map((p) => sourceLeaf(bag, p)).filter((l) => l !== null);
+    const held = leaves.map((l) => [l, l.key in l.bag, structuredClone(l.bag[l.key])] as const);
+    const fields = matBagEditorsOf(cls).filter((e) => e.field).map((e) => [e.field!, structuredClone((node as unknown as Record<string, unknown>)[e.field!])] as const);
+    return () => {
+      for (const [l, had, v] of held) {
+        if (had) {
+          l.bag[l.key] = structuredClone(v);
+        } else {
+          delete l.bag[l.key];
+        }
+      }
+      for (const [f, v] of fields) {
+        (node as unknown as Record<string, unknown>)[f] = structuredClone(v);
+      }
+      (node as unknown as DataNode)._markModified();
+    };
   }
 
   /**
    * What `key` of `node`, of `entry`, follows to once its edits are saved, for the node to show
    * (BaseNode.sourceFollowedProperty), or undefined: the DataType of a Simulink.Parameter's node, as
-   * the save writes it with an edit of the Value (mcosObjectEdit.shownDataType). Nothing else, and
+   * the save writes it with an edit of the Value (matObjectEdit.matShownDataType). Nothing else, and
    * nothing for a node that is no object's, or one whose object a save cannot find.
    */
   _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown {
@@ -511,24 +778,25 @@ export default class MatNode extends ContainerNode {
       return undefined;
     }
     const state = this._objectState(node);
-    return typeof state === 'string' ? undefined : shownDataType(state, node) ?? undefined;
+    return typeof state === 'string' ? undefined : matShownDataType(state, node) ?? undefined;
   }
 
   /**
-   * The subsystem of this file as a save swaps cells in it: its record, and its element read whole
-   * (McosSubsystemEdit.readMcosSubsystem); or why no object's edit can be written, read once.
+   * The subsystem of this file as a save writes edits into it: its record, and its element read
+   * whole into records (McosSubsystemCodec.readSubsystem); or why no object's edit can be written,
+   * read once.
    */
-  _mcosSubsystem(): { record: MatRecord; subsystem: McosSubsystem } | string {
+  _mcosSubsystem(): { record: MatRecord; records: McosSubsystemRecords } | string {
     if (this._objects === undefined) {
       const record = this._subsystemRecord();
       const element = record ? subsystemElementOf(record) : null;
-      const read = element ? readMcosSubsystem(element) : null;
+      const read = element ? readSubsystem(element) : null;
       this._objects = !record
         ? 'the file holds no objects for a save to write an edit into'
         : !read
           ? "the file's objects are not held in one whole element a save can rewrite"
           : read.ok
-            ? { record, subsystem: read.subsystem }
+            ? { record, records: read.subsystem }
             : "the file's objects could not be read as a save rewrites them (" + read.message + ')';
     }
     return this._objects;
@@ -536,28 +804,55 @@ export default class MatNode extends ContainerNode {
 
   /**
    * What the file holds of the object at `object`, and what its node held the first time this was
-   * asked (mcosObjectEdit.objectStateOf), or why no edit of it can be written; made once a node,
+   * asked (matObjectEdit.matObjectStateOf), or why no edit of it can be written; made once a node,
    * the first time the editor asks about the object, which every edit of it does before it is
    * made, and kept.
    */
-  _objectState(object: BaseNode): McosObjectState | string {
+  _objectState(object: BaseNode): MatObjectState | string {
     let state = this._objectStates.get(object);
     if (state === undefined) {
-      const objects = this._mcosSubsystem();
-      state = typeof objects === 'string' ? objects : objectStateOf(objects.subsystem, object);
+      // An object created since the file was read is in the subsystem it was merged into.
+      const entry = this._entryOf(object) ?? object;
+      const objects = this._creation?.created.has(entry) ? { records: this._creation.records } : this._mcosSubsystem();
+      state = typeof objects === 'string' ? objects : matObjectStateOf(objects.records, object);
       this._objectStates.set(object, state);
     }
     return state;
   }
 
   /**
-   * For the save (MatFileWriter): the subsystem's record and its element with every edit of an
-   * object under `entries` written into its cells, and the cells written; or null where none of
-   * them holds one. `entries` are the variables whose edits reached objects only, whose records are
-   * written as they were. Throws MatWriteError for an edit it cannot write
-   * (mcosObjectEdit.objectSubsystemEdit).
+   * The state of the object at `object` as the gate judges an edit of it now: _objectState's, but
+   * for a Bus with element rows added or removed since, whose state is projected onto a copy of
+   * the records it was read from (matObjectEdit.projectedBusState), kept while its rows stay those.
    */
-  _objectSubsystemEdit(entries: readonly BaseNode[]): { record: MatRecord; element: Uint8Array; cells: McosPlannedCell[] } | null {
+  _objectStateNow(object: BaseNode): MatObjectState | string {
+    const base = this._objectState(object);
+    if (typeof base === 'string' || !base.elementRows) {
+      return base;
+    }
+    const rows = object.children.filter((c) => (c as unknown as { className?: string }).className === 'Simulink.BusElement');
+    if (rows.length === base.elementRows.length && rows.every((r, i) => r === base.elementRows![i])) {
+      return base;
+    }
+    const kept = this._busProjections.get(object);
+    if (kept && kept.rows.length === rows.length && kept.rows.every((r, i) => r === rows[i])) {
+      return kept.state;
+    }
+    const state = projectedBusState(cloneSubsystem(base.records), base, object, { classes: new Map(this._creation?.session.classes ?? []) });
+    this._busProjections.set(object, { rows, state });
+    return state;
+  }
+
+  /**
+   * For the save (MatFileWriter): the subsystem's record (null for a file that held none) and its
+   * element with every edit of an object under `entries` written into it, the records it was read
+   * as (`original`, which the save holds it to append-only), and the cells written; or null where
+   * none of them holds one and no object was created. `entries` are the variables whose edits
+   * reached objects only, whose records are written as they were, and those created as objects
+   * (_createObject), whose subsystem is written while any of them is in the tree. Throws
+   * MatWriteError for an edit it cannot write (matObjectEdit.matObjectSubsystemEdit).
+   */
+  _objectSubsystemEdit(entries: readonly BaseNode[]): ({ record: MatRecord | null; original: McosSubsystemRecords } & MatObjectsWritten) | null {
     const entryOf = new Map<BaseNode, string>();
     for (const entry of entries) {
       for (const object of objectNodesUnder(entry)) {
@@ -566,16 +861,56 @@ export default class MatNode extends ContainerNode {
         }
       }
     }
-    if (entryOf.size === 0) {
+    // Objects created since the read, in the tree: the subsystem they were merged into is written,
+    // whether or not an edit reached one, and the file's otherwise.
+    const created = this._liveCreations();
+    if (entryOf.size === 0 && created.length === 0) {
       return null;
     }
-    const objects = this._mcosSubsystem();
-    if (typeof objects === 'string') {
-      const [name] = entryOf.values();
-      throw new MatWriteError('Cannot write "' + name + '": ' + objects + '. Nothing was written.');
+    const record = this._subsystemRecord();
+    let base: McosSubsystemRecords;
+    let original: McosSubsystemRecords;
+    const live = created.length > 0 ? this._liveCreation() : null;
+    if (live) {
+      base = live.records;
+      original = this._creation!.original;
+    } else {
+      const objects = this._mcosSubsystem();
+      if (typeof objects === 'string') {
+        const [name] = entryOf.values();
+        throw new MatWriteError('Cannot write "' + name + '": ' + objects + '. Nothing was written.');
+      }
+      base = original = objects.records;
     }
-    const written = objectSubsystemEdit(objects.subsystem, [...entryOf.keys()], (n) => this._objectState(n), (n) => entryOf.get(n)!);
-    return written && { record: objects.record, ...written };
+    // The Buses with element rows added or removed: each written into one copy of the records, one
+    // after another, its state projected onto that copy, as the gate projected it onto its own.
+    let records = base;
+    const projected = new Map<BaseNode, MatObjectState | string>();
+    const session = { classes: new Map((live?.session ?? this._creation?.session)?.classes ?? []) };
+    // An object created since the read, by its ids in the subsystem written (_liveCreation).
+    const stateOf = (object: BaseNode): MatObjectState | string => {
+      const state = this._objectState(object);
+      return live && typeof state !== 'string' ? live.remap(object, state) : state;
+    };
+    for (const object of entryOf.keys()) {
+      const state = stateOf(object);
+      if (typeof state !== 'string' && state.elementRows && this._objectStateNow(object) !== this._objectState(object)) {
+        if (records === base) {
+          records = cloneSubsystem(base);
+        }
+        projected.set(object, projectedBusState(records, state, object, session));
+      }
+    }
+    const more = created.length > 0 || records !== base ? { has: true, edit: () => {} } : undefined;
+    const written = matObjectSubsystemEdit(records, [...entryOf.keys()], (n) => projected.get(n) ?? stateOf(n), (n) => entryOf.get(n)!, more);
+    if (!written) {
+      return null;
+    }
+    // The objects of the file the edits write: a Bus whose elements were added or removed too; and
+    // not those created, which the subsystem appends.
+    const buses = [...projected.values()].flatMap((state) => (typeof state === 'string' ? [] : [{ objectId: state.objectId, properties: [ELEMENTS_SAVED] }]));
+    const edited = editedObjects([], [...written.edited, ...buses]).filter((o) => o.objectId < original.blob.objects.length);
+    return { record, original, ...written, edited };
   }
 
   /**
@@ -589,6 +924,19 @@ export default class MatNode extends ContainerNode {
    */
   _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null {
     const object = objectNodeAt(entry, node);
+    // A `string` of the file, typed over whole: a string it takes, written into its payload; a value
+    // of another class would be another variable, which the save writes only as it was read. An
+    // element of one is held to a string's text by its own setter.
+    if (object && (object as unknown as { className?: string }).className === 'string') {
+      if (node !== object) {
+        return null;
+      }
+      const v = value as unknown as { _kind?: string; _scalarType?: string };
+      if (!(v._kind === 'string' || (v._kind === 'scalar' && v._scalarType === 'string'))) {
+        return cannotEdit(entry.name, object.matlabPath + ' is a string, which a save writes as the object it is, so it takes only a string: a value of another class would be another variable');
+      }
+      return this._editValueRefusal(entry, node, 'Value', value);
+    }
     if (object && (object as unknown as { _valueNode?: BaseNode | null })._valueNode === node) {
       return this._editValueRefusal(entry, node, 'Value', value);
     }
@@ -711,21 +1059,91 @@ export default class MatNode extends ContainerNode {
     return null;
   }
 
-  // A new variable is the double 0, named `entryName`, or `var` with a counter appended if that
-  // is taken. The only class it takes is a plain variable's: a save writes no object (freshRefusal).
-  // Null, adding nothing, for a file no save of which can be written (_fileRefusal), for any other
-  // class, and for a name that is no MATLAB name or one the file holds already, by the rule a rename
-  // is held to: a save would refuse each.
+  /**
+   * The classes a new variable of this file may be, which a host offers (its Add gallery) and
+   * execAddEntry takes, exactly: a plain variable, the double 0; a 1x1 struct of no field; and each
+   * of MAT_CREATABLE_CLASSES MATLAB's own default object of which merges into the file's subsystem
+   * (_classRefusal: it reads whole, at a blob version an edit was measured on, and takes the merge),
+   * or the file has none. None for a file no save of which can be written (_fileRefusal), whose view
+   * takes no edit at all.
+   */
+  getAllowedTypes(): string[] {
+    if (this._fileRefusal()) {
+      return [];
+    }
+    return [...PLAIN_VARIABLE_CLASSES_OFFERED, ...MAT_CREATABLE_CLASSES.filter((c) => !this._classRefusal(c))];
+  }
+
+  // Why no object can be created in this file, or null: its subsystem does not read as one a save
+  // writes, or is of a blob version no edit was measured on.
+  _creationRefusal(): string | null {
+    if (this._creation || !this._subsystemRecord()) {
+      return null;
+    }
+    const objects = this._mcosSubsystem();
+    if (typeof objects === 'string') {
+      return objects;
+    }
+    return measuredVersion(objects.records) ? null : "the file's objects are of a blob version no edit was measured on";
+  }
+
+  // Why no object of `className` can be created in this file, or null: no class of
+  // MAT_CREATABLE_CLASSES; a subsystem no object is created in (_creationRefusal); or one MATLAB's
+  // default object of it does not merge into (a trailing element of class systems it does not
+  // read, say), tried once a class, on a copy of the file's records.
+  _classRefusal(className: string): string | null {
+    if (!MAT_CREATABLE_CLASSES.includes(className)) {
+      return NOT_OFFERED.has(className)
+        ? "its node shows nothing yet of the Table and Breakpoints its object holds, nor offers an editor of them, so none is created"
+        : 'a MAT-file takes a new variable of a plain value, a struct, or one of ' + MAT_CREATABLE_CLASSES.join(', ');
+    }
+    const whole = this._creationRefusal();
+    if (whole || !this._subsystemRecord()) {
+      return whole;
+    }
+    this._classVerdicts ??= new Map();
+    let verdict = this._classVerdicts.get(className);
+    if (verdict === undefined) {
+      verdict = null;
+      const objects = this._mcosSubsystem() as { records: McosSubsystemRecords };
+      try {
+        mergeTemplateObject(cloneSubsystem(objects.records), className, { session: createAppendSession() });
+      } catch (e) {
+        if (!(e instanceof MatWriteError)) {
+          throw e;
+        }
+        verdict = e.message;
+      }
+      this._classVerdicts.set(className, verdict);
+    }
+    return verdict;
+  }
+
+  // A new variable named `entryName`, or the class's default name with a counter appended if that
+  // is taken (`var` for a plain variable): the double 0; a 1x1 struct of no field ('MatlabStruct');
+  // or MATLAB's default object of a class getAllowedTypes lists, merged into the subsystem the save
+  // writes (_createObject), its node the one a file holding that object shows. Null, adding
+  // nothing, for a file no save of which can be written (_fileRefusal), for any other class, and for
+  // a name that is no MATLAB name or one the file holds already, by the rule a rename is held to.
   execAddEntry(className?: string, entryName?: string): { node: BaseNode; undo: () => void; redo: () => void } | null {
-    if (this._fileRefusal() || (className && !PLAIN_VARIABLE_CLASSES.has(className))) {
+    const kind = !className || PLAIN_VARIABLE_CLASSES.has(className) ? 'plain' : className === 'MatlabStruct' ? 'struct' : 'object';
+    this._addRefused = this._addRefusalOf(kind, className, entryName);
+    if (this._addRefused) {
       return null;
     }
-    if (entryName && (validateMatlabName(entryName) || this._namespaceHolds(entryName) > 0)) {
+    const name = entryName || this._uniqueName(defaultNameOf(className));
+    const node =
+      kind === 'plain'
+        ? MatlabVariableNode.createDefault(name, this)
+        : kind === 'struct'
+          ? MatlabVariableNode.parseMatVariable({ name, className: 'struct', dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: {} }, name, this)
+          : this._createObject(className!, name);
+    if (!node) {
+      this._addRefused ??= cannotAdd(this, className, 'its object could not be made of MATLAB\'s default one');
       return null;
     }
-    const name = entryName || this._uniqueName('var');
-    const node = MatlabVariableNode.createDefault(name, this);
     this.addChild(node);
+    (node as unknown as { status: string }).status = 'New';
     this.dirty = true;
     return {
       node,
@@ -738,6 +1156,201 @@ export default class MatNode extends ContainerNode {
         this.dirty = true;
       },
     };
+  }
+
+  /**
+   * Why the last execAddEntry added nothing, in words naming this file, or null where it added a
+   * variable: what a host shows of a refused Add, as it shows a refused edit's reason (DataModel's
+   * addEntryRefusal).
+   */
+  addEntryRefusal(): string | null {
+    return this._addRefused;
+  }
+
+  // Why a new variable of `className` (of `kind`) named `entryName` is refused before one is made:
+  // no save of this file can be written; no class this file takes a new variable of; a subsystem no
+  // object can be created in; a name that is no MATLAB name, or one the file holds already.
+  _addRefusalOf(kind: 'plain' | 'struct' | 'object', className: string | undefined, entryName: string | undefined): string | null {
+    const file = this._fileRefusal();
+    if (file) {
+      return cannotAdd(this, className, file.replace(/^Cannot edit "[^"]*": /, '').replace(/\.$/, ''));
+    }
+    const objects = kind === 'object' ? this._classRefusal(className!) : null;
+    if (objects) {
+      return cannotAdd(this, className, objects);
+    }
+    const name = entryName || this._uniqueName(defaultNameOf(className));
+    const invalid = validateMatlabName(name);
+    if (invalid) {
+      return cannotAdd(this, className, "'" + name + "' is not a name MATLAB can load (" + invalid + ')');
+    }
+    if (entryName && this._namespaceHolds(entryName) > 0) {
+      return "'" + entryName + "' already exists in " + this._namespaceLabel;
+    }
+    return null;
+  }
+
+  /**
+   * MATLAB's default object of `className`, merged into the subsystem this file's saves write
+   * (McosTemplateMerge.mergeTemplateObject: MATLAB R2023b's own records of one, copied in the order
+   * its `save -append` writes them), and the node of the variable `name` holding it, as a file
+   * holding it shows it: the typed node of a Simulink object, a `string`'s node. Null where the
+   * merge refuses.
+   */
+  _createObject(className: string, name: string): BaseNode | null {
+    if (!this._creation) {
+      const objects = this._subsystemRecord() ? this._mcosSubsystem() : null;
+      if (typeof objects === 'string') {
+        return null;
+      }
+      const original = objects ? objects.records : createTemplateSubsystem(className);
+      this._creation = { records: cloneSubsystem(original), original, session: createAppendSession(), created: new Map(), rows: new Map() };
+    }
+    // Merged into a copy, which becomes the records only once the object's node is made: a merge
+    // or a read refused leaves the records, and the session, as they were.
+    const c = this._creation;
+    const records = cloneSubsystem(c.records);
+    const session = { classes: new Map(c.session.classes) };
+    let obj: McosNewObject;
+    try {
+      obj = mergeTemplateObject(records, className, { session });
+    } catch (e) {
+      if (e instanceof MatWriteError) {
+        this._addRefused = cannotAdd(this, className, e.message);
+        return null;
+      }
+      throw e;
+    }
+    // The node, decoded of the same object merged alone into its template's empty subsystem, whose
+    // triples are the ones merged here and whose ids are not: writing and reading the file's whole
+    // subsystem for each creation cost 225 ms in a 32 MB file. Its variable then names the object
+    // merged here, as the save writes it (_createdElement).
+    const small = createTemplateSubsystem(className);
+    let alone: McosNewObject;
+    try {
+      alone = mergeTemplateObject(small, className, { session: createAppendSession() });
+    } catch (e) {
+      if (e instanceof MatWriteError) {
+        return null;
+      }
+      throw e;
+    }
+    const variable = elementValue(newObjectVariable(name, alone));
+    const named = elementValue(newObjectVariable(name, obj));
+    if (!variable || !named?.mcosHandle) {
+      return null;
+    }
+    variable.name = name;
+    attachMcosDecoded(writeSubsystem(small), [variable]);
+    const node = modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), this);
+    if (!node) {
+      return null;
+    }
+    variable.mcosHandle = named.mcosHandle;
+    placeString(node);
+    c.rows.set(node, rowsAdded(c.records.blob.objects.length, records));
+    c.records = records;
+    c.session = session;
+    c.created.set(node, obj);
+    return node;
+  }
+
+  /**
+   * The properties a child row added at `node` (of `entry`) starts with (BaseNode.sourceNewChildProperties):
+   * of a Bus of the file's objects, MATLAB's default Simulink.BusElement, as this package reads one
+   * from a file, which is what a save writes for the row (matObjectEdit.projectedBusState) but its
+   * name. Undefined for any other node.
+   */
+  _newChildProperties(entry: BaseNode, node: BaseNode): Record<string, unknown> | undefined {
+    if ((node as unknown as { className?: string }).className !== 'Simulink.Bus' || objectNodeAt(entry, node) !== node) {
+      return undefined;
+    }
+    const props = defaultBusElementProperties();
+    return props ? structuredClone(props) : undefined;
+  }
+
+  /** The class-17 element a save writes for `node`, a variable created in this file as an object (_createObject), or null for any other. */
+  _createdElement(node: BaseNode): Uint8Array | null {
+    const obj = this._creation?.created.has(node) ? this._liveCreation().objects.get(node) : undefined;
+    return obj ? newObjectVariable(node.name, obj) : null;
+  }
+
+  /**
+   * The subsystem a save writes the objects created since the read into, which are in the tree now
+   * (_liveCreations), and each one's object there. Where every object created is, the one they were
+   * merged into (_creation). Where one was deleted since, merged again of the file's subsystem
+   * alone, those in the tree in the order made, with one append session, so that none of a deleted
+   * one is written, as MATLAB's own save writes none: and what was judged of each by its old ids is
+   * the object's under its new ones (remap). Made once for a set of those.
+   */
+  _liveCreation(): {
+    records: McosSubsystemRecords;
+    session: McosAppendSession;
+    objects: Map<BaseNode, McosNewObject>;
+    remap: (node: BaseNode, state: MatObjectState) => MatObjectState;
+  } {
+    const c = this._creation!;
+    const live = this._liveCreations();
+    const kept = this._rebuilt;
+    if (kept && kept.from === c.records && kept.live.length === live.length && kept.live.every((n, i) => n === live[i])) {
+      return kept.made;
+    }
+    let made: ReturnType<MatNode['_liveCreation']>;
+    if (live.length === c.created.size) {
+      made = { records: c.records, session: c.session, objects: c.created, remap: (_node, state) => state };
+    } else {
+      const records = cloneSubsystem(c.original);
+      const session = createAppendSession();
+      const objects = new Map<BaseNode, McosNewObject>();
+      const ids = new Map<BaseNode, { objectId: number; map: Map<number, number>; payload: Map<number, number> }>();
+      for (const node of live) {
+        const was = c.created.get(node)!;
+        const before = records.blob.objects.length;
+        const obj = mergeTemplateObject(records, was.className, { session });
+        objects.set(node, obj);
+        // Each row the merge appended now, for each it appended then: the same object rows, in the
+        // same order, of the same template.
+        const old = c.rows.get(node)!;
+        const now = rowsAdded(before, records);
+        if (now.length !== old.length) {
+          throw new MatWriteError('Cannot write "' + node.name + '": its object could not be written again as it was made. Nothing was written.');
+        }
+        const map = new Map(old.map((id, i) => [id, now[i]] as const));
+        const payload = new Map<number, number>();
+        const oldString = stringObjectOf(c.records, was.objectId);
+        const newString = stringObjectOf(records, obj.objectId);
+        if (oldString && newString) {
+          payload.set(oldString.valueIndex, newString.valueIndex);
+        }
+        ids.set(node, { objectId: obj.objectId, map, payload });
+      }
+      made = {
+        records,
+        session,
+        objects,
+        remap: (node, state) => {
+          const to = ids.get(this._entryOf(node) ?? node);
+          if (!to) {
+            return state;
+          }
+          const id = (k: number) => to.map.get(k) ?? k;
+          return {
+            ...state,
+            records,
+            objectId: to.objectId,
+            objects: new Map([...state.objects].map(([k, o]) => [k, { ...o, objectId: id(o.objectId) }])),
+            payload: state.payload === undefined ? undefined : to.payload.get(state.payload),
+          };
+        },
+      };
+    }
+    this._rebuilt = { from: c.records, live, made };
+    return made;
+  }
+
+  /** The variables created as objects that are in the tree now. */
+  _liveCreations(): BaseNode[] {
+    return [...(this._creation?.created.keys() ?? [])].filter((n) => n.parent === this);
   }
 
   // Not a name any variable of the file holds, a record the reader dropped included (_namespaceHolds).
@@ -828,6 +1441,7 @@ export default class MatNode extends ContainerNode {
       const warnings = parsed.warnings ?? (parsed.warnings = []);
       warnings.push(notExpandedWarning(firstCut.matlabPath, cut, ceiling));
     }
+    placeStrings(node);
     if (records && bindsEveryRecord(node, records, parsed.variables)) {
       node.headerBytes = parsed.headerBytes!;
       node.records = records;
@@ -893,9 +1507,137 @@ export default class MatNode extends ContainerNode {
   }
 }
 
+// Each `string` of the file whose text decoded (MatlabVariableNode.createFromMcosDecoded), at the
+// top of it, in a struct field or in a cell, is placed as the object of the subsystem it is
+// (mcosPlace): an edit of its text is then an edit of that object, which a save writes into its
+// payload cell (matObjectEdit) and leaves the variable that holds it as it was read. It is still shown
+// as the object it is (opaque, in a container's summary `<1x3 string>`), and its text takes an edit,
+// whole or an element at a time (MatlabVariableNode._mcosString). One whose handle names other than
+// one object is left as it was.
+function placeStrings(root: BaseNode): void {
+  const stack = [...root.children];
+  while (stack.length > 0) {
+    const n = stack.pop()!;
+    if (!placeString(n)) {
+      stack.push(...n.children);
+    }
+  }
+}
+
+// placeStrings of one node: whether it is such a string, placed.
+function placeString(n: BaseNode): boolean {
+  if (n instanceof MatlabVariableNode && n._isOpaque && n._opaqueClassName === 'string' && n._kind === 'string' && n._matVar?.mcosHandle?.ids.length === 1) {
+    setMcosPlace(n, n._matVar, 0);
+    n._mcosString = true;
+    return true;
+  }
+  return false;
+}
+
+// The ids of the object rows `after` holds past the `before` it held before a merge appended to it:
+// past the null row 0 the first merge into an empty table adds.
+function rowsAdded(before: number, after: McosSubsystemRecords): number[] {
+  const from = Math.max(1, before);
+  return Array.from({ length: Math.max(0, after.blob.objects.length - from) }, (_, i) => from + i);
+}
+
+// A typed text as an offered editor of `kind` takes it (MatNode._setOffered): text as typed, a
+// choice (which the rules hold to theirs), true or false, a number, or a row of numbers (a number
+// alone, or in brackets, by spaces or commas), Inf and -Inf among them; or why it is none.
+function offeredValue(text: string, kind: MatBagEditor['kind']): { value: unknown } | string {
+  const number = (t: string): number | null => {
+    const u = t.trim();
+    if (/^[+-]?inf$/i.test(u)) {
+      return u.startsWith('-') ? -Infinity : Infinity;
+    }
+    return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(u) ? Number(u) : null;
+  };
+  switch (kind) {
+    case 'text':
+    case 'choice':
+      return { value: text };
+    case 'flag': {
+      const t = text.trim();
+      return t === 'true' || t === '1' ? { value: true } : t === 'false' || t === '0' ? { value: false } : 'must be true or false';
+    }
+    case 'number': {
+      const x = number(text);
+      return x === null ? 'must be a number' : { value: x };
+    }
+    case 'numbers': {
+      const t = text.trim().replace(/^\[(.*)\]$/s, '$1').trim();
+      const xs = t === '' ? [] : t.split(/[\s,]+/).map(number);
+      return xs.length === 0 || xs.some((x) => x === null) ? 'must be a number or a row of numbers' : { value: xs.length === 1 ? xs[0] : xs };
+    }
+  }
+}
+
+// A bag's value as an offered editor shows it, for a refusal's valid value.
+function offeredText(v: unknown): string {
+  if (Array.isArray(v)) {
+    return '[' + v.join(' ') + ']';
+  }
+  return v === undefined || v === null ? '' : String(v);
+}
+
+// The properties of MATLAB's default Simulink.BusElement, as this package reads one from a file
+// (the element of a Bus merged from the templates), but its Name; read once, or null where that
+// read gives no element row.
+let defaultElement: Record<string, unknown> | null | undefined;
+function defaultBusElementProperties(): Record<string, unknown> | null {
+  if (defaultElement === undefined) {
+    const sub = createTemplateSubsystem('Simulink.Bus');
+    const variable = elementValue(newObjectVariable('b', mergeTemplateObject(sub, 'Simulink.Bus', { elements: ['a'] })));
+    let props: Record<string, unknown> | null = null;
+    if (variable) {
+      variable.name = 'b';
+      attachMcosDecoded(writeSubsystem(sub), [variable]);
+      const bus = modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), null);
+      const row = bus?.children[0] as unknown as { serial?: { _properties?: Record<string, unknown> } } | undefined;
+      props = row?.serial?._properties ? { ...row.serial._properties } : null;
+      delete props?.Name;
+    }
+    defaultElement = props;
+  }
+  return defaultElement;
+}
+
 // The classes a variable added to a file may be asked for as (execAddEntry): none, the one a
 // dictionary's plain variable is added as, and a double's.
 const PLAIN_VARIABLE_CLASSES = new Set(['MatlabVariable', 'double']);
+// What getAllowedTypes offers of the plain classes: a variable, and a struct.
+const PLAIN_VARIABLE_CLASSES_OFFERED = ['MatlabVariable', 'MatlabStruct'];
+// The classes with a template no new object is created as: a LookupTable's and a Breakpoint's node
+// shows nothing of their Table and Breakpoints, and offers no editor of them, nor of their flags,
+// so one created would be MATLAB's default whatever the host showed.
+const NOT_OFFERED = new Set(['Simulink.LookupTable', 'Simulink.Breakpoint']);
+
+/**
+ * The classes a new variable of a MAT-file may be created as an object of (MATLAB's own default one,
+ * merged from its records: McosTemplateMerge): every class with a template whose node offers an
+ * editor of each property MATLAB sets. A file offers each where its subsystem takes the merge
+ * (MatNode.getAllowedTypes, which a host's Add gallery is to read, per file).
+ */
+export const MAT_CREATABLE_CLASSES: readonly string[] = Object.freeze(CREATABLE_MCOS_CLASSES.filter((c) => !NOT_OFFERED.has(c)));
+
+// The name a new variable of `className` is given before a counter: a plain variable's `var`, a
+// string's `str`, and every other class's node's own default name (Param, Signal, Bus, Struct, …).
+function defaultNameOf(className: string | undefined): string {
+  if (!className || PLAIN_VARIABLE_CLASSES.has(className)) {
+    return 'var';
+  }
+  if (className === 'string') {
+    return 'str';
+  }
+  const cls = NodeRegistry.getClass(className) as unknown as { defaultName?: string } | null | undefined;
+  return cls?.defaultName || className.slice(className.lastIndexOf('.') + 1);
+}
+
+// A refused Add, in words naming the file and the class: `Cannot add a Simulink.Parameter to "f.mat": ….`
+function cannotAdd(file: MatNode, className: string | undefined, why: string): string {
+  const what = !className || PLAIN_VARIABLE_CLASSES.has(className) ? 'a variable' : className === 'MatlabStruct' ? 'a struct' : 'a ' + className;
+  return 'Cannot add ' + what + ' to "' + file._namespaceLabel + '": ' + why + '.';
+}
 
 // A refusal of the writer's, `Cannot save "f.mat": …. Nothing was written.`, as the editor says
 // it of an edit it does not take: `Cannot edit "f.mat": ….`

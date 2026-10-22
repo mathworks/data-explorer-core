@@ -30,6 +30,7 @@ import {
   valueCellOf,
   type McosSubsystem,
 } from '../src/datamodel/parser/McosSubsystemEdit.js';
+import { propertiesOf, readSubsystem, removePvTriple, writeSubsystem } from '../src/datamodel/parser/McosSubsystemCodec.js';
 
 const ROOTS = ['fixtures', join('parity', 'artifacts')].map((d) => fileURLToPath(new URL(`./${d}/`, import.meta.url)));
 const CELLSWAP = fileURLToPath(new URL('./fixtures/mat-cellswap/', import.meta.url));
@@ -616,5 +617,47 @@ describe('valueCellOf', () => {
 
   it('refuses what MatWriter cannot write', () => {
     expect(() => valueCellOf({ ...variableOf({ className: 'Simulink.Parameter', dimensions: [1, 1], value: null }), isOpaque: true })).toThrow(/MCOS opaque/);
+  });
+});
+
+// ---- What the codec, which writes every swap, refuses -------------------------------------------
+
+describe('what the codec, which writes every swap, refuses', () => {
+  const file = new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/mcos-codec/d_param.mat', import.meta.url))));
+  const { parsed, subsystem } = matSubsystem(file)!;
+  const id = objectIdOf(parsed.variables.find((v) => v.name === 'p')!.mcosHandle, 0)!;
+  const blobAt = (b: Uint8Array) => (readMcosSubsystem(b) as { subsystem: McosSubsystem }).subsystem.blobAt;
+  const swappable = (b: Uint8Array) => {
+    const stored = storedProperties(b, id);
+    return stored.ok ? stored.properties : [];
+  };
+  const seven = () => valueCellOf(variableOf({ className: 'double', dimensions: [1, 1], value: 7 }));
+
+  it('refuses, as unsupported, a subsystem it would not write back as the bytes it was read as, and says so beforehand', () => {
+    const name = swappable(subsystem).find((p) => p.refusal === null)!.savedName;
+    expect(editMcosSubsystem(subsystem, id, [{ savedName: name, cell: seven() }]).ok).toBe(true);
+    // One byte of the class table's null row, past the words a row holds: read, and not written back.
+    const b = subsystem.slice();
+    const classesAt = new DataView(b.buffer).getUint32(blobAt(b) + 8, true);
+    b[blobAt(b) + classesAt + 12] = 1;
+    expect(readMcosSubsystem(b).ok).toBe(true);
+    expect(readSubsystem(b)).toMatchObject({ ok: false, reason: 'not-canonical' });
+    const stored = swappable(b);
+    expect(stored.find((p) => p.savedName === name)?.refusal).toBe('unsupported');
+    expect(stored.every((p) => p.refusal !== null)).toBe(true);
+    expect(editMcosSubsystem(b, id, [{ savedName: name, cell: seven() }])).toMatchObject({ ok: false, reason: 'unsupported' });
+  });
+
+  it('refuses, as malformed, a subsystem whose offsets an edit left stale', () => {
+    // A triple removed and the blob's offsets put back as they were: MATLAB R2027a loads this with
+    // no warning and the lists past the change misassigned.
+    const records = readSubsystem(subsystem);
+    if (!records.ok) throw new Error(records.message);
+    const kept = swappable(subsystem).find((p) => p.refusal === null)!.savedName;
+    const gone = propertiesOf(records.subsystem, id).find((p) => p.flag === 1 && p.savedName !== kept)!.savedName;
+    removePvTriple(records.subsystem, id, gone);
+    const b = writeSubsystem(records.subsystem).slice();
+    b.set(subsystem.subarray(blobAt(subsystem) + 8, blobAt(subsystem) + 40), blobAt(b) + 8);
+    expect(editMcosSubsystem(b, id, [{ savedName: kept, cell: seven() }])).toMatchObject({ ok: false, reason: 'malformed' });
   });
 });

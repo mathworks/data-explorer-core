@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceEditRefused, sourceValueRefusal } from './BaseNode.js';
-import type { PropClass } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal } from './BaseNode.js';
+import type { PropClass, SourceOfferedEditor } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
@@ -489,6 +489,12 @@ export default class DataNode extends BaseNode {
     if (encodedRefusal) {
       return encodedRefusal;
     }
+    // A property this node shows read-only whose source offers an editor of it, which the source
+    // makes (BaseNode.sourceSetOffered): a MAT-file's object's InitialValue, say.
+    const offered = sourceSetOffered(this, this._propFor(propName)?.key ?? propName, stringValue);
+    if (offered !== null) {
+      return offered;
+    }
     // A schema-projected, editable property (e.g. the Code Generation columns
     // Storage Class / Alignment) writes back into serial._properties along its
     // schema sourcePath — including the nested CoderInfo sub-object. Returns null
@@ -537,12 +543,16 @@ export default class DataNode extends BaseNode {
             ? stringValue !== this.name && nsHolds.call(this.parent, stringValue) > 0
             : this.parent.children.some((sibling) => sibling !== this && sibling.name === stringValue);
         // Said of where the names are one namespace: a dictionary's Design and Architectural
-        // Data, or a MAT-file, which names itself (MatNode._namespaceLabel).
+        // Data, or a MAT-file, which names itself (MatNode._namespaceLabel); and of a nested
+        // child, by the node whose members its siblings are (a bus's elements, in a MAT-file too).
         if (duplicate) {
-          const where = (this.parent as unknown as { _namespaceLabel?: string })._namespaceLabel ?? 'Design or Architectural Data';
+          const label = (this.parent as unknown as { _namespaceLabel?: string })._namespaceLabel;
+          const reason = label !== undefined || typeof nsHolds === 'function'
+            ? "'" + stringValue + "' already exists in " + (label ?? 'Design or Architectural Data')
+            : "'" + stringValue + "' already names another member of " + (this.parent.matlabPath || this.parent.name);
           return {
             error: true,
-            reason: "'" + stringValue + "' already exists in " + where,
+            reason,
             invalidValue: stringValue,
             validValue: this.name,
           };
@@ -642,6 +652,16 @@ export default class DataNode extends BaseNode {
     }
     this._markModified();
     return true;
+  }
+
+  /** The editor this node's source offers of `key`, or null (BaseNode.sourceOfferedEditor). */
+  _offeredEditorOf(key: string): SourceOfferedEditor | null {
+    return sourceOfferedEditor(this, key);
+  }
+
+  /** Whether this node's source judges a value an edit makes (BaseNode.sourceJudgesValues: a MAT-file, a dictionary value's MAT stream). */
+  _sourceJudgesValues(): boolean {
+    return sourceJudgesValues(this);
   }
 
   /**

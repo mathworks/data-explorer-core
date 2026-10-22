@@ -1,0 +1,880 @@
+{
+ "source": "rules probe T-C, MATLAB R2027a: originals and the rhs MATLAB held saved by MATLAB; mutants written by the probe's allow-list v2 and judged by MATLAB (load equal to its own assignment, quiet, re-save equal)",
+ "cases": [
+  {
+   "name": "p0_value_0",
+   "original": "p0.mat",
+   "rhs": [
+    "p0_value_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "p0_value_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "p0_value_3",
+   "original": "p0.mat",
+   "rhs": [
+    "p0_value_3.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "p0_value_3.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "pset_def_all",
+   "original": "pset.mat",
+   "rhs": [
+    "pset_def_all.rhs0.mat",
+    "pset_def_all.rhs1.mat",
+    "pset_def_all.rhs2.mat",
+    "pset_def_all.rhs3.mat",
+    "pset_def_all.rhs4.mat",
+    "pset_def_all.rhs5.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Value"
+    ],
+    [
+     "p",
+     "DataType"
+    ],
+    [
+     "p",
+     "Description"
+    ],
+    [
+     "p",
+     "Min"
+    ],
+    [
+     "p",
+     "Max"
+    ],
+    [
+     "p",
+     "Unit"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "pset_def_all.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "pint_value_dbl",
+   "original": "pint.mat",
+   "rhs": [
+    "pint_value_dbl.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "pint_value_dbl.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "p0_dt_0",
+   "original": "p0.mat",
+   "rhs": [
+    "p0_dt_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "DataType"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "p0_dt_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "s0_dims_0",
+   "original": "s0.mat",
+   "rhs": [
+    "s0_dims_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "sig",
+     "Dimensions"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "s0_dims_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "s0_dmode_0",
+   "original": "s0.mat",
+   "rhs": [
+    "s0_dmode_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "sig",
+     "DimensionsMode"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "s0_dmode_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "sset_def_minmax",
+   "original": "sset.mat",
+   "rhs": [
+    "sset_def_minmax.rhs0.mat",
+    "sset_def_minmax.rhs1.mat"
+   ],
+   "edits": [
+    [
+     "sig",
+     "Min"
+    ],
+    [
+     "sig",
+     "Max"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "sset_def_minmax.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r3_ssc_0",
+   "original": "s0.mat",
+   "rhs": [
+    "r3_ssc_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "sig/CoderInfo",
+     "StorageClass"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r3_ssc_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r3_psc_6",
+   "original": "p0.mat",
+   "rhs": [
+    "r3_psc_6.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p/CoderInfo",
+     "StorageClass"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r3_psc_6.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "b2_align_0",
+   "original": "b2.mat",
+   "rhs": [
+    "b2_align_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b",
+     "Alignment"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "b2_align_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "b2_scope_0",
+   "original": "b2.mat",
+   "rhs": [
+    "b2_scope_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b",
+     "DataScope"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "b2_scope_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "b2_pres_0",
+   "original": "b2.mat",
+   "rhs": [
+    "b2_pres_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b",
+     "PreserveElementDimensions"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "b2_pres_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "bset_def_align",
+   "original": "bset.mat",
+   "rhs": [
+    "bset_def_align.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b",
+     "Alignment"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "bset_def_align.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "be_name_0",
+   "original": "b2.mat",
+   "rhs": [
+    "be_name_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "Name"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "be_name_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "be_min_0",
+   "original": "b2.mat",
+   "rhs": [
+    "be_min_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "Min"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "be_min_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "bset_def_datatype",
+   "original": "bset.mat",
+   "rhs": [
+    "bset_def_datatype.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "DataType"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "bset_def_datatype.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r2_be_swap3",
+   "original": "b2.mat",
+   "rhs": [
+    "r2_be_swap3.rhs0.mat",
+    "r2_be_swap3.rhs1.mat",
+    "r2_be_swap3.rhs2.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "Name"
+    ],
+    [
+     "b/Elements(2)",
+     "Name"
+    ],
+    [
+     "b/Elements(1)",
+     "Name"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r2_be_swap3.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r2_nest_be",
+   "original": "nest.mat",
+   "rhs": [
+    "r2_nest_be.rhs0.mat",
+    "r2_nest_be.rhs1.mat"
+   ],
+   "edits": [
+    [
+     "s.b/Elements(2)",
+     "Name"
+    ],
+    [
+     "s.b/Elements(2)",
+     "Min"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r2_nest_be.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "vt_cplx_0",
+   "original": "vt0.mat",
+   "rhs": [
+    "vt_cplx_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "vt",
+     "Complexity"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "vt_cplx_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "vtset_def_dimensions",
+   "original": "vtset.mat",
+   "rhs": [
+    "vtset_def_dimensions.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "vt",
+     "Dimensions"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "vtset_def_dimensions.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "lt_tv_1",
+   "original": "lt1.mat",
+   "rhs": [
+    "lt_tv_1.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "lt/Table",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "lt_tv_1.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "lt_bv_1",
+   "original": "lt1.mat",
+   "rhs": [
+    "lt_bv_1.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "lt/Breakpoints(1)",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "lt_bv_1.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "lt_tunable_0",
+   "original": "lt1.mat",
+   "rhs": [
+    "lt_tunable_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "lt",
+     "SupportTunableSize"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "lt_tunable_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "lt_sti_name_0",
+   "original": "lt1.mat",
+   "rhs": [
+    "lt_sti_name_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "lt/StructTypeInfo",
+     "Name"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "lt_sti_name_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "bp_v_3",
+   "original": "bp1.mat",
+   "rhs": [
+    "bp_v_3.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "bp/Breakpoints",
+     "Value"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "bp_v_3.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r2_nest_lt",
+   "original": "nest.mat",
+   "rhs": [
+    "r2_nest_lt.rhs0.mat",
+    "r2_nest_lt.rhs1.mat"
+   ],
+   "edits": [
+    [
+     "c{1}/Table",
+     "Value"
+    ],
+    [
+     "c{1}/StructTypeInfo",
+     "Name"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r2_nest_lt.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "nt0_mode_2",
+   "original": "nt0.mat",
+   "rhs": [
+    "nt0_mode_2.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "nt",
+     "DataTypeMode"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "nt0_mode_2.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "nts_slope_1",
+   "original": "nts.mat",
+   "rhs": [
+    "nts_slope_1.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "nt",
+     "Slope"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "nts_slope_1.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "nts_mode_1",
+   "original": "nts.mat",
+   "rhs": [
+    "nts_mode_1.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "nt",
+     "DataTypeMode"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "nts_mode_1.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r2_nest_arr",
+   "original": "nest.mat",
+   "rhs": [
+    "r2_nest_arr.rhs0.mat",
+    "r2_nest_arr.rhs1.mat"
+   ],
+   "edits": [
+    [
+     "arr(2)",
+     "DataTypeMode"
+    ],
+    [
+     "arr(2)",
+     "FractionLength"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r2_nest_arr.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "at_base_0",
+   "original": "at0.mat",
+   "rhs": [
+    "at_base_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "at",
+     "BaseType"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "at_base_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "at_scope_0",
+   "original": "at0.mat",
+   "rhs": [
+    "at_scope_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "at",
+     "DataScope"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "at_scope_0.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "r2_mix",
+   "original": "mix.mat",
+   "rhs": [
+    "r2_mix.rhs0.mat",
+    "r2_mix.rhs1.mat",
+    "r2_mix.rhs2.mat",
+    "r2_mix.rhs3.mat",
+    "r2_mix.rhs4.mat",
+    "r2_mix.rhs5.mat",
+    "r2_mix.rhs6.mat",
+    "r2_mix.rhs7.mat",
+    "r2_mix.rhs8.mat",
+    "r2_mix.rhs9.mat",
+    "r2_mix.rhs10.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Value"
+    ],
+    [
+     "sig",
+     "Dimensions"
+    ],
+    [
+     "b/Elements(1)",
+     "DataType"
+    ],
+    [
+     "b",
+     "Description"
+    ],
+    [
+     "nt",
+     "DataTypeMode"
+    ],
+    [
+     "at",
+     "BaseType"
+    ],
+    [
+     "vt",
+     "Dimensions"
+    ],
+    [
+     "lt/Table",
+     "Value"
+    ],
+    [
+     "lt/Breakpoints(1)",
+     "FieldName"
+    ],
+    [
+     "bp/Breakpoints",
+     "Value"
+    ],
+    [
+     "bp",
+     "SupportTunableSize"
+    ]
+   ],
+   "verdict": "write",
+   "mutant": "r2_mix.mut.mat",
+   "matlab": "PASS",
+   "own": "ok"
+  },
+  {
+   "name": "p0_min_6",
+   "original": "p0.mat",
+   "rhs": [
+    "p0_min_6.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "Min"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "pint_def_dt",
+   "original": "pint.mat",
+   "rhs": [
+    "pint_def_dt.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p",
+     "DataType"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "WARN"
+  },
+  {
+   "name": "sset_dt_bool",
+   "original": "sset.mat",
+   "rhs": [
+    "sset_dt_bool.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "sig",
+     "DataType"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "WARN+RW"
+  },
+  {
+   "name": "be_dims_4",
+   "original": "b2.mat",
+   "rhs": [
+    "be_dims_4.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "Dimensions"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "r2_bename_0",
+   "original": "b2.mat",
+   "rhs": [
+    "r2_bename_0.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "b/Elements(1)",
+     "Name"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "vt_dt_9",
+   "original": "vt0.mat",
+   "rhs": [
+    "vt_dt_9.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "vt",
+     "DataType"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "lt_tv_10",
+   "original": "lt1.mat",
+   "rhs": [
+    "lt_tv_10.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "lt/Table",
+     "Value"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "nt0_mode_7",
+   "original": "nt0.mat",
+   "rhs": [
+    "nt0_mode_7.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "nt",
+     "DataTypeMode"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "ntf_slope_bias",
+   "original": "ntf.mat",
+   "rhs": [
+    "ntf_slope_bias.rhs0.mat",
+    "ntf_slope_bias.rhs1.mat"
+   ],
+   "edits": [
+    [
+     "nt",
+     "Slope"
+    ],
+    [
+     "nt",
+     "Bias"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "at_base_6",
+   "original": "at0.mat",
+   "rhs": [
+    "at_base_6.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "at",
+     "BaseType"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ERR"
+  },
+  {
+   "name": "r3_psc_5",
+   "original": "p0.mat",
+   "rhs": [
+    "r3_psc_5.rhs0.mat"
+   ],
+   "edits": [
+    [
+     "p/CoderInfo",
+     "StorageClass"
+    ]
+   ],
+   "verdict": "REFUSE",
+   "mutant": null,
+   "matlab": null,
+   "own": "ok"
+  }
+ ]
+}

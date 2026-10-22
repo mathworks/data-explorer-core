@@ -99,6 +99,10 @@ export type { ReadEntryOptions } from './datamodel/parser/EntryMerge.js';
 // spelling of that MATLAB reads back as what it is), `counted` (false when
 // its size is no count at all), and a message naming all of them for a user.
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
+// The object classes a new variable of a .mat can be created as (MATLAB's own default object of the
+// class, merged from its records). A file offers each where its objects take one: a host's Add
+// gallery reads MatNode.getAllowedTypes of the file, which execAddEntry takes exactly.
+export { MAT_CREATABLE_CLASSES } from './datamodel/node/container/MatNode.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 // The format-agnostic reader: `.slx` or either flavour of `.mdl`, decided by the

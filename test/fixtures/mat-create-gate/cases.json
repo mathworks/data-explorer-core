@@ -1,0 +1,225 @@
+{
+ "source": "creation live gate of core T-D2 (gate-create in the research probes): each file saved through the session after the steps test/matCreateGateGoldens.test.ts names for it, loaded by MATLAB R2027a, R2023b and R2024b against the original and MATLAB's own objects with the same edits. PASS_NO_RESAVE: every check but the save-and-reload of what was loaded, which crashes that release for the original itself.",
+ "cases": [
+  {
+   "name": "all_default__r2023b_none",
+   "original": "fixtures/mcos-templates/targets/r2023b/none.mat",
+   "sha256": "60f25725e941a976e9f99cb273791cb3027f36de97d3cf36b1238a2c62c159d1",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2023b_none",
+   "original": "fixtures/mcos-templates/targets/r2023b/none.mat",
+   "sha256": "8f3531688e3aa2ac1bf72d57e3e97dfed8dcfac55e1637541bc00746fa4a0a47",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__r2023b_param",
+   "original": "fixtures/mcos-templates/targets/r2023b/param.mat",
+   "sha256": "80c0170276f4f6780edeaf33dc5fcf300795e9d173844e93e5856f9a09d8a155",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2023b_param",
+   "original": "fixtures/mcos-templates/targets/r2023b/param.mat",
+   "sha256": "e5413666a102abefc78c8566e232206f183db52ab7acf359d51f490d803e5bfa",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__r2023b_mixed",
+   "original": "fixtures/mcos-templates/targets/r2023b/mixed.mat",
+   "sha256": "336bc8abdb2cd3093662fd422029e95c93a1e09af9ff090903eb888a75d090ae",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2023b_mixed",
+   "original": "fixtures/mcos-templates/targets/r2023b/mixed.mat",
+   "sha256": "6d0a333c7a548ca68b85a16cf11201eee0efd634cacd142501b862833c795105",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__r2027a_none",
+   "original": "fixtures/mcos-templates/targets/r2027a/none.mat",
+   "sha256": "a5e8ac6950e5260e6104201b539dada7b428f755b6da51c36bcd7c2498b9f73c",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2027a_none",
+   "original": "fixtures/mcos-templates/targets/r2027a/none.mat",
+   "sha256": "eec8caedfa6264f0c00247b4e451f738ed54ed520fddb44ec31ebf23432ddfc8",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__r2027a_param",
+   "original": "fixtures/mcos-templates/targets/r2027a/param.mat",
+   "sha256": "e97576a2864f68ec981b91550a0339798bf581984d13f8cb689b5c2c222ee823",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2027a_param",
+   "original": "fixtures/mcos-templates/targets/r2027a/param.mat",
+   "sha256": "14f3f56ae1cb948135dc8d598a076a4b8e7a41ca61751b73a6970ae9c7954507",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__r2027a_mixed",
+   "original": "fixtures/mcos-templates/targets/r2027a/mixed.mat",
+   "sha256": "7819f0c7c772587bf9cb2bae2a20a647e95872897cc686a05a6cf8f63bcff579",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_edited__r2027a_mixed",
+   "original": "fixtures/mcos-templates/targets/r2027a/mixed.mat",
+   "sha256": "27c48187dfb526704de488cc0100f1d17458085a1fcd86485c4bc27ed1033a1d",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "all_default__cases",
+   "original": "parity/artifacts/mat/cases.mat",
+   "sha256": "8e514b14da4ea549a71dde01625119c4d99f94b9c78828be476a655a8116e241",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_NO_RESAVE",
+    "R2024b": "PASS_NO_RESAVE"
+   }
+  },
+  {
+   "name": "all_edited__cases",
+   "original": "parity/artifacts/mat/cases.mat",
+   "sha256": "8d4f23abb14bcee0ee3d7a4d4398670a7b607caf5e4d262c37512678c47d66c5",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS_NO_RESAVE",
+    "R2024b": "PASS_NO_RESAVE"
+   }
+  },
+  {
+   "name": "bus_add_remove__r2023b_bus2",
+   "original": "fixtures/mcos-templates/targets/r2023b/bus2.mat",
+   "sha256": "492022fff51f0f543a6e0b5bdd6f8a9eb2bba5b140d501443c4ea55767d3c2a4",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "mixed_edits__r2023b_mixed",
+   "original": "fixtures/mcos-templates/targets/r2023b/mixed.mat",
+   "sha256": "74def90bbdb65c138a4e464bb449e83e37d4197e15145f84a61188c0972551ce",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_emptied__r2023b_bus2",
+   "original": "fixtures/mcos-templates/targets/r2023b/bus2.mat",
+   "sha256": "f05fca19cc295ffa412cbecf0be990d7ed17af5b848b6db67a21d3253b5c83a9",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "rebuild_mix__r2023b_mixed",
+   "original": "fixtures/mcos-templates/targets/r2023b/mixed.mat",
+   "sha256": "4a166c8961f7c7292a4222071796f8bacbfc935421cc69bd1ebfec8a0129802b",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_add_remove__r2027a_bus2",
+   "original": "fixtures/mcos-templates/targets/r2027a/bus2.mat",
+   "sha256": "f923f155da824bfedb2912f1c48927024b46215cc9532cb323c73e6154eee82a",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "mixed_edits__r2027a_mixed",
+   "original": "fixtures/mcos-templates/targets/r2027a/mixed.mat",
+   "sha256": "b534e4758f7e97724c16a31ea2a11373193fb3e2ba3606795799fc4436316970",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_emptied__r2027a_bus2",
+   "original": "fixtures/mcos-templates/targets/r2027a/bus2.mat",
+   "sha256": "17f70aca81229a5dd41e12c537e946d8e2c93a45e5da6777f4c148c0da1a085f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "rebuild_mix__r2027a_mixed",
+   "original": "fixtures/mcos-templates/targets/r2027a/mixed.mat",
+   "sha256": "97639622151d02f3c663f28edc5e99f948467e937b6e627c23b925bce9459a23",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  }
+ ]
+}

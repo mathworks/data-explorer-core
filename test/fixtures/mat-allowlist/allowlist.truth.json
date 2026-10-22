@@ -83,7 +83,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "240ce23951c774c30744476ea4bf2a466c510112c28bb7e33904ef1aecf713ed"
+   "subsystemSha256": "240ce23951c774c30744476ea4bf2a466c510112c28bb7e33904ef1aecf713ed",
+   "rules": {
+    "subsystemSha256": "15e11cc2ac31f824dfa0c62bbeb23d422956519cd571695b3d57cd29eec88ff0",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g1_max_inside",
@@ -128,7 +137,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "b0bd54404cecbd3730e4164c7b445972f7d1ebff5eeefb1470d855e7a8dc842e"
+   "subsystemSha256": "b0bd54404cecbd3730e4164c7b445972f7d1ebff5eeefb1470d855e7a8dc842e",
+   "rules": {
+    "subsystemSha256": "54e75f2f6cb3f68a9c779409a4d1f4c270515cbca8cd9a36555c6ae49031b3c0",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g1_value_above_max",
@@ -203,7 +221,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "c9707c1047856ca583fb7d51eb76b56242af555cffb320241253841143952d5f"
+   "subsystemSha256": "c9707c1047856ca583fb7d51eb76b56242af555cffb320241253841143952d5f",
+   "rules": {
+    "subsystemSha256": "c9707c1047856ca583fb7d51eb76b56242af555cffb320241253841143952d5f",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g1_min_and_max",
@@ -283,7 +310,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "bf103a6d95e07a301207e18360bf4e5c012d184a871e1ec52a0145f856a40387"
+   "subsystemSha256": "bf103a6d95e07a301207e18360bf4e5c012d184a871e1ec52a0145f856a40387",
+   "rules": {
+    "subsystemSha256": "bf103a6d95e07a301207e18360bf4e5c012d184a871e1ec52a0145f856a40387",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_dint",
@@ -298,7 +334,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "f2f5a716b83cd8c65b4905ce4ef87dce84362a138833a45d4326f87b779f1167"
+   "subsystemSha256": "f2f5a716b83cd8c65b4905ce4ef87dce84362a138833a45d4326f87b779f1167",
+   "rules": {
+    "subsystemSha256": "828db21c12d0213486d914bb6fa6076703c77d7d11340eac2fdbc4d8ba597a4d",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_dfrac",
@@ -313,7 +358,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "e0ec9baca05a5b1dd486fddaef07e0d91630d3f16ecb65e3e59ecb393f3d1bf3"
+   "subsystemSha256": "e0ec9baca05a5b1dd486fddaef07e0d91630d3f16ecb65e3e59ecb393f3d1bf3",
+   "rules": {
+    "subsystemSha256": "cd9b37c231618ad743a3832a5e5d67d40a364e114e44af19282d75a86bf7a24a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_i32",
@@ -328,7 +382,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "7e7ef21ac99164d2703f4e677a5dbd5d5f9effe526105a3909c832d16cf3bd2a"
+   "subsystemSha256": "7e7ef21ac99164d2703f4e677a5dbd5d5f9effe526105a3909c832d16cf3bd2a",
+   "rules": {
+    "subsystemSha256": "7e7ef21ac99164d2703f4e677a5dbd5d5f9effe526105a3909c832d16cf3bd2a",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_lgc",
@@ -358,7 +421,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "3a01f87ee65cbddd28195a1f0a9301f50babbf61bc0dfe4f2e1ef5a426b34846"
+   "subsystemSha256": "3a01f87ee65cbddd28195a1f0a9301f50babbf61bc0dfe4f2e1ef5a426b34846",
+   "rules": {
+    "subsystemSha256": "36735e3bdd31c32c0f255ee480c711d39dba2993b1b56e51c10017728c412f40",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_oor",
@@ -373,7 +445,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "762366377efea43c1b2f420fa0cb6481efbbd4ca7d589079af6b46f2572304a2"
+   "subsystemSha256": "762366377efea43c1b2f420fa0cb6481efbbd4ca7d589079af6b46f2572304a2",
+   "rules": {
+    "subsystemSha256": "cacfd706278afd11470eeb354662836591b5b847ba39c81534e45ae57785ea7a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_dprec",
@@ -388,7 +469,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "1dd9c0319600b2c43c309588b79272f2bbe1337ab0ff06a0750772b028411f2d"
+   "subsystemSha256": "1dd9c0319600b2c43c309588b79272f2bbe1337ab0ff06a0750772b028411f2d",
+   "rules": {
+    "subsystemSha256": "7f9b62446f3d6f9db5b59751346e6c54e22afd709a9b7650e3d33b2c502fb713",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_cplxcls",
@@ -403,7 +493,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "79b8dca0d5a713dbe73988984903aca04b57377cf5a0762d415095487de0827b"
+   "subsystemSha256": "79b8dca0d5a713dbe73988984903aca04b57377cf5a0762d415095487de0827b",
+   "rules": {
+    "subsystemSha256": "247a3551f430b32c48fcaea157ad28da520186b523c11e014c40fd970e6c9611",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_vec",
@@ -418,7 +517,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "072ff44a878fe299bd57dea839265df1d4be6f29bac7caa5717e9508dc45db17"
+   "subsystemSha256": "072ff44a878fe299bd57dea839265df1d4be6f29bac7caa5717e9508dc45db17",
+   "rules": {
+    "subsystemSha256": "e4ac34edf8fd77a0a7a986ded919f1c607a1d4a5630a3c6529c9fbb28939c610",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tS_veccls",
@@ -433,7 +541,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "9e3741d072f83a64b12016674d311da75b255581342fc5aac6451cbd2c4b14e4"
+   "subsystemSha256": "9e3741d072f83a64b12016674d311da75b255581342fc5aac6451cbd2c4b14e4",
+   "rules": {
+    "subsystemSha256": "9e3741d072f83a64b12016674d311da75b255581342fc5aac6451cbd2c4b14e4",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tSd_same",
@@ -448,7 +565,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "17cedcc98b9279ca4e2af1628da6969ee63f4ea2895a5408832d5c7b7bdfa1cb"
+   "subsystemSha256": "17cedcc98b9279ca4e2af1628da6969ee63f4ea2895a5408832d5c7b7bdfa1cb",
+   "rules": {
+    "subsystemSha256": "17cedcc98b9279ca4e2af1628da6969ee63f4ea2895a5408832d5c7b7bdfa1cb",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tSd_dint",
@@ -493,7 +619,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "28cf347cbde4aeba57df3ec85d889e147f09d7973b23560fa28e133c4bc4c06e"
+   "subsystemSha256": "28cf347cbde4aeba57df3ec85d889e147f09d7973b23560fa28e133c4bc4c06e",
+   "rules": {
+    "subsystemSha256": "28cf347cbde4aeba57df3ec85d889e147f09d7973b23560fa28e133c4bc4c06e",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tSd_lgc",
@@ -523,7 +658,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "fd296006b7e5599f117495defb32b689e2d82a63d56cbac9ceab8822afd967d6"
+   "subsystemSha256": "fd296006b7e5599f117495defb32b689e2d82a63d56cbac9ceab8822afd967d6",
+   "rules": {
+    "subsystemSha256": "37131fd854a5d4e594278eec04951fcb1a626200b426547ac6da1ab108b7cb90",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tSd_oor",
@@ -568,7 +712,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "92e11fb6a40779301b8d60b9de9b9660094c84a86febc55fd990b38ee5f09ee4"
+   "subsystemSha256": "92e11fb6a40779301b8d60b9de9b9660094c84a86febc55fd990b38ee5f09ee4",
+   "rules": {
+    "subsystemSha256": "35b63b8feccdaadddbe01605333826380e4a0976133328ff8466ffc9422b14cc",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tSd_vec",
@@ -598,7 +751,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "9fabac614018e96847309875d3a8a7df59df6008660aa0e20e04ae8f5720d2a1"
+   "subsystemSha256": "9fabac614018e96847309875d3a8a7df59df6008660aa0e20e04ae8f5720d2a1",
+   "rules": {
+    "subsystemSha256": "9fabac614018e96847309875d3a8a7df59df6008660aa0e20e04ae8f5720d2a1",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_same",
@@ -613,7 +775,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "08a198bad4933a8a64f47243af7a9340e435491eb21d4b1e32d8e78c233e176f"
+   "subsystemSha256": "08a198bad4933a8a64f47243af7a9340e435491eb21d4b1e32d8e78c233e176f",
+   "rules": {
+    "subsystemSha256": "08a198bad4933a8a64f47243af7a9340e435491eb21d4b1e32d8e78c233e176f",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_dint",
@@ -628,7 +799,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "9dda805df881c48f42e8148a7382e46818a7515a22caef637303190ed18f4c10"
+   "subsystemSha256": "9dda805df881c48f42e8148a7382e46818a7515a22caef637303190ed18f4c10",
+   "rules": {
+    "subsystemSha256": "7cfc2a6e1b3ada213b63121b78c953c7727f7ae6512607d5e46616723f6b87d9",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_dfrac",
@@ -643,7 +823,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "5cdf06830af0c430e7af96f5aa8688b18ee0fa8de636d8886b7c7bf39ec0c0c0"
+   "subsystemSha256": "5cdf06830af0c430e7af96f5aa8688b18ee0fa8de636d8886b7c7bf39ec0c0c0",
+   "rules": {
+    "subsystemSha256": "6f4bd9480264b03cbded8809fe96dc13f79f69856cccf871cfee7843a28a0c0a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_i32",
@@ -658,7 +847,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "7cdb19436f24ec5fd00c4ad033202bf9b8b27800bf1845df8f4e197ce7e3b06b"
+   "subsystemSha256": "7cdb19436f24ec5fd00c4ad033202bf9b8b27800bf1845df8f4e197ce7e3b06b",
+   "rules": {
+    "subsystemSha256": "7cdb19436f24ec5fd00c4ad033202bf9b8b27800bf1845df8f4e197ce7e3b06b",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_lgc",
@@ -688,7 +886,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "bef566750d41eb38bcaf4168e2ca9a45063368c7af57513da823789c67bdfee1"
+   "subsystemSha256": "bef566750d41eb38bcaf4168e2ca9a45063368c7af57513da823789c67bdfee1",
+   "rules": {
+    "subsystemSha256": "49ccb631c6e4d68f257d44e52d2eedc4bdd4e4b0fbc6f1ad5580e2801f270ce8",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_oor",
@@ -703,7 +910,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "8ba3811f09aede9265f1f0bd3f903f04e646a8addcd64200eebe313e3973557e"
+   "subsystemSha256": "8ba3811f09aede9265f1f0bd3f903f04e646a8addcd64200eebe313e3973557e",
+   "rules": {
+    "subsystemSha256": "4fd0dc65500ca468336b515356cb24f879c5233809a84b78e273777fc783bd27",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_oorcls",
@@ -718,7 +934,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "5f8ae4cfb1290f57f8c29e3b60d88b82f570a25af1e50f9209070a01c0e7f862"
+   "subsystemSha256": "5f8ae4cfb1290f57f8c29e3b60d88b82f570a25af1e50f9209070a01c0e7f862",
+   "rules": {
+    "subsystemSha256": "5f8ae4cfb1290f57f8c29e3b60d88b82f570a25af1e50f9209070a01c0e7f862",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_nan",
@@ -733,7 +958,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "ac639b71114f4f0d30c791be114db706adddfc0a1e1715caef75d8441c65c2e4"
+   "subsystemSha256": "ac639b71114f4f0d30c791be114db706adddfc0a1e1715caef75d8441c65c2e4",
+   "rules": {
+    "subsystemSha256": "a729720e810a50e8655737dc02e8192536cd9c424870944378e330846809a89d",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_cplxcls",
@@ -748,7 +982,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "a2cc05ced74e53f965f4d137d3c5ee29ec7e48ae0ece129b541de123c66de35b"
+   "subsystemSha256": "a2cc05ced74e53f965f4d137d3c5ee29ec7e48ae0ece129b541de123c66de35b",
+   "rules": {
+    "subsystemSha256": "fd750f3e0b1d6c799a2adbbda098d93006f46a56dccb3f6c234f3d9407f8a4b7",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_vec",
@@ -763,7 +1006,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "32e094881cc8317443d7cc091244882a9aa18e3afbdd363b1a6f9f4b4e29b76c"
+   "subsystemSha256": "32e094881cc8317443d7cc091244882a9aa18e3afbdd363b1a6f9f4b4e29b76c",
+   "rules": {
+    "subsystemSha256": "7dd5437e89e1af7f61b31fd38e341c61240a23246943f2adf8955201f281a822",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tI_veccls",
@@ -778,7 +1030,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "577296f508869c76cc6eb3ab82e448909bb636c35427fb50125a63c75e4c9207"
+   "subsystemSha256": "577296f508869c76cc6eb3ab82e448909bb636c35427fb50125a63c75e4c9207",
+   "rules": {
+    "subsystemSha256": "577296f508869c76cc6eb3ab82e448909bb636c35427fb50125a63c75e4c9207",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_same",
@@ -793,7 +1054,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "f39203e95e2baab6877913c76c7eb4a4cd1351a41df9f3fa165a224daaff4acd"
+   "subsystemSha256": "f39203e95e2baab6877913c76c7eb4a4cd1351a41df9f3fa165a224daaff4acd",
+   "rules": {
+    "subsystemSha256": "f39203e95e2baab6877913c76c7eb4a4cd1351a41df9f3fa165a224daaff4acd",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_dint",
@@ -838,7 +1108,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "0055477772b625e2bdd82333dbb7348693907ef750cb09c3282322f27774b7fc"
+   "subsystemSha256": "0055477772b625e2bdd82333dbb7348693907ef750cb09c3282322f27774b7fc",
+   "rules": {
+    "subsystemSha256": "0055477772b625e2bdd82333dbb7348693907ef750cb09c3282322f27774b7fc",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_lgc",
@@ -868,7 +1147,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "b275182d29d234fdc7c4b376176af2defb37bf592080a49d2325e8aab3fdb738"
+   "subsystemSha256": "b275182d29d234fdc7c4b376176af2defb37bf592080a49d2325e8aab3fdb738",
+   "rules": {
+    "subsystemSha256": "5dc97cc33497a7cbc384d940fde4296df1c0bdce0d000404dc8d4fff23610bb4",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_oor",
@@ -898,7 +1186,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "487a46f02e6484f338b462cff47256e7b7df18fff415abcd65ebfde86c928256"
+   "subsystemSha256": "487a46f02e6484f338b462cff47256e7b7df18fff415abcd65ebfde86c928256",
+   "rules": {
+    "subsystemSha256": "487a46f02e6484f338b462cff47256e7b7df18fff415abcd65ebfde86c928256",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_nan",
@@ -928,7 +1225,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "50b9fb0dcb0a9e68bfb3aaed73509f73cdf7365f9e70edc1ce3652a01a771f07"
+   "subsystemSha256": "50b9fb0dcb0a9e68bfb3aaed73509f73cdf7365f9e70edc1ce3652a01a771f07",
+   "rules": {
+    "subsystemSha256": "51a8d192f3ecdd8947254082d13dec3e432c6ee8455cdb71d9eddf5674794085",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tId_vec",
@@ -958,7 +1264,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "f31c85b4b49b3b5a4679644d2370463e35c2a99c48f7586353591c826b3d7701"
+   "subsystemSha256": "f31c85b4b49b3b5a4679644d2370463e35c2a99c48f7586353591c826b3d7701",
+   "rules": {
+    "subsystemSha256": "f31c85b4b49b3b5a4679644d2370463e35c2a99c48f7586353591c826b3d7701",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_same",
@@ -973,7 +1288,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "c9c8535052a5e9f780861deee9e704c5b04e2be8a22ef749b193c2e1322532b4"
+   "subsystemSha256": "c9c8535052a5e9f780861deee9e704c5b04e2be8a22ef749b193c2e1322532b4",
+   "rules": {
+    "subsystemSha256": "c9c8535052a5e9f780861deee9e704c5b04e2be8a22ef749b193c2e1322532b4",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_dint",
@@ -988,7 +1312,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "14c00b731d91d3f23296353f9a5daf824a22a3d64b65b562ec070887eef21339"
+   "subsystemSha256": "14c00b731d91d3f23296353f9a5daf824a22a3d64b65b562ec070887eef21339",
+   "rules": {
+    "subsystemSha256": "5bd38cd78aebba83fbb3f36ba826a03300f1b34ffefc9283617b15d58c4ccfdc",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_dfrac",
@@ -1003,7 +1336,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "c8877a8aeefa1b0089b1f352b29e6c2015a32b1e3b8e404baa3eb48178e19297"
+   "subsystemSha256": "c8877a8aeefa1b0089b1f352b29e6c2015a32b1e3b8e404baa3eb48178e19297",
+   "rules": {
+    "subsystemSha256": "ebfe30ea293e3735c5255b42be03af75e9162afe8e81b1a9bd064a34d303977f",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_i32",
@@ -1018,7 +1360,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "0c240753c5b9478020113b2522ed594d580794bd6bc372e06e4590e659e59644"
+   "subsystemSha256": "0c240753c5b9478020113b2522ed594d580794bd6bc372e06e4590e659e59644",
+   "rules": {
+    "subsystemSha256": "0c240753c5b9478020113b2522ed594d580794bd6bc372e06e4590e659e59644",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_lgc",
@@ -1048,7 +1399,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "c3a130d32b7a9ab757fbcc85a8cfe29c105f9d521cdd051558f29dbffe2fde85"
+   "subsystemSha256": "c3a130d32b7a9ab757fbcc85a8cfe29c105f9d521cdd051558f29dbffe2fde85",
+   "rules": {
+    "subsystemSha256": "c0337428bdc3ea01833b96aa927a4cc983a63d43f05305fa7189af5a0e4ae7d4",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_oor",
@@ -1063,7 +1423,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "ae14cc871daf3912b26d739e9bdceb6dc7253db1fc5b469048d39a52882aacdc"
+   "subsystemSha256": "ae14cc871daf3912b26d739e9bdceb6dc7253db1fc5b469048d39a52882aacdc",
+   "rules": {
+    "subsystemSha256": "c9b7ca0a02b64b0f3549e3f38caa23d63b2d71962a693681137daf4f49b4d565",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_neg",
@@ -1078,7 +1447,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "1eab8c113ae423b43eedfd2ed68922ff7491de50a12aacf908bea535afb8f844"
+   "subsystemSha256": "1eab8c113ae423b43eedfd2ed68922ff7491de50a12aacf908bea535afb8f844",
+   "rules": {
+    "subsystemSha256": "efb305a0f114493fbcac417517cd1a468ae2b78bd6b6d7c4c14b0c4d2a011ad7",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_oorcls",
@@ -1093,7 +1471,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "b33160be264993dc78c10d1dc749e9b89e786eb3d058482dbe4fc85efd9c25e2"
+   "subsystemSha256": "b33160be264993dc78c10d1dc749e9b89e786eb3d058482dbe4fc85efd9c25e2",
+   "rules": {
+    "subsystemSha256": "b33160be264993dc78c10d1dc749e9b89e786eb3d058482dbe4fc85efd9c25e2",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_cplxcls",
@@ -1108,7 +1495,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "aa3779d2aa1a83ef4b1eaefccdca9e71f814e31d5de8fdd00920edb3eadb90b9"
+   "subsystemSha256": "aa3779d2aa1a83ef4b1eaefccdca9e71f814e31d5de8fdd00920edb3eadb90b9",
+   "rules": {
+    "subsystemSha256": "7dc58f17c3a5506e37da153f943f47f142d090bc93cdd865ec8aada1147bfd73",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_vec",
@@ -1123,7 +1519,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "3ba5d36d4c24630b5a40229e2d653d75ddbc9ba43c5ad6c5f2cdbeb0cdf2e169"
+   "subsystemSha256": "3ba5d36d4c24630b5a40229e2d653d75ddbc9ba43c5ad6c5f2cdbeb0cdf2e169",
+   "rules": {
+    "subsystemSha256": "be9e8e22aeaa59ba5608dc33acd87402e2ded8e58b82bb0c238387ecca5155d1",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tU_veccls",
@@ -1138,7 +1543,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "ad6d448a3e44d869b5fb538510120df59cc225309c73a675ba854f40706dda06"
+   "subsystemSha256": "ad6d448a3e44d869b5fb538510120df59cc225309c73a675ba854f40706dda06",
+   "rules": {
+    "subsystemSha256": "ad6d448a3e44d869b5fb538510120df59cc225309c73a675ba854f40706dda06",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_same",
@@ -1153,7 +1567,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "e13aab646cc6bfd0cf4089afdbac12b9175d4de6c4552a1479a49997bdd3a4d4"
+   "subsystemSha256": "e13aab646cc6bfd0cf4089afdbac12b9175d4de6c4552a1479a49997bdd3a4d4",
+   "rules": {
+    "subsystemSha256": "e13aab646cc6bfd0cf4089afdbac12b9175d4de6c4552a1479a49997bdd3a4d4",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_dint",
@@ -1198,7 +1621,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "78e0d26dd03d5bbc015c1c92c0ab929ef6ccbee3e0df01027f7a7cae87d3e1cc"
+   "subsystemSha256": "78e0d26dd03d5bbc015c1c92c0ab929ef6ccbee3e0df01027f7a7cae87d3e1cc",
+   "rules": {
+    "subsystemSha256": "78e0d26dd03d5bbc015c1c92c0ab929ef6ccbee3e0df01027f7a7cae87d3e1cc",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_lgc",
@@ -1228,7 +1660,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "20af999654565fc8e7341b8ff3cc0e3e2cc51788e48f97ff9d244b35b3758c4d"
+   "subsystemSha256": "20af999654565fc8e7341b8ff3cc0e3e2cc51788e48f97ff9d244b35b3758c4d",
+   "rules": {
+    "subsystemSha256": "d715a516a7bd56f17f1a1eb8609b746c2f6dbe3dfd9a68b1572d6ef5a642bc45",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_oor",
@@ -1273,7 +1714,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "5a7147630a870c96725e7a8a0bb45cac637237ee8fb57ff5c16622035715aeec"
+   "subsystemSha256": "5a7147630a870c96725e7a8a0bb45cac637237ee8fb57ff5c16622035715aeec",
+   "rules": {
+    "subsystemSha256": "5a7147630a870c96725e7a8a0bb45cac637237ee8fb57ff5c16622035715aeec",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_cplxcls",
@@ -1288,7 +1738,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "9192bc6b40183319519bd997684fa4f83b19ccf58d1a4da67ed0fc8e8acfbec0"
+   "subsystemSha256": "9192bc6b40183319519bd997684fa4f83b19ccf58d1a4da67ed0fc8e8acfbec0",
+   "rules": {
+    "subsystemSha256": "57741f974eb9e9671bcf7e1a81a3cfb6d28655f1e3ebef4923ce045aab359a36",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tUd_vec",
@@ -1318,7 +1777,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "b9b62b6ef1e3685395b8abe5222dfc78b46fe15e436085bc017e33f4a2a1c32d"
+   "subsystemSha256": "b9b62b6ef1e3685395b8abe5222dfc78b46fe15e436085bc017e33f4a2a1c32d",
+   "rules": {
+    "subsystemSha256": "b9b62b6ef1e3685395b8abe5222dfc78b46fe15e436085bc017e33f4a2a1c32d",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_same",
@@ -1348,7 +1816,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "a56cd9fad465d01b05fbede73f2bb060a57b9355a1ba775159bdcba34a069f75"
+   "subsystemSha256": "a56cd9fad465d01b05fbede73f2bb060a57b9355a1ba775159bdcba34a069f75",
+   "rules": {
+    "subsystemSha256": "61c0211488cfbe3b5f2c391eb840db9d42d9fb69da3cfc910d8ee1977baffcc3",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_dfrac",
@@ -1363,7 +1840,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "c7336d55cb880ce57a451823a0d3fa3eb5ced0c4d916b69e8b910a57e04a2506"
+   "subsystemSha256": "c7336d55cb880ce57a451823a0d3fa3eb5ced0c4d916b69e8b910a57e04a2506",
+   "rules": {
+    "subsystemSha256": "af0dc73a48dc017a9693ca599e4861308645243e8227a0469c803ae45dc54a6f",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_i32",
@@ -1378,7 +1864,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "8e616ac188b6612166ea632f9486cdc6cbdbf8a35035c2ed9029725df2fcf74c"
+   "subsystemSha256": "8e616ac188b6612166ea632f9486cdc6cbdbf8a35035c2ed9029725df2fcf74c",
+   "rules": {
+    "subsystemSha256": "8e616ac188b6612166ea632f9486cdc6cbdbf8a35035c2ed9029725df2fcf74c",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_lgc",
@@ -1408,7 +1903,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "99b8539ecb130c6057b064754b9a33fa080a1474d90ffc909679ebd01fbc96f5"
+   "subsystemSha256": "99b8539ecb130c6057b064754b9a33fa080a1474d90ffc909679ebd01fbc96f5",
+   "rules": {
+    "subsystemSha256": "a7825e02c48e51200621a572fd6694a4bc05292a943a512a7601da6e4cc98080",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_oor",
@@ -1423,7 +1927,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "6b40d23cddff8e03967fe67387f0b142f1361a851137f1c9b0035179be0662bc"
+   "subsystemSha256": "6b40d23cddff8e03967fe67387f0b142f1361a851137f1c9b0035179be0662bc",
+   "rules": {
+    "subsystemSha256": "a9e337af63f2fb6fb6f6522a1fb40ed63f04064dfeabaa83c241c6ddc06007f6",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_neg",
@@ -1438,7 +1951,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "f3ea45916c1cd97e94088a36bc985405f93854e44c355d5a56f655fa68d4e1a4"
+   "subsystemSha256": "f3ea45916c1cd97e94088a36bc985405f93854e44c355d5a56f655fa68d4e1a4",
+   "rules": {
+    "subsystemSha256": "25d930e4053630e121d408db94d09b068c4214d90af3adf39f740dae19a49fad",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_nan",
@@ -1453,7 +1975,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "9e5f5449c96e15713fc43fe2257a8787b15709202127483f5e695b5a947ea269"
+   "subsystemSha256": "9e5f5449c96e15713fc43fe2257a8787b15709202127483f5e695b5a947ea269",
+   "rules": {
+    "subsystemSha256": "4cdcfcf905a4d4c358c2b412985be42ae0e301c6fd4e3967ee2f0da26d5c182a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_vec",
@@ -1468,7 +1999,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "52431c3adcc36ac88bbfdfebb62758dc59a145f4a399804b061cef389abc4cf5"
+   "subsystemSha256": "52431c3adcc36ac88bbfdfebb62758dc59a145f4a399804b061cef389abc4cf5",
+   "rules": {
+    "subsystemSha256": "984a086bf8b1f5133363abe2fc4fe5ac79f9e53af8a2f9e9fcc39a6628ce790a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tB_veccls",
@@ -1483,7 +2023,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "8f06b8664e436a47b09317e1e3db3052fbe5282ea38d7d5d56429c7c0fa5e1ad"
+   "subsystemSha256": "8f06b8664e436a47b09317e1e3db3052fbe5282ea38d7d5d56429c7c0fa5e1ad",
+   "rules": {
+    "subsystemSha256": "8f06b8664e436a47b09317e1e3db3052fbe5282ea38d7d5d56429c7c0fa5e1ad",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tBd_same",
@@ -1543,7 +2092,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "31feaf15158fe04d5a27554395fbd0d5975b644210b3d2b0fb4b974f78a7a6ea"
+   "subsystemSha256": "31feaf15158fe04d5a27554395fbd0d5975b644210b3d2b0fb4b974f78a7a6ea",
+   "rules": {
+    "subsystemSha256": "31feaf15158fe04d5a27554395fbd0d5975b644210b3d2b0fb4b974f78a7a6ea",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tBd_lgc",
@@ -1648,7 +2206,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "1fb195904eb0e25b8ffbbe41d1a788d02d1b61c29eb2aad83ba42c97b347e67a"
+   "subsystemSha256": "1fb195904eb0e25b8ffbbe41d1a788d02d1b61c29eb2aad83ba42c97b347e67a",
+   "rules": {
+    "subsystemSha256": "1fb195904eb0e25b8ffbbe41d1a788d02d1b61c29eb2aad83ba42c97b347e67a",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tD_dint",
@@ -1693,7 +2260,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "82fe96b6900c037f994b7dac01c94262400241e5860e43856e77662ebfaca848"
+   "subsystemSha256": "82fe96b6900c037f994b7dac01c94262400241e5860e43856e77662ebfaca848",
+   "rules": {
+    "subsystemSha256": "82fe96b6900c037f994b7dac01c94262400241e5860e43856e77662ebfaca848",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tD_lgc",
@@ -1723,7 +2299,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "0bfcfffe2c19bc46fa0524758b03f290b521b7b0e94748e68843cf78dfdc9144"
+   "subsystemSha256": "0bfcfffe2c19bc46fa0524758b03f290b521b7b0e94748e68843cf78dfdc9144",
+   "rules": {
+    "subsystemSha256": "194962b0ae774ff1c98d5863e205c37dae48c250fb2d5b613d94e17797bf4c08",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tD_vec",
@@ -1783,7 +2368,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "98552da18392d3211cc37ef7e0eeec6cd2a18eb1bdde580b9869c6e0f41b8ea4"
+   "subsystemSha256": "98552da18392d3211cc37ef7e0eeec6cd2a18eb1bdde580b9869c6e0f41b8ea4",
+   "rules": {
+    "subsystemSha256": "bf21e63b69796c26afc3c273221b3aa3bb52a8e604886c89de3891aa94dace06",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tA_lgc",
@@ -1798,7 +2392,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "a83bbd4ac70fcd0c6ebf35ed38cfef73c1b9ba106196dc0d43a31b29a585abcf"
+   "subsystemSha256": "a83bbd4ac70fcd0c6ebf35ed38cfef73c1b9ba106196dc0d43a31b29a585abcf",
+   "rules": {
+    "subsystemSha256": "aee44df33bdeea93fee0bfc6a394ebe9e7c76c545aca59bc8c8759181cee395a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tA_cplx",
@@ -1813,7 +2416,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "77b5e0a32a487595dc70fb61bd84a04ecf2a22b82e26a4a666a06f3e22b30f87"
+   "subsystemSha256": "77b5e0a32a487595dc70fb61bd84a04ecf2a22b82e26a4a666a06f3e22b30f87",
+   "rules": {
+    "subsystemSha256": "0846dbb295ff240deeb0d6c12b6c34d5cd1659dd8b9aa95b42d42b2aaf36e733",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tA_vec",
@@ -1843,7 +2455,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "0896d01edfa4dc4e67d8e26db8e4af84d0163628591a31115f9b334cf84a4071"
+   "subsystemSha256": "0896d01edfa4dc4e67d8e26db8e4af84d0163628591a31115f9b334cf84a4071",
+   "rules": {
+    "subsystemSha256": "0896d01edfa4dc4e67d8e26db8e4af84d0163628591a31115f9b334cf84a4071",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tAi_dint",
@@ -1858,7 +2479,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "f2eb46d9902fcf66fa03c52ef80f6060e06c1f3f85cfd25651a966e3425b080d"
+   "subsystemSha256": "f2eb46d9902fcf66fa03c52ef80f6060e06c1f3f85cfd25651a966e3425b080d",
+   "rules": {
+    "subsystemSha256": "fcf94ebac79799ed54f658dc13c266f5247c97347b8a8b3c76cb415931b32c2e",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tAi_dfrac",
@@ -1873,7 +2503,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "a8dcb131cc8bb9d75287c9f9b80776f2c407c0d3c5576f74520a9c2064b34688"
+   "subsystemSha256": "a8dcb131cc8bb9d75287c9f9b80776f2c407c0d3c5576f74520a9c2064b34688",
+   "rules": {
+    "subsystemSha256": "5e2c5b4376baa44f925a4ed49bd38f2628f00b77c959f66fc760b8dfcea405f4",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tAi_i32",
@@ -1888,7 +2527,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "8d7940e1ca3ff19717a7fc5090ed484fa7244af92f03dc40240d0a04fa27c7eb"
+   "subsystemSha256": "8d7940e1ca3ff19717a7fc5090ed484fa7244af92f03dc40240d0a04fa27c7eb",
+   "rules": {
+    "subsystemSha256": "8d7940e1ca3ff19717a7fc5090ed484fa7244af92f03dc40240d0a04fa27c7eb",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tAi_lgc",
@@ -1918,7 +2566,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "193776a38eefaedbfa0d9eb04d513fb43d3aef6e3a522c58e11315bc9d626ae1"
+   "subsystemSha256": "193776a38eefaedbfa0d9eb04d513fb43d3aef6e3a522c58e11315bc9d626ae1",
+   "rules": {
+    "subsystemSha256": "4c68b9dd3193ae6dfb0b8573ce1cbaff27b918c57216a901e920597e032b02fd",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tAi_vec",
@@ -1933,7 +2590,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "91c12f9bc23ea8e41c581e46619c440ce2b2cd8719513a6d4976fb9779e65032"
+   "subsystemSha256": "91c12f9bc23ea8e41c581e46619c440ce2b2cd8719513a6d4976fb9779e65032",
+   "rules": {
+    "subsystemSha256": "103822a6fdb43ed1d682ec98a76c8c7792bf1f3e99530f660f0edc881dd4d5e9",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tF_dint",
@@ -1978,7 +2644,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "06ad0e38d5774169b9e9cb0aa77e57f1de3447f683182fdd0c9e28b16d53cab1"
+   "subsystemSha256": "06ad0e38d5774169b9e9cb0aa77e57f1de3447f683182fdd0c9e28b16d53cab1",
+   "rules": {
+    "subsystemSha256": "06ad0e38d5774169b9e9cb0aa77e57f1de3447f683182fdd0c9e28b16d53cab1",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tF_lgc",
@@ -2008,7 +2683,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "640fe5921126bcf34b88ede05c16c24d866583fa440bbc1da773e22f39356cfc"
+   "subsystemSha256": "640fe5921126bcf34b88ede05c16c24d866583fa440bbc1da773e22f39356cfc",
+   "rules": {
+    "subsystemSha256": "7c311dbaa772faf5d7ba10d23566e83fe82c5ce0d282e6435d5ab37e5e97a74d",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tF_vec",
@@ -2068,7 +2752,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "84536e47714083653cacd3c3143f0fa4fd8ec2768509911161fc400c7d035702"
+   "subsystemSha256": "84536e47714083653cacd3c3143f0fa4fd8ec2768509911161fc400c7d035702",
+   "rules": {
+    "subsystemSha256": "84536e47714083653cacd3c3143f0fa4fd8ec2768509911161fc400c7d035702",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tN_lgc",
@@ -2098,7 +2791,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "d2d1597f9a90fa08160f396919b6c28f541e0166274a472740e3b245d2fd5029"
+   "subsystemSha256": "d2d1597f9a90fa08160f396919b6c28f541e0166274a472740e3b245d2fd5029",
+   "rules": {
+    "subsystemSha256": "158c3cbdb07d11a2102f4a26188c6a4b8fa5957dfd86932eb4fa6b4f561ee317",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g2_tN_vec",
@@ -2128,7 +2830,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "2995243f4f74d3877471ae4fd3e890c2cd6c32d0ca278ed72bb3fa73bd648c14"
+   "subsystemSha256": "2995243f4f74d3877471ae4fd3e890c2cd6c32d0ca278ed72bb3fa73bd648c14",
+   "rules": {
+    "subsystemSha256": "c166ffff055c46bac9f8d3eae60c451f1ed0349c9f7f79c9415239dc245f7b98",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_empty_1x0",
@@ -2143,7 +2854,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "e44fb020d8b56bb697b315e8333eb6a80dd6d8d5c36439a42faef61fe9d6351c"
+   "subsystemSha256": "e44fb020d8b56bb697b315e8333eb6a80dd6d8d5c36439a42faef61fe9d6351c",
+   "rules": {
+    "subsystemSha256": "e44fb020d8b56bb697b315e8333eb6a80dd6d8d5c36439a42faef61fe9d6351c",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_row",
@@ -2203,7 +2923,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "665e3ee266138197e33e5a667638d5285bc7eb03f71d279c7234e73570f08fdd"
+   "subsystemSha256": "665e3ee266138197e33e5a667638d5285bc7eb03f71d279c7234e73570f08fdd",
+   "rules": {
+    "subsystemSha256": "665e3ee266138197e33e5a667638d5285bc7eb03f71d279c7234e73570f08fdd",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_typed_row",
@@ -2218,7 +2947,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "dcf543d09f656b75fd542cd3ab43d0a4d10e18753d6f08728a2b5001ed9b0f4f"
+   "subsystemSha256": "dcf543d09f656b75fd542cd3ab43d0a4d10e18753d6f08728a2b5001ed9b0f4f",
+   "rules": {
+    "subsystemSha256": "dcf543d09f656b75fd542cd3ab43d0a4d10e18753d6f08728a2b5001ed9b0f4f",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_typed_nd",
@@ -2233,7 +2971,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "fe9fbe2a689a51dd32052da9f5cc520c491e92e6ffedd5331b1e603980f4b0c5"
+   "subsystemSha256": "fe9fbe2a689a51dd32052da9f5cc520c491e92e6ffedd5331b1e603980f4b0c5",
+   "rules": {
+    "subsystemSha256": "fe9fbe2a689a51dd32052da9f5cc520c491e92e6ffedd5331b1e603980f4b0c5",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_typed_scalar",
@@ -2248,7 +2995,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "5283331120d6f911532cabaf17f8d7ac0c48901af22313331f4e9ef26e4aa239"
+   "subsystemSha256": "5283331120d6f911532cabaf17f8d7ac0c48901af22313331f4e9ef26e4aa239",
+   "rules": {
+    "subsystemSha256": "5283331120d6f911532cabaf17f8d7ac0c48901af22313331f4e9ef26e4aa239",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_typed_empty",
@@ -2263,7 +3019,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "704af2045a5c48c5bb842ef4c314e941bd8b9e04666adbab50f72f6fbc548ec3"
+   "subsystemSha256": "704af2045a5c48c5bb842ef4c314e941bd8b9e04666adbab50f72f6fbc548ec3",
+   "rules": {
+    "subsystemSha256": "704af2045a5c48c5bb842ef4c314e941bd8b9e04666adbab50f72f6fbc548ec3",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_logical_matrix",
@@ -2278,7 +3043,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "c051fe0ba0d7fe11e9837084314fb8f07d74e0aca9fc59d736c67bd5cffe3144"
+   "subsystemSha256": "c051fe0ba0d7fe11e9837084314fb8f07d74e0aca9fc59d736c67bd5cffe3144",
+   "rules": {
+    "subsystemSha256": "b1cf3f931206981f63dbba24118dc46c3d52de40da85764b33b19976d8a5673a",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_complex_matrix",
@@ -2293,7 +3067,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "b1f5ec417e92bcabf233f4330cbecb638ea25cfe7d478f27f2adc53a788f27fb"
+   "subsystemSha256": "b1f5ec417e92bcabf233f4330cbecb638ea25cfe7d478f27f2adc53a788f27fb",
+   "rules": {
+    "subsystemSha256": "47202f95f168115b5ab92dee495815a43ae9ae54bcc9589045b4efd4132efec6",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_complex_to_real",
@@ -2308,7 +3091,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "dca44000ace80dc2bb71e1ee792631652636018189969e75dbd68c3a7032b327"
+   "subsystemSha256": "dca44000ace80dc2bb71e1ee792631652636018189969e75dbd68c3a7032b327",
+   "rules": {
+    "subsystemSha256": "bd847497821b23f7aa02ac7333284e7adf43ba4a02b2e91f031e8811861490b3",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_real_to_complex_row",
@@ -2323,7 +3115,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "9fce0e256ce2a8b80c8340f8e4ffb045bc5aab6b9ec52d65bde006143b020c25"
+   "subsystemSha256": "9fce0e256ce2a8b80c8340f8e4ffb045bc5aab6b9ec52d65bde006143b020c25",
+   "rules": {
+    "subsystemSha256": "9fce0e256ce2a8b80c8340f8e4ffb045bc5aab6b9ec52d65bde006143b020c25",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_struct_leaf",
@@ -2338,7 +3139,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "3a022e809bdfa14232c99409ac425eba65c47a33044becdbfa7647fde0cbc976"
+   "subsystemSha256": "3a022e809bdfa14232c99409ac425eba65c47a33044becdbfa7647fde0cbc976",
+   "rules": {
+    "subsystemSha256": "e9cfbfe349a2a10a0380b9b63ada37d0d47e519fd181caaad0e547048af16cf7",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_struct_resize_field",
@@ -2353,7 +3163,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "9a99d4b0f73e1fb877341b9b326c7c34f17d91726317892250027549a479b8ff"
+   "subsystemSha256": "9a99d4b0f73e1fb877341b9b326c7c34f17d91726317892250027549a479b8ff",
+   "rules": {
+    "subsystemSha256": "6955dbf9e4a884aaaeab232f6809da6b508754f53817a86d56df7cf15ead524f",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_struct_typed_field",
@@ -2368,7 +3187,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "fb3f334f6afcad522acf0244e3c1a95f9a1ed36d3e17196d947acca5db7b2497"
+   "subsystemSha256": "fb3f334f6afcad522acf0244e3c1a95f9a1ed36d3e17196d947acca5db7b2497",
+   "rules": {
+    "subsystemSha256": "44956e1d980e72d153305656ecbd9268b69e4b28956178447ba3b30a500594b4",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_struct_from_numeric",
@@ -2383,7 +3211,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "8029e44a67b54c7a4d53b61492ebaea4af439f2f4574fde2509843d24a304388"
+   "subsystemSha256": "8029e44a67b54c7a4d53b61492ebaea4af439f2f4574fde2509843d24a304388",
+   "rules": {
+    "subsystemSha256": "d8aa82bdde9f679b10c1e7b7c8fc4c9fd5499a954630c16a3d9d812cb17527cc",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_numeric_from_struct",
@@ -2398,7 +3235,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "e92ece23ea0dc7ca0db88d2c20d53d42313c9fe66b123ba4d4a04ccc88ef7f70"
+   "subsystemSha256": "e92ece23ea0dc7ca0db88d2c20d53d42313c9fe66b123ba4d4a04ccc88ef7f70",
+   "rules": {
+    "subsystemSha256": "b2d2682e4bd175f6932bb097c4cc0ff5b06824d88e0143325d3121d77068b484",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g3_symdims_same",
@@ -2443,7 +3289,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "685c2d3cb420dc892a8ec75b18a784a6ed95c7893f945c1fab2ab8b7f8f4421c"
+   "subsystemSha256": "685c2d3cb420dc892a8ec75b18a784a6ed95c7893f945c1fab2ab8b7f8f4421c",
+   "rules": {
+    "subsystemSha256": "50d2c38fb7a051ea60f0fa5eba83af949accfe231d06eb98d586191c923f6fbe",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_desc",
@@ -2503,7 +3358,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "a7a14dd044d0be69948efc1dd2622bd3b50f027f4fcbe0a0610273b5b1af96a1"
+   "subsystemSha256": "a7a14dd044d0be69948efc1dd2622bd3b50f027f4fcbe0a0610273b5b1af96a1",
+   "rules": {
+    "subsystemSha256": "877e77141907b7966812ee2e1a57a247c9d9feca597912b59065d369a122e252",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_max",
@@ -2563,7 +3427,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "d990f91079b2a1b99d9ab4ffe1b9ba902ba52b13d0ef607524168eb786217981"
+   "subsystemSha256": "d990f91079b2a1b99d9ab4ffe1b9ba902ba52b13d0ef607524168eb786217981",
+   "rules": {
+    "subsystemSha256": "d990f91079b2a1b99d9ab4ffe1b9ba902ba52b13d0ef607524168eb786217981",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_init_expr",
@@ -2578,7 +3451,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "eb80cbc83cda0c7b8bea25785138f96e53f682f35840542f2af8d855f89a652c"
+   "subsystemSha256": "eb80cbc83cda0c7b8bea25785138f96e53f682f35840542f2af8d855f89a652c",
+   "rules": {
+    "subsystemSha256": "eb80cbc83cda0c7b8bea25785138f96e53f682f35840542f2af8d855f89a652c",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_init_empty",
@@ -2593,7 +3475,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "e47c20a38987cc51efd23f323064d263e2d00c9f00eeac9437a4d46f6f087faa"
+   "subsystemSha256": "e47c20a38987cc51efd23f323064d263e2d00c9f00eeac9437a4d46f6f087faa",
+   "rules": {
+    "subsystemSha256": "ecb58a505a8e48dd20d91e076bb0dee3ba0198e0f0b8fe8f53ea6cc7f87c31db",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_init_numeric",
@@ -2638,7 +3529,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "7a949d8acf5a5ce398d59dbad7236019822bd76140a2592f5ce9634f2c0915d9"
+   "subsystemSha256": "7a949d8acf5a5ce398d59dbad7236019822bd76140a2592f5ce9634f2c0915d9",
+   "rules": {
+    "subsystemSha256": "7a949d8acf5a5ce398d59dbad7236019822bd76140a2592f5ce9634f2c0915d9",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g4_sg0_desc",
@@ -2743,7 +3643,16 @@
    ],
    "variant": "utf8",
    "matlab": "NOSWAP",
-   "subsystemSha256": null
+   "subsystemSha256": null,
+   "rules": {
+    "subsystemSha256": "c45ad0eddb737e2423ed01f0849aedd2ee6e7fe73ae782a6c2b60fe9193f58ed",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_empty_unit_to_text",
@@ -2758,7 +3667,16 @@
    ],
    "variant": "utf8",
    "matlab": "NOSWAP",
-   "subsystemSha256": null
+   "subsystemSha256": null,
+   "rules": {
+    "subsystemSha256": "5674da92787a7798a4d8e2294091e61e66480f0ae91f77d7ff1595e6158da1e2",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_text_to_empty",
@@ -2773,7 +3691,16 @@
    ],
    "variant": "d00",
    "matlab": "PASS",
-   "subsystemSha256": "7656aaa9e18b8930c258fc90c7ab2e01781a46132fedf27a580933b9cd58d8c0"
+   "subsystemSha256": "7656aaa9e18b8930c258fc90c7ab2e01781a46132fedf27a580933b9cd58d8c0",
+   "rules": {
+    "subsystemSha256": "bf01f4162073c80ddb5c8c9cd578e46533a7c1711513dd253789da0c1f1a577e",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_unit_to_empty",
@@ -2788,7 +3715,16 @@
    ],
    "variant": "d00",
    "matlab": "PASS",
-   "subsystemSha256": "f8b9076dcf9d338b6600710578f83c06a7f06af7744f8e92d0598cd0b136c55a"
+   "subsystemSha256": "f8b9076dcf9d338b6600710578f83c06a7f06af7744f8e92d0598cd0b136c55a",
+   "rules": {
+    "subsystemSha256": "06588808357a083096c7475a6f8010c389a8162825f77285602a9f05fd2a787e",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_ascii_to_nonascii",
@@ -2908,7 +3844,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "0e6c3fd661b29e9f99ae45b072b7824ecdea770d7259ccbc5cb70a67dabdf7d9"
+   "subsystemSha256": "0e6c3fd661b29e9f99ae45b072b7824ecdea770d7259ccbc5cb70a67dabdf7d9",
+   "rules": {
+    "subsystemSha256": "0e6c3fd661b29e9f99ae45b072b7824ecdea770d7259ccbc5cb70a67dabdf7d9",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_struct_typed_dbl",
@@ -2923,7 +3868,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "1531704dec82f8f262ef0460693c5672b438fd136679c42e7b60aa16c0c057df"
+   "subsystemSha256": "1531704dec82f8f262ef0460693c5672b438fd136679c42e7b60aa16c0c057df",
+   "rules": {
+    "subsystemSha256": "d704298b4c5bea309ef826ee4e598c43695d41ba1b410edc08352f9de7ce1e82",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_cell_plain",
@@ -2953,7 +3907,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "69f324093c1d8e3a7188a54e8b4e44501c364ebd71695680d2e6399db63d4725"
+   "subsystemSha256": "69f324093c1d8e3a7188a54e8b4e44501c364ebd71695680d2e6399db63d4725",
+   "rules": {
+    "subsystemSha256": "69f324093c1d8e3a7188a54e8b4e44501c364ebd71695680d2e6399db63d4725",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_cell_typed_dbl",
@@ -2968,7 +3931,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "cc6b01e6e6424537e497bfba21c449bdeb2f609257579af096df418fe424ff42"
+   "subsystemSha256": "cc6b01e6e6424537e497bfba21c449bdeb2f609257579af096df418fe424ff42",
+   "rules": {
+    "subsystemSha256": "4818cc0965c4d01dfcfb040544e5625cd64936b20088371a9cdf4d9d4f15888b",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_array1",
@@ -3013,7 +3985,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "bfeea6f6992683a67ae4f27f99a33dac43a98fcb101b9c2518942b6a2966fa28"
+   "subsystemSha256": "bfeea6f6992683a67ae4f27f99a33dac43a98fcb101b9c2518942b6a2966fa28",
+   "rules": {
+    "subsystemSha256": "bfeea6f6992683a67ae4f27f99a33dac43a98fcb101b9c2518942b6a2966fa28",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_array2_typed_dbl",
@@ -3028,7 +4009,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "aa9d4825b2bc9ad90a76dee33e785c025ca61f3da97f58e51fb21fa9c6d4bbe5"
+   "subsystemSha256": "aa9d4825b2bc9ad90a76dee33e785c025ca61f3da97f58e51fb21fa9c6d4bbe5",
+   "rules": {
+    "subsystemSha256": "23469a01dc885a7bb47601bbe170dc83b7faf15b6cdaf4109b131ad792757153",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_array3_desc",
@@ -3088,7 +4078,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "3e8a8c055b66c9247f532ed3160f311f3e102e063df46d74e36359023ff9efa5"
+   "subsystemSha256": "3e8a8c055b66c9247f532ed3160f311f3e102e063df46d74e36359023ff9efa5",
+   "rules": {
+    "subsystemSha256": "77561ec8009d8df7968dc0cfb556b2128511fff09db632dc069381290596097d",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tA_int64",
@@ -3103,7 +4102,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "cd9c7011484ede47d635320b5f19118b2492827713e9362b986899a31556a4d8"
+   "subsystemSha256": "cd9c7011484ede47d635320b5f19118b2492827713e9362b986899a31556a4d8",
+   "rules": {
+    "subsystemSha256": "1409a35e355e1ef003f755f0ef2a78ae53ca9a0b498ecfb28acf917e57871bb7",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tA_uint64",
@@ -3118,7 +4126,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "2f797121c1bf315f1e297986e1c3b4d3c3ceb8441dfb495e32fd0ff1793cc85d"
+   "subsystemSha256": "2f797121c1bf315f1e297986e1c3b4d3c3ceb8441dfb495e32fd0ff1793cc85d",
+   "rules": {
+    "subsystemSha256": "da242994e22100bd4f83cf630f77b200bb1d938368c086b9f7df84ec9315baff",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tI_int64",
@@ -3133,7 +4150,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "6b144b017731abdd40a9368e561177455d8dbca3a41d80a52292224f6888581f"
+   "subsystemSha256": "6b144b017731abdd40a9368e561177455d8dbca3a41d80a52292224f6888581f",
+   "rules": {
+    "subsystemSha256": "6b144b017731abdd40a9368e561177455d8dbca3a41d80a52292224f6888581f",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tI_uint64",
@@ -3148,7 +4174,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "1530fb9da7ebbe30b637178c0c44bac803f04f46520f5c9fc6c8d6c9527ae978"
+   "subsystemSha256": "1530fb9da7ebbe30b637178c0c44bac803f04f46520f5c9fc6c8d6c9527ae978",
+   "rules": {
+    "subsystemSha256": "1530fb9da7ebbe30b637178c0c44bac803f04f46520f5c9fc6c8d6c9527ae978",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tSd_int64",
@@ -3163,7 +4198,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "b9978e53acaa36830977c9b3ef222c711acac6247a984214760837d3ad51725b"
+   "subsystemSha256": "b9978e53acaa36830977c9b3ef222c711acac6247a984214760837d3ad51725b",
+   "rules": {
+    "subsystemSha256": "b9978e53acaa36830977c9b3ef222c711acac6247a984214760837d3ad51725b",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tSd_uint64",
@@ -3178,7 +4222,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "d9b990989c6df4695e38cf58819f78ad212a9ebcdc7e5d2c500ad9a83e05b075"
+   "subsystemSha256": "d9b990989c6df4695e38cf58819f78ad212a9ebcdc7e5d2c500ad9a83e05b075",
+   "rules": {
+    "subsystemSha256": "d9b990989c6df4695e38cf58819f78ad212a9ebcdc7e5d2c500ad9a83e05b075",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_tI_uint16_vec",
@@ -3193,7 +4246,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "87934ec684571525869fe41c5dc11541bad24b4c58f645b25edfe3cb8ee4a523"
+   "subsystemSha256": "87934ec684571525869fe41c5dc11541bad24b4c58f645b25edfe3cb8ee4a523",
+   "rules": {
+    "subsystemSha256": "87934ec684571525869fe41c5dc11541bad24b4c58f645b25edfe3cb8ee4a523",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_multi_one_object",
@@ -3238,7 +4300,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "cab31bcfef3b06d838fc4a6181808a256cd38e3aca6ed7d0c250000b4fb7cfc1"
+   "subsystemSha256": "cab31bcfef3b06d838fc4a6181808a256cd38e3aca6ed7d0c250000b4fb7cfc1",
+   "rules": {
+    "subsystemSha256": "51a42a12897386184938c189c765f93ae964f4d10529e671f54be8648b168cad",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_min_max_one_object",
@@ -3263,7 +4334,16 @@
    ],
    "variant": "rule",
    "matlab": "PASS",
-   "subsystemSha256": "723d54208534807cafe01de73835b8b30dd695aa4983b329d3bb302f890de230"
+   "subsystemSha256": "723d54208534807cafe01de73835b8b30dd695aa4983b329d3bb302f890de230",
+   "rules": {
+    "subsystemSha256": "723d54208534807cafe01de73835b8b30dd695aa4983b329d3bb302f890de230",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r2_typed_min_below_type",
@@ -3413,7 +4493,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "3ea2c3d359baf8d7d9ca3a125f2fbe531bfc06323b341b5d9b6ec3cf9b8923dc"
+   "subsystemSha256": "3ea2c3d359baf8d7d9ca3a125f2fbe531bfc06323b341b5d9b6ec3cf9b8923dc",
+   "rules": {
+    "subsystemSha256": "42e49693d1e7c1cedf1ca6352975da41a15c4935777db4d6cb449fd2aaf55666",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r3_tF_above",
@@ -3863,7 +4952,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "e0b74fd294ff6d7310caf54e11bf48267adeb8b71984991eb48b8c34309e1f16"
+   "subsystemSha256": "e0b74fd294ff6d7310caf54e11bf48267adeb8b71984991eb48b8c34309e1f16",
+   "rules": {
+    "subsystemSha256": "21f6fdd066b4835e3e6f940a4c1cd44f00dc77d3bb02a008e7edec5b806a7fab",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r3_signal_dims_nd",
@@ -3878,7 +4976,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "5934bcce22bed3900c6c91f24ce97b617090c8ebbff78c9063a1cb27a7c67bf9"
+   "subsystemSha256": "5934bcce22bed3900c6c91f24ce97b617090c8ebbff78c9063a1cb27a7c67bf9",
+   "rules": {
+    "subsystemSha256": "5934bcce22bed3900c6c91f24ce97b617090c8ebbff78c9063a1cb27a7c67bf9",
+    "by": "rules",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "r3_signal_dims_bad",
@@ -3895,5 +5002,6 @@
    "matlab": "INFO",
    "subsystemSha256": "822998f0485fc53b5b05416c5f88ba4a8729d7f130f0030fc4023830f37be46e"
   }
- ]
+ ],
+ "rulesNote": "rules: the subsystem the property rules (McosPropertyRules) write for the case, through the session or, for an edit no host types, beneath it, where that is not the probe's swap; each saved file loaded in MATLAB R2027a, R2023b and R2024b equal to that release's own assignment, quiet, re-save equal (the live gate of T-D1b)."
 }

@@ -1,0 +1,1282 @@
+{
+ "source": "creation gate of the target shapes earlier codec bugs broke (an enum-only file with no object row, -v6 files with objects, a header-only file, a file with no null constructor-argument list, an R2024b-made file): each file saved through the session after its steps, loaded by MATLAB R2027a, R2023b and R2024b against the original and MATLAB's own objects with the same assignments, every object held valid. A LookupTable's and a Breakpoint's creations are left out: no host is offered them.",
+ "cases": [
+  {
+   "name": "single0__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "259ab475c9f66172cbc56e2b2a3bf96b84ab658ea77269f388931b558e956fc6",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "b79238bac533b39092213675c39fc12cabd15bdd710eec8598e6eaf44aac43ce",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "4da009d973004dc10509f44747078dfd013d7a1648f0b5b81e243fa59f7fec62",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "347f6b729ad5fe94bc3cc03c84f4574972ce5c84db888230aa19a0db6c728eeb",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "876242ad0c73b24f9ed7a7e4e41cceb45751bfdc39e78ed07f408a5b9a769d5f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "0f86035fc1860600dddd1462e0237d98bd685eec1402bc1c28ee0e742aa63a0f",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "c09138bc9c22016f153ba6e4d9448083328389a463fec14a2822f659c7af6c98",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__enum_only_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_only_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "58b1d24483206f9129624825766a9ebb61e0744ef70aaf78b3690c56326173e2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "5d88ec250ceb02c9be0c40c433232ec364f8505e925b0502e9697edc80b265ee",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "1486834e9e346b015cecabfcf0db33f690a87174b2d6587b88d619baccd79a53",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "f8e44e1cccad6935a7d5c27f187b5b73ffe452fcce76f22d8fdcf0802e21f3e0",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "47e96f951829e5d38b560ee0fe8a2687d0073f9e2ef78410a22087c6860c8577",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "8642142d2e078a828e240a0f1c05e83a4a9783ef70524695ea9ace3ca59a825a",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "38dbcb95bd3850d44a429c91530ed29c4a8400ed8e37bf18d7895c2ed3038f83",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "88f74cd13e1aabfb5d2e14420d38c84dda6fb1323773df8396bd9982be23d6cf",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__enum_onoff_r2024b",
+   "target": "fixtures/mat-create-gate/targets/enum_onoff_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "1dff06ddfaffaff8fcefd2017ddcf53904797982efc012e93bcfade2c75620af",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "316f28fd17fa88ee6263951d78e905377bd82e0475f2c7fb861733bdcb91b762",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "55e52169bd456bc439a9e4b6c603a83b6870939d408d1f2f88fcf220dcc8b9dc",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "23def30a1d0c07f397675c4934631713be95119149161b9ebe8630390813d298",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "b78d42dd49516e7c828050dcd11e96f2f526e160f64412f3730f39d3186547ab",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "3f9bf5cb6c8f62494b32660752f1ab95e56e1ecd5cee3408853f98647fb0f5f8",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "407208441e5cc7eb0e66e59bf8b6c8ddef4c4352182991a6377a02402eeaa0e3",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "bf1a1151d2573cc96c035d338394e35cd3b06d96105458dad4542e50c2ad16e3",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__v6_objects_r2024b",
+   "target": "fixtures/mat-create-gate/targets/v6_objects_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "71588a9b49226108f61ca6eb1f59b9e7831c193d75b33f1ae49672397dc2005d",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "74c394835c8218f85fad4435f5d7f08311f6b21d4c4942e1766678afec5fddfb",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "55cf7278ddb39af0da5c0fe5827f9e3de71cddb4a8a765bd43f8afaeef91cabb",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "50fe7f588184f36e295855230c38b470d6981b470d90a3f87f71119de0684c64",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "fb3d2fa0560678f46d569a6781e1cab3d05e0391c9786f739f8412da9105a1bd",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "bcbd4bfba63030b9dc52f5f835ebb8eba8286099f9c2e866896edc8f4cfc0288",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "b65083f4a4a165dcdfe57d6f0184de07aa9ade0d65334360317a705df89d18c0",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "57e16c7fc2db1e23e932847d0cd4a4c3ff0538e055f81762b3b5adf2d63da9e1",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__v6_objects_r2027a",
+   "target": "fixtures/mat-cellswap/pv_basic_v6.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "8ec26ecd2dc0fde437487b8fc73820398610c8f16d3052258ebe7b7594bd0706",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "7e561f178034d386db3c9726040f553061a879b768df296b5e839198c9d37eaa",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "250777c4a5f95aa5926f244ee8fa78b51726daf96dbf3d31dc945f81f37c2065",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "4c850299490e168df2a5151f322506f2be9905cc862c4bd0a5e774c36df847b0",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "af32a811e63b1ede56176d3b02d23a853b77158ba092d896d26bc2039c325c59",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "97afa53fce41278b2adf69f4b255d11164865a3431e845a86511216fbd91adb8",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "2ddb0ee397bd8f5f5c5523a6f07638555072c4aced3fed3a397bcbff7e904665",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "8062bad956d65f97637a56bd7304a5eeb59e6b2f0ffef4924e3627272e3d0121",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__header_only",
+   "target": "fixtures/mat-check/header-only.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "894a2a6da166434f5f89da4833438498c6253b18d845c7b2b05c117bc34e0b41",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "8de2c50c7845ae640fb49c08fa6756438f236d95f8b1b80a5a8cfcf843b82032",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "c061225185fce5e75788e0d0c4f693ca690c1b443c6d205a615d96f3fb775ac9",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "78c954bef8cd29b3c2338d15d9649462aae5427f9b1cb78c31e9c024209ea8a6",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "8d5a0a527db567a20214de3596420374f7cb4ab0ddb0239465a6131c7a8c13e2",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "21c6c010d6639ca1095b8a25713bc87c359076bd3f73a3963d87fc4250b8b4f6",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "7b56a8534f37f02038814dea3c2321a1eaa81fec77cfb64ed0d01646aed8924c",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "fbc6dc3f1c7b96782f60463d852457da36e758903e974da3b224f6aea49bd1b6",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__configset",
+   "target": "fixtures/mcos/configset.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "e5cd94fdf3353714343c437faaa0969af5859646d9676c5bcdfae2c6a5d97d72",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single0__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "n0"
+    }
+   ],
+   "sha256": "99132b50b55a011e34e377e5142a5c7bfb77a086069934ae0c8b4afdf7d189f1",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single1__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Signal",
+     "name": "n1"
+    }
+   ],
+   "sha256": "6fcd214df56fb387772ed55457fbb5541f14a5257c8360d0bf7b362d7fae3c69",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single2__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "n2"
+    }
+   ],
+   "sha256": "ea72917396af4466e7b8d252870270ac2f4b63359929c4282e5ea8a4f6633423",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single5__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.NumericType",
+     "name": "n5"
+    }
+   ],
+   "sha256": "d441296a0ca5da311c1352c3ef506b1d1dd29fe59dc12afbd8c4b8859bc1672d",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single6__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.AliasType",
+     "name": "n6"
+    }
+   ],
+   "sha256": "bfd8a1eba43c0e46cf292c4a0e74a067b69c1451d434c5884e8ac4317645aa94",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single7__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.ValueType",
+     "name": "n7"
+    }
+   ],
+   "sha256": "4833ba8f9dbadcf1674ccfa3fb70fd16144413e8a755d745710f155dc1eda3b4",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "single8__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "string",
+     "name": "n8"
+    }
+   ],
+   "sha256": "5fff2f5f9666f94f34778d6c64e4006196455175a4ac9532253cfc98317109b4",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "bus_elements__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "add",
+     "class": "Simulink.Bus",
+     "name": "bnew",
+     "elements": [
+      [],
+      [
+       [
+        "Name",
+        "x"
+       ],
+       [
+        "DataType",
+        "int16"
+       ],
+       [
+        "Min",
+        "-1"
+       ],
+       [
+        "Max",
+        "9"
+       ],
+       [
+        "Unit",
+        "V"
+       ],
+       [
+        "Description",
+        "element x"
+       ],
+       [
+        "complexity",
+        "complex"
+       ],
+       [
+        "dimensionsMode",
+        "Variable"
+       ]
+      ]
+     ]
+    }
+   ],
+   "sha256": "4b119d077078d5f5d6381f69e8663425707f4568e613282b1f07e20e21aa6f7d",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  },
+  {
+   "name": "existing_edits__mixed_r2024b",
+   "target": "fixtures/mat-create-gate/targets/mixed_r2024b.mat",
+   "steps": [
+    {
+     "op": "element",
+     "of": "b0",
+     "edits": [
+      [
+       "Name",
+       "z"
+      ],
+      [
+       "DataType",
+       "uint8"
+      ],
+      [
+       "Description",
+       "added"
+      ]
+     ]
+    },
+    {
+     "op": "removeElement",
+     "of": "b0",
+     "index": 0
+    },
+    {
+     "op": "edit",
+     "of": "p1",
+     "edits": [
+      [
+       "Value",
+       "-2"
+      ]
+     ]
+    },
+    {
+     "op": "edit",
+     "of": "sig0",
+     "edits": [
+      [
+       "Max",
+       "4"
+      ]
+     ]
+    },
+    {
+     "op": "add",
+     "class": "Simulink.Parameter",
+     "name": "pnew",
+     "edits": [
+      [
+       "Value",
+       "5"
+      ]
+     ]
+    }
+   ],
+   "sha256": "c75668ce716199245df68d0464c17702a25dde90e1051d408d8aefa0be7d2814",
+   "verdicts": {
+    "R2027a": "PASS",
+    "R2023b": "PASS",
+    "R2024b": "PASS"
+   }
+  }
+ ]
+}

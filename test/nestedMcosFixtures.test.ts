@@ -154,6 +154,9 @@ function expectScalarProps(node: any, t: TruthRecord, path: string, names: (keyo
         expect(cellText(row[name]), label).toBe(shown(t[name] as number | number[]));
         break;
       case 'Unit':
+        // A cell where its file offers an editor of it (a MAT-file's object), its text everywhere.
+        expect(cellText(row.Unit), label).toBe(t.Unit);
+        break;
       case 'Description':
         expect(row[name], label).toBe(t[name]);
         break;

@@ -20,7 +20,7 @@ import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.
 import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
+import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -1594,7 +1594,9 @@ export function createSession(opts = {}) {
     // anything this cannot see.
     function readPropertyValue(node, propertyName, fallback) {
         try {
-            const prop = propNamed(node.getProperties(), propertyName);
+            // A table column's, else a row only its Property Inspector shows (one a MAT-file offers an
+            // editor of: BaseNode.sourceOfferedEditor).
+            const prop = propNamed(node.getProperties(), propertyName) ?? propNamed((node.getPILayout() ?? []).flatMap((g) => g.items), propertyName);
             if (prop) {
                 // displayValue is the round-trippable text form (what the inspector shows
                 // and what an edit submits); `value` may be a live object reference.
@@ -1613,7 +1615,9 @@ export function createSession(opts = {}) {
     // read back as a complex array, an integer or single class or a struct (ParameterNode._restorerFor).
     function propertyRestorer(node, propertyName) {
         const restorerFor = node._restorerFor;
-        return typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;
+        const own = typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;
+        // Or its source's, where the source makes the edit and changes more with it (sourceSetOffered).
+        return own ?? sourceRestorerFor(node, propNamed(node.getProperties(), propertyName)?.key ?? propertyName);
     }
     // Run `edit`, an edit of `node`'s properties, inside mutateSubtree at the scope such an edit can
     // move ids in: the entry `node` belongs to. Returns `edit`'s result and whether it ran so, in
@@ -1829,6 +1833,14 @@ export function createSession(opts = {}) {
         publish('node/added', { node, sectionKey: section.name });
         setActiveEntry(node);
         return node;
+    }
+    // Why the last addEntry into the active source added nothing, in words a host shows as it shows a
+    // refused edit's reason, or null where it added an entry or its source says nothing: a MAT-file
+    // says why (MatNode.addEntryRefusal: no save of the file can be written, a class it takes no new
+    // variable of, a subsystem no object can be created in, a name taken or no MATLAB name).
+    function addEntryRefusal() {
+        const source = getActiveSlddNode();
+        return typeof source?.addEntryRefusal === 'function' ? source.addEntryRefusal() : null;
     }
     // Where the selection goes once `removed` (a node and its descendants, captured
     // before the removal) is out of the tree. `next` is what 'follow' selects instead —
@@ -2281,6 +2293,7 @@ export function createSession(opts = {}) {
         endBatch,
         editProperty,
         addEntry,
+        addEntryRefusal,
         // The selection-driven mutation forms, for a host that already tracks a
         // selection, and the explicit (nodeId) forms beside them for one that does not.
         // Both are supported surface: neither is a deprecation of the other.

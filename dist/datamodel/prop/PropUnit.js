@@ -8,6 +8,9 @@ export default class PropUnit {
     // expression") that we cannot faithfully replicate, so per the conservative
     // rule we surface Unit as a label rather than risk writing an invalid value.
     static { this.editor = 'label'; }
+    // Which a node's source may offer an editor of (BaseNode.sourceOfferedEditor): a MAT-file's
+    // object's, whose save holds it to what MATLAB's load takes.
+    static { this.sourceEditable = true; }
     static { this.column = 'Unit'; }
     // Unit is displayed from either raw key (DocUnits is the modern SLDD key;
     // Unit the legacy one). Listing both lets the PI "Other" catch-all treat

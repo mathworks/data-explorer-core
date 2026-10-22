@@ -440,6 +440,13 @@ const withoutEditability = (p: unknown): unknown =>
     }),
   );
 
+// And the editors only a MAT-file offers, of an object's properties another venue shows read-only
+// (BaseNode.sourceOfferedEditor), and the storage classes it offers, which are those its save
+// takes, where another venue offers its own: their cells as their text, in both.
+const OFFERED_COLUMNS = new Set(['Unit', 'dimensions', 'storageClass']);
+const withoutOffered = (p: unknown): unknown =>
+  JSON.parse(JSON.stringify(p, (k, v) => (OFFERED_COLUMNS.has(k) && v && typeof v === 'object' && !Array.isArray(v) && 'text' in v ? v.text : v)));
+
 describe('every value presents the same in the .mat as in each other venue that holds it', () => {
   const mat = MAT.variables();
   const ungated = MAT.variables();
@@ -488,12 +495,15 @@ describe('every value presents the same in the .mat as in each other venue that 
           expect(withoutEditability(shown(a)), `${path}: the .mat, but for its editors`).toEqual(withoutEditability(shown(mine)));
           // And the editors it offers are its save's, exactly: of a Simulink.Parameter, whose every
           // property these fixtures hold is one the save writes, every editor the file would offer
-          // without the rule; of anything else, none at all: a class with no rules for its edits (an
-          // mpt.Parameter, a LookupTable), and a plain value of a variable holding an object, which the
-          // save writes as it was read. That each edit offered is taken, saved and read back as made,
-          // and each other refused on every path, is test/matObjectEditGate.test.ts's sweep.
+          // without the rule; of a plain value beside an object in a struct or a cell, every one too:
+          // the save writes the struct fresh and the object as the element it was read as
+          // (test/matStructObjectPassThrough.test.ts); of anything else, none at all: a class with no
+          // rules for its edits (an mpt.Parameter, a LookupTable). That each edit offered is taken,
+          // saved and read back as made, and each other refused on every path, is
+          // test/matObjectEditGate.test.ts's sweep.
           const offered = editableIn(presentation(a, a.displayName));
-          const expected = a.className === 'Simulink.Parameter' ? editableIn(presentation(mine, mine.displayName)) : offered.map(() => false);
+          const plainBeside = typeof a._matStream === 'function' && !a._isOpaque;
+          const expected = a.className === 'Simulink.Parameter' || plainBeside ? editableIn(presentation(mine, mine.displayName)) : offered.map(() => false);
           expect(offered.length, path).toBeGreaterThan(0);
           expect(offered, `${path}: the .mat offers its save's editors, and no other`).toEqual(expected);
         }
@@ -501,10 +511,10 @@ describe('every value presents the same in the .mat as in each other venue that 
           // A pinned venue is held to its pin, and an unpinned one has been graded against
           // MATLAB above; what is left to say is that the pin is still needed.
           [a, b].forEach((n, i) => pins[i] && expect(n.displayValue, path).toBe(pins[i]![2]));
-          expect(shown(b), `${path}: pinned, and no longer different`).not.toEqual(shown(mine));
+          expect(withoutOffered(shown(b)), `${path}: pinned, and no longer different`).not.toEqual(withoutOffered(shown(mine)));
           return;
         }
-        expect(shown(b)).toEqual(shown(mine));
+        expect(withoutOffered(shown(b))).toEqual(withoutOffered(shown(mine)));
       });
     }
   }

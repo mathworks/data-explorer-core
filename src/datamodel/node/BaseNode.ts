@@ -33,6 +33,9 @@ export interface PropClass {
   // MATLAB refuses a CoderInfo.Alignment under StorageClass 'Auto' (schemaBridge). Omitted,
   // the editor alone decides. It can only take editability away, never grant it.
   editableFor?: (node: BaseNode) => boolean;
+  // Shown read-only ('label') here, but a property the node's source may offer an editor of
+  // (sourceOfferedEditor): a MAT-file's object's InitialValue, say. Omitted, a label is a label.
+  sourceEditable?: boolean;
 }
 
 export interface PropInfo {
@@ -355,6 +358,103 @@ export function sourceMirrorTwins(node: BaseNode): BaseNode[] {
   }
   const mirror = (source as unknown as { _mirrorTwins?: (root: BaseNode) => BaseNode[] } | null)?._mirrorTwins;
   return typeof mirror === 'function' ? mirror.call(source, node) : [];
+}
+
+/**
+ * The properties a child row added at `node` starts with, as the source `node` is in holds a new
+ * one, or undefined where it says none, which every source but a MAT-file does: in one, a Bus's
+ * new element row is MATLAB's default Simulink.BusElement, as the file will hold it once saved
+ * (MatNode._newChildProperties). Asked by the Add of a class whose new child is an object.
+ */
+export function sourceNewChildProperties(node: BaseNode): Record<string, unknown> | undefined {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return undefined;
+  }
+  const props = (source as unknown as { _newChildProperties?: (entry: BaseNode, node: BaseNode) => Record<string, unknown> | undefined } | null)?._newChildProperties;
+  return typeof props === 'function' ? props.call(source, entry, node) : undefined;
+}
+
+/** An editor a source offers of a property its node shows read-only (sourceOfferedEditor). */
+export interface SourceOfferedEditor {
+  editor: 'text' | 'select';
+  options?: string[];
+}
+
+/**
+ * The editor the source `node` is in offers of `key` at `node`, a property the node shows
+ * read-only in every other source (PropClass.sourceEditable), or null, which every source but a
+ * MAT-file answers: there, an object's property its save writes (MatNode._offeredEditor), a
+ * Signal's InitialValue or a NumericType's WordLength, say. Whether this node takes an edit of it
+ * now is sourceEditRefusal's, asked after.
+ */
+export function sourceOfferedEditor(node: BaseNode, key: string): SourceOfferedEditor | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const offer = (source as unknown as { _offeredEditor?: (entry: BaseNode, node: BaseNode, key: string) => SourceOfferedEditor | null } | null)?._offeredEditor;
+  return typeof offer === 'function' ? offer.call(source, entry, node, key) : null;
+}
+
+/** The answer of a setter: taken, or refused in words. */
+export type SourceSetResult = true | { error: true; reason: string; invalidValue: string; validValue: string };
+
+/**
+ * The edit of `key` at `node` to `text`, made by the source that offers its editor
+ * (sourceOfferedEditor), which writes it where the node shows it and holds it to what its save
+ * writes; or null where it offers none, and the node's own setter makes the edit. Asked by
+ * DataNode.setProperty once the edit is one the source takes at all (DataNode._refuseEncodedEdit).
+ */
+export function sourceSetOffered(node: BaseNode, key: string, text: string): SourceSetResult | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const set = (source as unknown as { _setOffered?: (entry: BaseNode, node: BaseNode, key: string, text: string) => SourceSetResult | null } | null)?._setOffered;
+  return typeof set === 'function' ? set.call(source, entry, node, key, text) : null;
+}
+
+/**
+ * What puts `key` of `node` back as it stands now, where its source made the edit
+ * (sourceSetOffered) and so keeps what it changed with it, or null: what an undo of such an edit
+ * runs (DataModel.editProperty), as a node's own restorer is.
+ */
+export function sourceRestorerFor(node: BaseNode, key: string): (() => void) | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const restorer = (source as unknown as { _offeredRestorer?: (entry: BaseNode, node: BaseNode, key: string) => (() => void) | null } | null)?._offeredRestorer;
+  return typeof restorer === 'function' ? restorer.call(source, entry, node, key) : null;
+}
+
+/**
+ * Which rows of a node's Property Inspector its source offers in its groups, which of its rows are
+ * of no property the node has, and which saved keys a row shows already (sourceInspectorRows).
+ */
+export interface SourceInspectorRows {
+  shows: (key: string) => boolean;
+  hides: (key: string) => boolean;
+  skips: readonly string[];
+}
+
+/**
+ * Which rows of `node`'s Property Inspector its source offers in its property groups, by key, and
+ * the saved keys of the node's bag a row it shows shows already, and the rows of properties the
+ * node has none of; or null where it shows every row the node lays out: what every source but a
+ * MAT-file answers. A MAT-file's object offers only the
+ * rows of properties its save writes (and where it stands, its Kind and Class), each of which
+ * takes an edit in some state of the object (MatNode._inspectorRows); every other row is shown
+ * read-only in the "Other" group, as the keys no row shows are.
+ */
+export function sourceInspectorRows(node: BaseNode): SourceInspectorRows | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const rows = (source as unknown as { _inspectorRows?: (entry: BaseNode, node: BaseNode) => SourceInspectorRows | null } | null)?._inspectorRows;
+  return typeof rows === 'function' ? rows.call(source, entry, node) : null;
 }
 
 // The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
@@ -848,6 +948,19 @@ export default class BaseNode {
     }
 
     let editable = PropClassRef.editor !== 'label';
+    let editor = PropClassRef.editor;
+    let options = PropClassRef.readOptions ? PropClassRef.readOptions(this) : undefined;
+    // A property whose source offers an editor of it: one shown read-only elsewhere, editable as
+    // the source offers it, and a select of the source's own options (a MAT-file's storage classes,
+    // as its rules take them); held to every rule below as any other.
+    if (PropClassRef.sourceEditable && (!editable || editor === 'select')) {
+      const offered = sourceOfferedEditor(this, key);
+      if (offered) {
+        editable = true;
+        editor = offered.editor;
+        options = offered.options ?? options;
+      }
+    }
     if (key === 'Name') {
       editable = editable && this.nameEditable;
     }
@@ -882,8 +995,8 @@ export default class BaseNode {
       value: (this as unknown as Record<string, unknown>)[PropClassRef.nodeProperty || key],
       displayValue,
       editable,
-      editor: PropClassRef.editor,
-      options: PropClassRef.readOptions ? PropClassRef.readOptions(this) : undefined,
+      editor,
+      options,
     };
   }
 
@@ -1002,10 +1115,21 @@ export default class BaseNode {
   }
 
   toPIObject(): PIObject | null {
-    const layout = this.getPILayout();
-    if (!layout) {
+    const authored = this.getPILayout();
+    if (!authored) {
       return null;
     }
+    // The rows its source offers an editor of, where it says (a MAT-file's object: only rows it takes
+    // an edit of in some state, sourceInspectorRows); every other row is shown read-only in "Other",
+    // with the keys the node holds beyond them, but those the source says a shown row shows already,
+    // and no row of a property the source says the node has none of.
+    const rows = sourceInspectorRows(this);
+    const moved: PropClass[] = [];
+    const layout = rows
+      ? authored
+          .map((g) => ({ ...g, items: g.items.filter((p) => !rows.hides(p.key) && (rows.shows(p.key) || (moved.push(p), false))) }))
+          .filter((g) => g.items.length > 0)
+      : authored;
 
     const properties: unknown[] = [];
     const groups: unknown[] = [];
@@ -1081,14 +1205,24 @@ export default class BaseNode {
     // curated/schema layout did not surface. Namespaced property names ('Other.X')
     // avoid colliding with a group prop that shares a bare key.
     const rawProps = (this as unknown as { serial?: { _properties?: unknown } }).serial?._properties;
-    const otherRows = buildOtherRows(rawProps, shownKeys);
+    const movedRows = moved.map((p) => {
+      for (const k of p.sourceKeys ?? [p.nodeProperty ?? p.key]) {
+        shownKeys.add(k);
+      }
+      const info = this.getPropInfo(p);
+      return { name: info.key, displayName: info.displayName, value: info.displayValue };
+    });
+    for (const k of rows?.skips ?? []) {
+      shownKeys.add(k);
+    }
+    const otherRows: { name: string; displayName?: string; value: unknown }[] = [...movedRows, ...buildOtherRows(rawProps, shownKeys)];
     if (otherRows.length > 0) {
       const otherItems: unknown[] = [];
       for (const row of otherRows) {
         const propName = 'Other.' + row.name;
         properties.push({
           name: propName,
-          displayName: row.name,
+          displayName: row.displayName ?? row.name,
           dataType: 'char',
           renderer: 'rendererseditors/editors/LabelEditor',
           inPlaceEditor: null,
