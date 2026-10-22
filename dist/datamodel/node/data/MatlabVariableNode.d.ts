@@ -65,6 +65,8 @@ export default class MatlabVariableNode extends DataNode {
     get dataType(): string;
     get kind(): string;
     get fixesChildNames(): boolean;
+    _holdsFields(): boolean;
+    _renameField(from: string, to: string): void;
     get nameEditable(): boolean;
     get valueEditable(): boolean;
     get isScalarNumeric(): boolean;

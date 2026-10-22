@@ -580,7 +580,7 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     expect(opened(save()).object('sg').DataType).toBe('single');
   });
 
-  it('a bus element\'s Dimensions and Name, each a property of its own; an object in a struct, by its name, no part of one', () => {
+  it('a bus element\'s Dimensions and Name, each a property of its own; an object in a struct, by its name, its struct\'s field', () => {
     const cases = opened(read(TEST_ROOT, 'parity/artifacts/mat/cases.mat'));
     const element = cases.by('aBus').children[0];
     expect(cases.edit(element, 'dimensions', '[2 3]')).toBe(true);
@@ -588,9 +588,12 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     // Its Name is a property of its own, which the save writes.
     expect(cases.edit(element, 'Name', 'renamed')).toBe(true);
     expect(opened(cases.save()).by('aBus').children[0].name).toBe('renamed');
+    // An object in a struct is named by the struct's field, which a rename of it renames: the
+    // struct written fresh, the object as the element it was read as (test/matFieldRename.test.ts).
     const nested = opened(read(ALLOWLIST, 'al_nested.mat'));
-    expect(nested.object('s.p').nameEditable).toBe(false);
-    expect(nested.object('s.p').setProperty('Name', 'q')).toMatchObject({ error: true });
+    expect(nested.object('s.p').nameEditable).toBe(true);
+    expect(nested.object('s.p').setProperty('Name', 'q')).toBe(true);
+    expect(opened(nested.save()).object('s.q').className).toBe('Simulink.Parameter');
   });
 
   it('two variables of one handle, edited to two values around the session', () => {

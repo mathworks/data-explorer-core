@@ -92,32 +92,40 @@ describe('every nested object presents exactly as its top-level twin', () => {
 
 describe('a nested object takes the name rules of the place it sits', () => {
   // The one part of a node the comparison above leaves out is its Name cell, which
-  // belongs to its position: a field is not an entry, and a field's name is fixed in
-  // this reader. A decoded object is no exception to that. It used to be one — a field
-  // built as a ParameterNode or a BusNode offered a rename none of its sibling fields
-  // did, because MatlabVariableNode stated the rule only for children of its own class
-  // — and the rename could not reach the file, since it leaves the struct's `_var`
-  // describing the field by its old name.
+  // belongs to its position, whatever the class of the node in it: a decoded object (a
+  // ParameterNode, a BusNode) is no exception. A struct's fields take a rename in a
+  // MAT-file, whose save writes the struct fresh under its rows' names (the objects in it
+  // as the elements they were read as), and not in a model workspace, whose value is its
+  // stream; a cell's elements and a struct array's are their positions in both.
   for (const fx of FIXTURES) {
+    const mat = fx.file.endsWith('.mat');
     const containers = Object.entries(fx.truth.paths).filter(([, t]) => isContainer(t));
-    for (const [path] of containers) {
-      it(`${fx.file}: every element of ${path} shows its name the same way, whatever its class`, () => {
+    for (const [path, t] of containers) {
+      const fields = mat && t.class === 'struct' && t.numel === 1;
+      it(`${fx.file}: every element of ${path} shows its name the same way, whatever its class${fields ? ', a field it takes a rename of' : ''}`, () => {
         const flags = nodeAt(fx.variables(), path).children.map((c: any) => {
           const { disabled, editable, element } = c.toRow().Name;
           return { disabled, editable, element, nameEditable: c.nameEditable };
         });
         expect(flags.length, path).toBeGreaterThan(0);
         for (const f of flags) expect(f, path).toEqual(flags[0]);
-        expect(flags[0].editable, path).toBe(false);
+        expect([flags[0].editable, flags[0].nameEditable], path).toEqual([fields, fields]);
       });
     }
     for (const { nested, twin } of fx.truth.twins) {
-      it(`${fx.file}: ${nested} refuses a rename that ${twin} accepts`, () => {
+      // A struct's field, its path ending in `.name`; a cell's element ends in `{k}`.
+      const field = mat && /\.[A-Za-z]\w*$/.test(nested);
+      it(`${fx.file}: ${nested} ${field ? 'takes' : 'refuses'} a rename that ${twin} accepts`, () => {
         const variables = fx.variables();
         const a = nodeAt(variables, nested);
         const before = a.name;
-        expect(a.setProperty('Name', 'renamed')).not.toBe(true);
-        expect(a.name).toBe(before);
+        if (field) {
+          expect(a.setProperty('Name', 'renamed')).toBe(true);
+          expect([a.name, a.parent.children.filter((c: any) => c.name === before)]).toEqual(['renamed', []]);
+        } else {
+          expect(a.setProperty('Name', 'renamed')).not.toBe(true);
+          expect(a.name).toBe(before);
+        }
         expect(nodeAt(variables, twin).setProperty('Name', 'renamed')).toBe(true);
       });
     }

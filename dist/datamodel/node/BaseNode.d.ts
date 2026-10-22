@@ -162,6 +162,13 @@ export declare function sourceEditRefusal(node: BaseNode, key: string, describe?
  * host shows, and a reason can name the node and more, each a walk to the root.
  */
 export declare function sourceEditRefused(node: BaseNode, key: string): boolean;
+/**
+ * Whether the source `struct` is in renames its fields: `struct` a struct of one element (a struct,
+ * or an element of a struct array), whose rows are its fields. A MAT-file says so of a struct its
+ * save writes fresh (MatNode._renamesFieldsOf); every other source, which names a field by its own
+ * nodes (a dictionary's StructNode) or not at all, does not.
+ */
+export declare function sourceRenamesFields(struct: BaseNode): boolean;
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
 export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string, describe?: boolean) => string | null;
 /**
