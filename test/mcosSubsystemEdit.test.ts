@@ -130,6 +130,10 @@ function read(bytes: Uint8Array): McosSubsystem {
   return r.subsystem;
 }
 
+// The swap sweep makes over 2,000 swaps, each written and checked whole: about 2 s on a laptop,
+// and 4 to 7 s on a CI runner, past vitest's default 5 s.
+const SWEEP_TIMEOUT = 30_000;
+
 describe('every subsystem a fixture carries', () => {
   it('is found in each place one is kept', () => {
     // Floors, measured when this was written: a sweep that found nothing would pass.
@@ -152,7 +156,7 @@ describe('every subsystem a fixture carries', () => {
     }
   });
 
-  it('takes a swap of every stored value cell for its own bytes, and gives the subsystem back byte for byte', () => {
+  it('takes a swap of every stored value cell for its own bytes, and gives the subsystem back byte for byte', { timeout: SWEEP_TIMEOUT }, () => {
     const refused: Record<string, number> = {};
     let swapped = 0;
     for (const f of FOUND) {
