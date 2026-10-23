@@ -1219,22 +1219,30 @@ export default class MatNode extends ContainerNode {
     /**
      * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
      * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
-     * that variable; or null, where `node`'s own setter makes the edit. A string typed over a variable
-     * that is not one, as `x = "abc"` makes `x` a string in MATLAB whatever it was: a save writes a
-     * string only as an object of the subsystem, which only its creation makes, so the variable
-     * becomes the one an Add of a string makes (_createObject), of its name and in its place, holding
-     * the text; and a save writes it where the variable it replaced was (_replacementOf). A variable
-     * whose Value takes no edit (valueEditable: a struct, a function handle, a summary) is not one,
-     * nor is one holding an object, a string among them, whose Value row is the object's.
+     * that variable; or null, where `node`'s own setter makes the edit. A save writes a string only as
+     * an object of the subsystem, which only its creation makes, and a plain value only fresh, so
+     * neither becomes the other in place; and in MATLAB `x = "abc"` makes `x` a string whatever it
+     * was, and `x = 5` a double. So a string typed over a variable that is not one makes it the
+     * variable an Add of a string makes (_createObject), and anything else typed over a string the
+     * plain variable an Add makes, each of its name and in its place, holding the text; and a save
+     * writes it where the variable it replaced was (_replacementOf). A variable whose Value takes no
+     * edit (valueEditable: a struct, a function handle, a summary) is not one, nor is one holding any
+     * other object, whose Value row is the object's.
      */
     _retype(entry, node, key, text) {
         if (key !== 'Value' || node !== entry || node.parent !== this || !(node instanceof MatlabVariableNode) || !node.valueEditable) {
             return null;
         }
-        if (objectNodeAt(entry, node) || !typedAsString(text) || this._classRefusal('string')) {
+        const object = objectNodeAt(entry, node);
+        const isString = object === node && node.className === 'string';
+        if (object && !isString) {
             return null;
         }
-        const made = this._createObject('string', node.name);
+        const typed = typedKind(text);
+        if (typed === null || (typed === 'string') === isString || (typed === 'string' && this._classRefusal('string'))) {
+            return null;
+        }
+        const made = typed === 'string' ? this._createObject('string', node.name) : MatlabVariableNode.createDefault(node.name, this);
         if (!made) {
             return null;
         }
@@ -1405,16 +1413,17 @@ function placeString(n) {
     }
     return false;
 }
-// Whether `text`, typed in as a Value, makes a string: as an edit applies it (MatlabVariableNode
-// _applyParsed), and as _valueRefusal tells one.
-function typedAsString(text) {
+// What `text`, typed in as a Value, makes: a string or another value, as an edit applies it
+// (MatlabVariableNode _applyParsed) and as _valueRefusal tells a string; or null, for text that is
+// no value at all, which the variable's own setter refuses.
+function typedKind(text) {
     const parsed = MatlabValueParser.parse(text);
     if (!parsed) {
-        return false;
+        return null;
     }
     const value = new MatlabVariableNode('', null, {});
     value._applyParsed(parsed);
-    return value._kind === 'string' || (value._kind === 'scalar' && value._scalarType === 'string');
+    return value._kind === 'string' || (value._kind === 'scalar' && value._scalarType === 'string') ? 'string' : 'other';
 }
 // The ids of the object rows `after` holds past the `before` it held before a merge appended to it:
 // past the null row 0 the first merge into an empty table adds.

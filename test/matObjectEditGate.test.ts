@@ -262,6 +262,19 @@ describe('the gate is the writer, for every object of every fixture', () => {
                 const thrown = thrownBy(save);
                 expect(thrown?.message, what).toBeUndefined();
                 const again = opened(save(), 'saved.mat');
+                const now = at(root, objectPath);
+                if (now !== object) {
+                  // Another variable was put in the object's place (MatNode._retype: a string typed
+                  // over as another value): that variable reads back as it shows, and every other
+                  // variable of the file as it shows.
+                  const plain = new Set(['complexity', 'Complexity']);
+                  root.children.forEach((v: any, i: number) => {
+                    expect(objectShown(again.root.children[i], plain), what + ': ' + v.name).toEqual(objectShown(v, plain));
+                  });
+                  taken++;
+                  totals.taken++;
+                  continue;
+                }
                 const derived = derivedOf(root, object);
                 expect(objectShown(at(again.root, objectPath), derived), what).toEqual(objectShown(object, derived));
                 // Every other node of the same object, as it shows it.

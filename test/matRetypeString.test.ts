@@ -121,3 +121,63 @@ describe('a MAT-file variable retyped as a string by its Value', () => {
   });
 });
 
+// And back: a string variable whose Value is typed over as anything else becomes a plain variable
+// holding it, as `s = 5` makes `s` a double in MATLAB. A save writes it fresh, where the string was.
+describe('a MAT-file string variable retyped by its Value as another value', () => {
+  const pvBasic = () => fixture('./fixtures/mat-cellswap/pv_basic.mat');
+
+  it.each([
+    ['5', 'str double [1,1] 5'],
+    ['[1 2 3]', 'str double [1,3] [1 2 3]'],
+    ["'abc'", "str char [1,3] 'abc'"],
+    ['true', 'str logical [1,1] true'],
+  ])('becomes a plain variable of %s, in the same place, the objects keeping what they hold', (typed, row) => {
+    const bytes = pvBasic();
+    const before = shown(new Uint8Array(bytes));
+    const { by, edit, save } = opened(bytes, 'pv_basic.mat');
+    expect(edit(by('str'), 'Value', typed)).toBe(true);
+    expect(by('str').className).not.toBe('string');
+    expect(shown(save())).toEqual(before.map((r) => (r.startsWith('str ') ? row : r)));
+  });
+
+  it("leaves every other string of a file of strings as it was", () => {
+    const bytes = fixture('./fixtures/strings.mat');
+    const before = shown(new Uint8Array(bytes));
+    const { by, edit, save } = opened(bytes, 'strings.mat');
+    expect(edit(by('sScalar'), 'Value', '5')).toBe(true);
+    expect(shown(save())).toEqual(before.map((r) => (r.startsWith('sScalar ') ? 'sScalar double [1,1] 5' : r)));
+  });
+
+  it('becomes one from a string the Add made, in a file with no objects', () => {
+    const { session, root, by, edit, save } = opened(plainFile());
+    session.setActive(root, null);
+    const added: any = session.addEntry('', 'string');
+    expect(edit(by(added.name), 'Value', '5')).toBe(true);
+    expect(shown(save())).toEqual(['x double [1,1] 1', 'y double [1,1] 2', 'z double [1,1] 3', `${added.name} double [1,1] 5`]);
+  });
+
+  it('goes back to a double after it became a string, in its place', () => {
+    const { by, edit, save } = opened(plainFile());
+    expect(edit(by('y'), 'Value', '"abc"')).toBe(true);
+    expect(edit(by('y'), 'Value', '7')).toBe(true);
+    expect(shown(save())).toEqual(['x double [1,1] 1', 'y double [1,1] 7', 'z double [1,1] 3']);
+  });
+
+  it('is put back by one undo, the save then writing the file as it was read', () => {
+    const bytes = pvBasic();
+    const { session, by, edit, save } = opened(bytes, 'pv_basic.mat');
+    expect(edit(by('str'), 'Value', '5')).toBe(true);
+    session.undo();
+    expect([by('str').className, by('str').displayValue]).toEqual(['string', '"hello"']);
+    expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
+  });
+
+  it('is refused, and changes nothing, where the value typed holds a string a plain variable cannot', () => {
+    const bytes = pvBasic();
+    const { root, by, edit, save } = opened(bytes, 'pv_basic.mat');
+    expect(edit(by('str'), 'Value', '{1, "a"}')).toMatchObject({ error: true, reason: 'Cannot edit "str": str would hold a string, which this package cannot write into a MAT-file.' });
+    expect([by('str').className, by('str').displayValue, root.dirty]).toEqual(['string', '"hello"', false]);
+    expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
+  });
+});
+
