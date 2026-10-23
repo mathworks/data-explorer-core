@@ -231,9 +231,10 @@ describe("a string's text is written into its payload, and the variable that hol
     expect(payloadOf(saved, 's2')).toMatchObject({ dims: [2, 2], texts: ['a', 'c', 'b', 'd'] });
   });
 
-  it('a value of another class over a string, which would be another variable, is refused; so is a row added', () => {
-    const { by, edit, root } = opened(read('str.mat'));
-    expect(edit(by('s1'), 'Value', '5')).toMatchObject({ error: true, reason: 'Cannot edit "s1": s1 is a string, which a save writes as the object it is, so it takes only a string: a value of another class would be another variable.' });
+  // A value of another class typed over a string makes it another variable (MatNode._retype;
+  // matRetypeString.test.ts).
+  it('a row added to a string, or removed, is refused', () => {
+    const { by, root } = opened(read('str.mat'));
     expect([by('s2').canAddChild(), by('s2').canRemoveChild()]).toEqual([false, false]);
     expect(root.dirty).toBe(false);
   });

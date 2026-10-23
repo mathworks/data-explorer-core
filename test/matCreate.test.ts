@@ -341,7 +341,7 @@ describe('every row a new object offers an editor of takes an edit, saved and re
               if (value === seen.getPropInfo(prop).displayValue) {
                 continue;
               }
-              const { node, edit, save } = fresh();
+              const { node, by, edit, save } = fresh();
               const answer: any = edit(at(node, path), key, value);
               const what = `${target} ${seen.matlabPath} ${key} = ${value}`;
               if (answer !== true) {
@@ -350,7 +350,9 @@ describe('every row a new object offers an editor of takes an edit, saved and re
                 expect(shown(node), what).toEqual(shown(probe.node));
                 continue;
               }
-              expect(shown(opened(save()).by('nv')), what).toEqual(shown(node));
+              // The variable now `nv`: the object, or the one an edit put in its place (a string's
+              // Value typed as another value: MatNode._retype).
+              expect(shown(opened(save()).by('nv')), what).toEqual(shown(by('nv')));
               taken++;
             }
             expect(taken, `${target} ${seen.matlabPath} ${key}`).toBeGreaterThan(0);

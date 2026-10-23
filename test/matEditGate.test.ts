@@ -483,12 +483,11 @@ describe('what each kind of variable of a .mat takes', () => {
   });
 
   it('a function handle, a value not decoded: renamed and deleted, their values not edited; a string, its text edited', () => {
-    // A string's text is written into its payload, an object of the file's (matObjectEdit); a value
-    // of another class typed over it is refused, as another variable.
+    // A string's text is written into its payload, an object of the file's (matObjectEdit). A value
+    // of another class typed over it makes it another variable (MatNode._retype; matRetypeString).
     const strings = opened(fileBytes(CASES));
     const str = strings.by('strScalar');
     expect([str.nameEditable, str.valueEditable]).toEqual([true, true]);
-    expect(strings.edit(str, 'Value', '5')).toMatchObject({ error: true, reason: expect.stringMatching(/strScalar is a string, which a save writes as the object it is, so it takes only a string/) });
     expect(strings.edit(str, 'Value', '"xyz"')).toBe(true);
     expect(readBack(strings.save(), strings.root.children.indexOf(str))).toEqual(shownAs(str));
     const z = numericVar({ name: 'z', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [3], imag: [4] });

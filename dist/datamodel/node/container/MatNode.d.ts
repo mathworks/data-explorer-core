@@ -380,13 +380,15 @@ export default class MatNode extends ContainerNode {
     /**
      * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
      * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
-     * that variable; or null, where `node`'s own setter makes the edit. A string typed over a variable
-     * that is not one, as `x = "abc"` makes `x` a string in MATLAB whatever it was: a save writes a
-     * string only as an object of the subsystem, which only its creation makes, so the variable
-     * becomes the one an Add of a string makes (_createObject), of its name and in its place, holding
-     * the text; and a save writes it where the variable it replaced was (_replacementOf). A variable
-     * whose Value takes no edit (valueEditable: a struct, a function handle, a summary) is not one,
-     * nor is one holding an object, a string among them, whose Value row is the object's.
+     * that variable; or null, where `node`'s own setter makes the edit. A save writes a string only as
+     * an object of the subsystem, which only its creation makes, and a plain value only fresh, so
+     * neither becomes the other in place; and in MATLAB `x = "abc"` makes `x` a string whatever it
+     * was, and `x = 5` a double. So a string typed over a variable that is not one makes it the
+     * variable an Add of a string makes (_createObject), and anything else typed over a string the
+     * plain variable an Add makes, each of its name and in its place, holding the text; and a save
+     * writes it where the variable it replaced was (_replacementOf). A variable whose Value takes no
+     * edit (valueEditable: a struct, a function handle, a summary) is not one, nor is one holding any
+     * other object, whose Value row is the object's.
      */
     _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
     /**
