@@ -15,6 +15,8 @@ export declare class FunctionElementNode extends BaseBusElementNode {
         items: (typeof PropKind)[];
     }[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _rename(name: string): void;
+    _nameRestorer(): () => void;
     _functionRenamed(oldName: string, newName: string): void;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }

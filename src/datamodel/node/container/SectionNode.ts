@@ -9,7 +9,7 @@ import type DataNode from '../DataNode.js';
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
-import { validateMatlabName } from '../../matlabName.js';
+import { newEntryName, uniqueName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { MatBudgetError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
@@ -342,10 +342,8 @@ export default class SectionNode extends ContainerNode {
   // with a counter appended when that name is taken in this section's namespace.
   // Returns null, and adds nothing, when the class is unknown or not on this section's
   // allow-list (getAllowedTypes), or when the name is not one MATLAB can load
-  // (validateMatlabName, the rule a rename applies). The name is checked as asked for
-  // and again with the counter: the first stops an invalid name becoming a valid one by
-  // suffixing ('end' when an 'end' is already present must not become 'end1'), and the
-  // second stops a valid 63-character name growing past namelengthmax.
+  // (validateMatlabName, the rule a rename applies), as asked for or with its counter: a
+  // MAT-file's Add names one by the same rule (matlabName.newEntryName).
   //
   // The allow-list and not allowsType: a class admitted only to a paste (an mpt.Parameter,
   // whose node can build a default) is never created from scratch.
@@ -360,15 +358,11 @@ export default class SectionNode extends ContainerNode {
       return null;
     }
 
-    const baseName = entryName || NodeClass.defaultName;
-    if (validateMatlabName(baseName) !== null) {
+    const { name, invalid } = newEntryName(entryName || NodeClass.defaultName, this._nameTaken());
+    if (invalid !== null) {
       return null;
     }
-    const uniqueName = this._uniqueName(baseName);
-    if (validateMatlabName(uniqueName) !== null) {
-      return null;
-    }
-    const node = NodeClass.createDefault(uniqueName, this) as DataNode;
+    const node = NodeClass.createDefault(name, this) as DataNode;
 
     node.metadata = {
       uuid: generateUuid(),
@@ -420,15 +414,14 @@ export default class SectionNode extends ContainerNode {
   }
 
   _uniqueName(baseName: string): string {
+    return uniqueName(baseName, this._nameTaken());
+  }
+
+  // Whether an entry of this section's namespace holds a name, as _namespaceEntryNames lists
+  // them now: for the name a new entry is given (_uniqueName, addEntry).
+  _nameTaken(): (name: string) => boolean {
     const existing = new Set(this._namespaceEntryNames());
-    if (!existing.has(baseName)) {
-      return baseName;
-    }
-    let i = 1;
-    while (existing.has(baseName + i)) {
-      i++;
-    }
-    return baseName + i;
+    return (name) => existing.has(name);
   }
 
   // Always returns a node: parseValue's matcher chain falls through to

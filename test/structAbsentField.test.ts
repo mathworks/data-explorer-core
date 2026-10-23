@@ -11,7 +11,9 @@
 // struct wrote `"a": 0`: after an edit of the field and its undo, and after an edit of ANOTHER
 // element of the same array. A copy pasted into a binary dictionary wrote the field as 0.0.
 //
-// An untouched save still writes the element as it was read (`null`, `{}`), byte for byte.
+// An untouched save still writes the element as it was read (`null`, `{}`), byte for byte, and
+// so does a save after an edit of the field undone, which puts the value back as it was read
+// (DataNode._editMarks).
 //
 // The object half is not changed: MATLAB reads a typed object's null element as an element
 // holding no properties (pNull and pEmpty read alike, measure1.log), which is what an edit and
@@ -140,14 +142,13 @@ describe('a struct field an element does not hold', () => {
     expect(rowsOf(reopened, 'sArrMissing')).toEqual(SHOWN.sArrMissing.map((r) => r.replace('(1)/a = 1', '(1)/a = 9')));
   });
 
-  it.each(ABSENT)('%s: an edit of it and its undo write it as [], and the file reopens as [ ]', (name, path) => {
+  it.each(ABSENT)('%s: an edit of it and its undo write it as it was read, and the file reopens as [ ]', (name, path) => {
     const { session, root } = open(dictionary(), 'gadget.sldd');
     expect(edit(session, root, at(root, name, ...path), '5')).toBe(true);
     expect(rowsOf(root, name)[SHOWN[name].length - 1]).toMatch(/\/a = 5$/);
     session.undo();
     const out = saved(session, root);
-    const value = out.value(name) as { _elements: unknown[] };
-    expect(value._elements[value._elements.length - 1]).toEqual({ a: [] });
+    expect(out.value(name)).toEqual(VALUES[name]);
     expect(rowsOf(root, name)).toEqual(SHOWN[name]);
     const { root: reopened } = open(out.text, 'gadget.sldd');
     expect(rowsOf(reopened, name)).toEqual(SHOWN[name]);

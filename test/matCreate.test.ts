@@ -494,12 +494,13 @@ describe('an add undone, redone and deleted', () => {
     }
   });
 
-  it('a name the file holds or no MATLAB name is refused, adding nothing; a default name is made unique', () => {
+  it('no MATLAB name is refused, adding nothing; a name the file holds and a default name are made unique', () => {
     const { root, add } = opened(read('targets/r2023b/param.mat'));
     const held = root.children[0].name;
     const count = root.children.length;
-    expect([add('Simulink.Parameter', held), add('string', '1bad'), add('Simulink.Bus', 'a b')]).toEqual([null, null, null]);
+    expect([add('string', '1bad'), add('Simulink.Bus', 'a b')]).toEqual([null, null]);
     expect(root.children).toHaveLength(count);
+    expect(add('Simulink.Parameter', held).name).toBe(held + '1');
     expect([add('string').name, add('string').name, add('Simulink.Parameter').name, add('Simulink.Parameter').name]).toEqual(['str', 'str1', 'Param', 'Param1']);
   });
 });
@@ -607,7 +608,11 @@ describe('an Add refused says why', () => {
   it('through the session, as a refused edit does, for a host to show', () => {
     const { session, add } = opened(read('targets/r2023b/param.mat'));
     const refused = (cls: string, name?: string) => (add(cls, name) === null ? session.addEntryRefusal() : 'added');
-    expect(refused('Simulink.Parameter', 'p0')).toBe("'p0' already exists in f.mat");
+    // A name the file holds is given a counter, as a dictionary's Add gives one (newEntryName.test.ts).
+    expect(refused('Simulink.Parameter', 'p0')).toBe('added');
+    expect(session.addEntryRefusal()).toBeNull();
+    expect(refused('Simulink.Parameter', 'a'.repeat(63))).toBe('added');
+    expect(refused('Simulink.Parameter', 'a'.repeat(63))).toMatch(/^Cannot add a Simulink\.Parameter to "f\.mat": 'a{63}1' is not a name MATLAB can load \(Name exceeds maximum length of 63 characters\)\.$/);
     expect(refused('string', '1bad')).toMatch(/^Cannot add a string to "f\.mat": '1bad' is not a name MATLAB can load/);
     expect(refused('Simulink.ConfigSet')).toMatch(/^Cannot add a Simulink\.ConfigSet to "f\.mat": a MAT-file takes a new variable of a plain value, a struct, or one of Simulink\.Parameter/);
     expect(refused('Simulink.Parameter')).toBe('added');

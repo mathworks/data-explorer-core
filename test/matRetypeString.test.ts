@@ -11,10 +11,11 @@
 // Now the edit makes that swap itself (MatNode._retype): a string variable of the same name, in
 // the same place, holding the text typed, in one undo step; and the save writes it where the
 // variable it replaced was.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { CLASS, MI, cellVar, charVar, matFile, numericVar } from './tools/matBytes.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -181,3 +182,81 @@ describe('a MAT-file string variable retyped by its Value as another value', () 
   });
 });
 
+
+// A retype the variable put in place refuses, or one whose setter throws, leaves the file as it was:
+// the variable it replaced back in its place, the file not dirty, and no object made for it among
+// the file's creations (MatNode._retype). Left there, a refused string's creation was one more the
+// save took for deleted, rebuilding the file's creations without it at every save while another was
+// live; and a throw left the string in the variable's place, with no undo step to take it out. No
+// text the string's setter is handed refuses today, so its refusal is stubbed, after the setter ran,
+// as is the throw.
+describe('a MAT-file variable retype the variable put in place refuses', () => {
+  const pvBasic = () => fixture('./fixtures/mat-cellswap/pv_basic.mat');
+  const REFUSAL = { error: true, reason: 'Cannot edit "v": refused for the test.', invalidValue: '"abc"', validValue: '2' };
+  /** What the file's creations hold now (MatNode._creation): its records and session, and each node created. */
+  const creations = (root: any) => (root._creation ? { ...root._creation, created: [...root._creation.created.keys()], rows: [...root._creation.rows.keys()] } : undefined);
+  const expectCreations = (root: any, held: any) => {
+    const now = creations(root);
+    expect(now === undefined, 'no creation').toBe(held === undefined);
+    if (now && held) {
+      expect(now.records).toBe(held.records);
+      expect(now.session).toBe(held.session);
+      expect([now.created.length, now.rows.length]).toEqual([held.created.length, held.rows.length]);
+      expect(now.created.every((n: any, i: number) => n === held.created[i])).toBe(true);
+    }
+  };
+
+  it.each([
+    ['a file with no objects', () => plainFile(), 'y', false],
+    ['a MATLAB-written file holding objects', pvBasic, 'x', false],
+    ['a file with a string created already', () => plainFile(), 'y', true],
+  ])('leaves %s as it was, and takes the retype made next', (_what, bytesOf, name, addFirst) => {
+    const bytes = bytesOf();
+    const { session, root, by, edit, save } = opened(bytes);
+    if (addFirst) {
+      session.setActive(root, null);
+      expect(session.addEntry('', 'string', 'kept')).not.toBeNull();
+    }
+    const before = save();
+    const held = creations(root);
+    const was = by(name);
+    // Refused once its every gate has judged the text, as a refusal of the setter's own would be.
+    const real = MatlabVariableNode.prototype.setProperty;
+    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementationOnce(function (this: MatlabVariableNode, key: string, text: string) {
+      real.call(this, key, text);
+      return REFUSAL;
+    });
+    try {
+      expect(edit(was, 'Value', '"abc"')).toEqual(REFUSAL);
+    } finally {
+      spy.mockRestore();
+    }
+    expect([by(name), was.parent, root.dirty]).toEqual([was, root, addFirst]);
+    expectCreations(root, held);
+    expect(sameBytes(save(), before)).toBe(true);
+    if (!addFirst) {
+      expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
+    }
+    expect(edit(by(name), 'Value', '"abc"')).toBe(true);
+    expect(edit(by(name), 'Value', '"xyz"')).toBe(true);
+    expect(shown(save()).find((r) => r.startsWith(name + ' '))).toBe(name + ' string [1,1] "xyz"');
+  });
+
+  it('leaves the file as it was when the setter throws, and records no step', () => {
+    const bytes = plainFile();
+    const { session, root, by, edit, save } = opened(bytes);
+    const was = by('y');
+    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementationOnce(() => {
+      throw new Error('thrown for the test');
+    });
+    try {
+      expect(() => edit(was, 'Value', '"abc"')).toThrow('thrown for the test');
+    } finally {
+      spy.mockRestore();
+    }
+    expect([by('y'), was.parent, root.dirty, root._creation, session.canUndo()]).toEqual([was, root, false, undefined, false]);
+    expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
+    expect(edit(by('y'), 'Value', '"abc"')).toBe(true);
+    expect(shown(save())[1]).toBe('y string [1,1] "abc"');
+  });
+});
