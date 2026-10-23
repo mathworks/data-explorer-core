@@ -1742,11 +1742,24 @@ function readPropertyValue(node: INode, propertyName: string, fallback: unknown)
 // text is not the value: a MATLAB value's `[ ]`, which every empty shows whatever its size
 // and class (MatlabVariableNode._restorerFor), and a Parameter's Value, whose text does not
 // read back as a complex array, an integer or single class or a struct (ParameterNode._restorerFor).
-function propertyRestorer(node: INode, propertyName: string): (() => void) | null {
+// And its name (`isName`), put back without the checks of a name typed in (DataNode._nameRestorer):
+// one another tool wrote can be one no rename takes.
+function propertyRestorer(node: INode, propertyName: string, isName: boolean): (() => void) | null {
+  const nameRestorer = (node as unknown as { _nameRestorer?: () => () => void })._nameRestorer;
+  if (isName && typeof nameRestorer === 'function') {
+    return nameRestorer.call(node);
+  }
   const restorerFor = (node as unknown as { _restorerFor?: (prop: string) => (() => void) | null })._restorerFor;
   const own = typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;
   // Or its source's, where the source makes the edit and changes more with it (sourceSetOffered).
   return own ?? sourceRestorerFor(node as unknown as BaseNode, propNamed(node.getProperties(), propertyName)?.key ?? propertyName);
+}
+
+// What puts back the marks an edit of `node` sets on it and above it (DataNode._editMarks), or null
+// for a node that sets none.
+function editMarksOf(node: INode): (() => void) | null {
+  const editMarks = (node as unknown as { _editMarks?: () => () => void })._editMarks;
+  return typeof editMarks === 'function' ? editMarks.call(node) : null;
 }
 
 // Run `edit`, an edit of `node`'s properties, inside mutateSubtree at the scope such an edit can
@@ -1866,25 +1879,33 @@ function editProperty(
     return 'node' in retyped ? recordRetype(node, retyped.node as unknown as INode, retyped) : retyped;
   }
   // Unless the node can put the value back itself, which the undo then has it do: the text
-  // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
-  const restore = propertyRestorer(node, propertyName);
+  // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was), and
+  // its name may be one no rename takes.
+  const restore = propertyRestorer(node, propertyName, isName);
   // And what a node above it sets from it, put back after the undo has it set again from the
   // value restored (childEdit.holdersRestorer): a Simulink.Parameter's Dimensions and Complexity,
   // which an edit of its Value row or of an element sets from the Value, and which a hand-edited
   // file holds otherwise.
   const holders = holdersRestorer(node as unknown as BaseNode);
+  // And, where the undo puts the value back as it was, what the edit marks on the nodes up to its
+  // entry (DataNode._editMarks): what each was read from, and that the entry's value was edited, so
+  // that a save writes it as it was read. A MAT-file's struct with a field renamed and undone was
+  // written fresh, as an edited one.
+  const marks = restore ? editMarksOf(node) : null;
 
   const { result, indexed, mirrored } = editInEntry(node, () => node.setProperty!(propertyName, newValue));
   if (result !== true) {
     return (result as { error: boolean; reason: string; invalidValue: string; validValue: string }) || false;
   }
+  // A rename's redo puts the name it made back as its undo puts the one it replaced.
+  const redoRename = isName ? propertyRestorer(node, propertyName, true) : null;
 
   const slddNode = getActiveSlddNode();
   const kind = propertyName === 'Name' ? 'rename' : 'property';
   if (slddNode) {
     const cmd = {
       execute() {
-        const redone = editInEntry(node, () => node.setProperty!(propertyName, newValue));
+        const redone = editInEntry(node, () => (redoRename ? redoRename() : node.setProperty!(propertyName, newValue)));
         publish('node/edited', { source: 'undo', nodeId: node.id, kind });
         if (kind === 'rename') {
           publishActiveChanged();
@@ -1900,6 +1921,7 @@ function editProperty(
             node.setProperty!(propertyName, priorValue);
           }
           holders?.();
+          marks?.();
         });
         publish('node/edited', { source: 'undo', nodeId: node.id, kind });
         if (kind === 'rename') {
@@ -1952,11 +1974,12 @@ function recordRetype(node: INode, replacement: INode, swap: { undo: () => void;
 // Adds an entry of `className` to the active dictionary's section `sectionKey`, or to
 // the section that accepts the class when `sectionKey` names none, and selects it. The
 // entry is named `entryName`, or the class's default name, with a counter appended if
-// that name is taken. Returns null, and adds nothing and records no undo step, when
-// there is no active dictionary, no section takes the class, or the name is not one
-// MATLAB can load (see SectionNode.addEntry): the same rule a rename applies. A MAT-file
-// takes a plain variable, the double 0 named `var` (MatNode.execAddEntry), and nothing its
-// save could not write.
+// that name is taken, in a dictionary and a MAT-file alike (matlabName.newEntryName).
+// Returns null, and adds nothing and records no undo step, when there is no active
+// dictionary, no section takes the class, or the name is not one MATLAB can load, as asked
+// for or with its counter (see SectionNode.addEntry): the same rule a rename applies. A
+// MAT-file takes a plain variable, the double 0 named `var` (MatNode.execAddEntry), and
+// nothing its save could not write.
 function addEntry(sectionKey: string, className: string, entryName?: string): INode | null {
   const slddNode = getActiveSlddNode();
   if (!slddNode) {
@@ -2015,7 +2038,7 @@ function addEntry(sectionKey: string, className: string, entryName?: string): IN
 // Why the last addEntry into the active source added nothing, in words a host shows as it shows a
 // refused edit's reason, or null where it added an entry or its source says nothing: a MAT-file
 // says why (MatNode.addEntryRefusal: no save of the file can be written, a class it takes no new
-// variable of, a subsystem no object can be created in, a name taken or no MATLAB name).
+// variable of, a subsystem no object can be created in, a name that is no MATLAB name).
 function addEntryRefusal(): string | null {
   const source = getActiveSlddNode() as unknown as { addEntryRefusal?: () => string | null } | null;
   return typeof source?.addEntryRefusal === 'function' ? source.addEntryRefusal() : null;

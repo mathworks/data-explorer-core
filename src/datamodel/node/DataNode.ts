@@ -299,6 +299,10 @@ export interface PropertyAt {
  */
 let gatheringXml = 0;
 
+// The fields _markModified sets or drops on the nodes from an edited one up to its entry, which
+// _editMarks holds and puts back.
+const MARK_KEYS = ['_rawInput', '_encoded', '_valueEdited', '_objectEdited', '_plainEdited'] as const;
+
 export default class DataNode extends BaseNode {
   metadata: Record<string, unknown> | null;
   serial: Record<string, unknown>;
@@ -310,18 +314,19 @@ export default class DataNode extends BaseNode {
   // a binary dictionary's `Encoding="hex"` element decoded into.
   _encoded?: EncodedValue;
   // Set on an entry by every edit under it but the entry's own rename (_markModified), and
-  // never cleared, an undo included. `status` is 'Modified' after either, so this is what
-  // tells an entry that was only renamed, whose value is still the bytes it was read from,
-  // from one whose value changed: a MAT-file save writes the first as those bytes with the
-  // new name in them, and the second fresh (MatFileWriter). Left set by an undo, it writes
-  // a value equal to the one read, fresh, which is the safe side.
+  // cleared only by an undo that puts the value back exactly as it was (_editMarks, and the
+  // entry's own state restored: _ownStateRestorer). `status` is 'Modified' after either, so
+  // this is what tells an entry that was only renamed, whose value is still the bytes it was
+  // read from, from one whose value changed: a MAT-file save writes the first as those bytes
+  // with the new name in them, and the second fresh (MatFileWriter). Left set by any other
+  // undo, it writes a value equal to the one read, fresh, which is the safe side.
   _valueEdited?: boolean;
   // Which of the edits `_valueEdited` records reached an MCOS object's properties, and which did
   // not, for a MAT-file's save, which writes the first into the subsystem cells that hold them
   // and keeps the variable's own record as it was, and writes the variable fresh for the second
   // (MatFileWriter). `_objectEdited` is set on the node of the object an edit is made at or under
   // (mcosPlace.mcosPlaceOf), `_plainEdited` on the entry, by an edit that reached none.
-  // Never cleared, as `_valueEdited` is not.
+  // Cleared as `_valueEdited` is.
   _objectEdited?: boolean;
   _plainEdited?: boolean;
   rawXml?: string;
@@ -565,46 +570,7 @@ export default class DataNode extends BaseNode {
           return { error: true, reason: refused, invalidValue: stringValue, validValue: this.name };
         }
       }
-      const oldName = this.name;
-      this.name = stringValue;
-      // A container that keys its children by name (a struct, via serial._fields)
-      // has to be told, or its field list still spells the old name and the child
-      // is orphaned on save. Ask the parent rather than reaching into its serial
-      // from here, so a container with more to do can say so — a struct ARRAY
-      // shares one field list across every element, which makes a field rename a
-      // whole-array operation only StructNode knows about.
-      const renameField = (this.parent as unknown as { _renameField?: (from: string, to: string) => void })
-        ?._renameField;
-      if (typeof renameField === 'function') {
-        renameField.call(this.parent, oldName, stringValue);
-      }
-      // The same obligation one level out: a SECTION's parent is the dictionary, which
-      // keys the System Composer catalog by entry name, so renaming an ENTRY has to move
-      // that key too or the entry is reclassified the next time it is rebuilt from a
-      // record (see SectionNode._entryRenamed). Only a top-level entry has a section for
-      // a parent, which is what scopes this to the names the catalog can be about.
-      const entryRenamed = (this.parent as unknown as { _entryRenamed?: (from: string, to: string) => void })
-        ?._entryRenamed;
-      if (typeof entryRenamed === 'function') {
-        entryRenamed.call(this.parent, oldName, stringValue);
-      }
-      // A rename is the one edit that leaves this node's VALUE as it was, so what that
-      // value was read from is still the value: the encoded stream, and the raw value the
-      // replaying writers hand back (MatlabVariableNode and StructNode serializeValue). An
-      // entry renamed and saved writes its value as it was read. _markModified drops both
-      // for every other edit, and still drops them here on every node ABOVE this one,
-      // whose raw value spells this node's old name (a struct's, for a field).
-      //
-      // Dropping the raw value too re-wrote the value from the node, which is lossless
-      // only for a value the node can write: a renamed sparse array went out full, a
-      // 1000x1000 one as `{}`, a sparse column as a row, and one too large to decode as the
-      // text of its own placeholder — in a binary dictionary unescaped, inside a
-      // Class="double" element, which made MATLAB refuse to open the whole file.
-      const encoded = this._encoded;
-      const raw = this._rawInput;
-      this._markModified('name');
-      this._encoded = encoded;
-      this._rawInput = raw;
+      this._rename(stringValue);
       return true;
     }
     // Same shape as the name guard: a node that has nowhere to serialize a Description
@@ -652,6 +618,67 @@ export default class DataNode extends BaseNode {
     }
     this._markModified();
     return true;
+  }
+
+  /**
+   * The rename setProperty makes once it has found `name` one this node takes: the node called
+   * `name`, and every structure keyed by its name told. And the undo's and the redo's of a rename
+   * (_nameRestorer), which put back a name the setter checked once already, or one the file was read
+   * with, which it may not take.
+   */
+  _rename(name: string): void {
+    const oldName = this.name;
+    this.name = name;
+    // A container that keys its children by name (a struct, via serial._fields)
+    // has to be told, or its field list still spells the old name and the child
+    // is orphaned on save. Ask the parent rather than reaching into its serial
+    // from here, so a container with more to do can say so — a struct ARRAY
+    // shares one field list across every element, which makes a field rename a
+    // whole-array operation only StructNode knows about.
+    const renameField = (this.parent as unknown as { _renameField?: (from: string, to: string) => void })
+      ?._renameField;
+    if (typeof renameField === 'function') {
+      renameField.call(this.parent, oldName, name);
+    }
+    // The same obligation one level out: a SECTION's parent is the dictionary, which
+    // keys the System Composer catalog by entry name, so renaming an ENTRY has to move
+    // that key too or the entry is reclassified the next time it is rebuilt from a
+    // record (see SectionNode._entryRenamed). Only a top-level entry has a section for
+    // a parent, which is what scopes this to the names the catalog can be about.
+    const entryRenamed = (this.parent as unknown as { _entryRenamed?: (from: string, to: string) => void })
+      ?._entryRenamed;
+    if (typeof entryRenamed === 'function') {
+      entryRenamed.call(this.parent, oldName, name);
+    }
+    // A rename is the one edit that leaves this node's VALUE as it was, so what that
+    // value was read from is still the value: the encoded stream, and the raw value the
+    // replaying writers hand back (MatlabVariableNode and StructNode serializeValue). An
+    // entry renamed and saved writes its value as it was read. _markModified drops both
+    // for every other edit, and still drops them here on every node ABOVE this one,
+    // whose raw value spells this node's old name (a struct's, for a field).
+    //
+    // Dropping the raw value too re-wrote the value from the node, which is lossless
+    // only for a value the node can write: a renamed sparse array went out full, a
+    // 1000x1000 one as `{}`, a sparse column as a row, and one too large to decode as the
+    // text of its own placeholder — in a binary dictionary unescaped, inside a
+    // Class="double" element, which made MATLAB refuse to open the whole file.
+    const encoded = this._encoded;
+    const raw = this._rawInput;
+    this._markModified('name');
+    this._encoded = encoded;
+    this._rawInput = raw;
+  }
+
+  /**
+   * What puts this node's name back as it is now, for the undo of a rename about to be made, and
+   * the redo of one just made (DataModel.editProperty): the rename itself (_rename), without the
+   * checks of a name typed in. A file another tool wrote can hold a name no rename takes, one of 64
+   * characters, a keyword, `_x`, which MATLAB loads; renamed back through the setter, the name was
+   * refused and the undo kept the new one.
+   */
+  _nameRestorer(): () => void {
+    const name = this.name;
+    return () => this._rename(name);
   }
 
   /** The editor this node's source offers of `key`, or null (BaseNode.sourceOfferedEditor). */
@@ -877,6 +904,40 @@ export default class DataNode extends BaseNode {
       entry._stampLastModified();
     }
     this._markSourceDirty();
+  }
+
+  /**
+   * What puts back, as they stand now, the marks an edit at this node sets on it and on every node
+   * above it to its entry (_markModified): what each was read from (`_rawInput`, `_encoded`), and
+   * what was edited of the entry and of each object on the way (`_valueEdited`, `_objectEdited`,
+   * `_plainEdited`). Not the entry's status and stamp, nor its file's dirty flag, which an undo
+   * leaves as every edit does. For the undo of an edit that puts back the value exactly as it was
+   * (DataModel.editProperty, with a node's restorer), after which what the nodes were read from is
+   * what they hold again: a MAT-file's save writes the variable as the record it was read from, as
+   * it did for the undone edit of a variable's own Value, whose marks are its own (_ownStateRestorer).
+   */
+  _editMarks(): () => void {
+    const entry = this.owningEntry;
+    const nodes: BaseNode[] = [];
+    for (let node: BaseNode | null = this; node && node !== entry; node = node.parent) {
+      nodes.push(node);
+    }
+    if (entry) {
+      nodes.push(entry);
+    }
+    const held = nodes.flatMap((node) => {
+      const own = node as unknown as Record<string, unknown>;
+      return MARK_KEYS.map((key) => ({ own, key, had: key in own, value: own[key] }));
+    });
+    return () => {
+      for (const { own, key, had, value } of held) {
+        if (had) {
+          own[key] = value;
+        } else {
+          delete own[key];
+        }
+      }
+    };
   }
 
   // Refresh the owning entry's last-modified timestamp to now. Called from

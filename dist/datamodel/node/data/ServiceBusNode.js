@@ -28,17 +28,16 @@ export class FunctionElementNode extends BaseBusElementNode {
     getPILayout() { return [{ group: 'General', items: [PropName, PropKind, PropClassAtom] }]; }
     // In MATLAB the Name is the function the Prototype declares: setting the Name renames
     // that function in the Prototype (see Simulink.FunctionElement.md). So a rename here
-    // renames it too, in this same call, which is what makes it one edit: the session's
-    // undo replays setProperty('Name', old), which renames it back, and a host that
-    // rewrites the owning entry writes both fields. A Prototype in which the function
-    // cannot be found unambiguously refuses the rename and changes neither field, so a
-    // Name the Prototype contradicts is never written.
+    // renames it too, in this same call (_rename), which is what makes it one edit: the
+    // session's undo and redo rename it through _rename as well (DataNode._nameRestorer), and
+    // a host that rewrites the owning entry writes both fields. A Prototype in which the
+    // function cannot be found unambiguously refuses the rename and changes neither field, so
+    // a Name the Prototype contradicts is never written.
     setProperty(propName, stringValue) {
         if (this._resolveProperty(propName) !== 'name' || stringValue === this.name) {
             return super.setProperty(propName, stringValue);
         }
-        const prototype = renamedPrototype(this.Prototype, this.name, stringValue);
-        if (prototype === null) {
+        if (renamedPrototype(this.Prototype, this.name, stringValue) === null) {
             return {
                 error: true,
                 reason: `'${this.name}' cannot be renamed: its Prototype '${String(this.Prototype)}' does not declare the function '${this.name}' in the form [outputs =] ${this.name}(inputs), so the Prototype cannot be renamed with it, and MATLAB requires the two to match.`,
@@ -47,20 +46,36 @@ export class FunctionElementNode extends BaseBusElementNode {
             };
         }
         // The usual name checks (identifier, sibling uniqueness) still decide; the
-        // Prototype moves only when the Name did.
+        // Prototype moves only when the Name did (_rename).
+        return super.setProperty(propName, stringValue);
+    }
+    // The rename itself (DataNode._rename), the function its Prototype declares renamed with it,
+    // and the catalog told: what a rename the setter took makes, and its undo and redo too.
+    _rename(name) {
         const oldName = this.name;
-        const result = super.setProperty(propName, stringValue);
-        if (result === true) {
-            this.Prototype = prototype;
-            this._functionRenamed(oldName, this.name);
+        const prototype = renamedPrototype(this.Prototype, oldName, name);
+        super._rename(name);
+        if (name !== oldName) {
+            if (prototype !== null) {
+                this.Prototype = prototype;
+            }
+            this._functionRenamed(oldName, name);
         }
-        return result;
+    }
+    // And the Prototype put back as it is now, whatever renaming its function back makes of it.
+    _nameRestorer() {
+        const prototype = this.Prototype;
+        const restore = super._nameRestorer();
+        return () => {
+            restore();
+            this.Prototype = prototype;
+        };
     }
     // The System Composer catalog keeps its own copy of each function of a service
     // interface (`p_Name` / `p_FunctionPrototype`), so a rename is recorded there for the save
     // to carry (ScCatalog.renameFunctionInCatalog). Only for the function of an ENTRY: its
     // bus's parent is a section (the one parent with `_entryRenamed`), whose parent is the
-    // dictionary holding the catalog. Undo replays this setter, so it records the way back.
+    // dictionary holding the catalog. Undo renames back through _rename, so it records the way back.
     _functionRenamed(oldName, newName) {
         const bus = this.parent;
         const section = bus?.parent;

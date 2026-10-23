@@ -339,6 +339,10 @@ export default class MatNode extends ContainerNode {
      */
     addEntryRefusal(): string | null;
     _addRefusalOf(kind: 'plain' | 'struct' | 'object', className: string | undefined, entryName: string | undefined): string | null;
+    _newEntryName(className: string | undefined, entryName: string | undefined): {
+        name: string;
+        invalid: string | null;
+    };
     /**
      * MATLAB's default object of `className`, merged into the subsystem this file's saves write
      * (McosTemplateMerge.mergeTemplateObject: MATLAB R2023b's own records of one, copied in the order
@@ -373,6 +377,7 @@ export default class MatNode extends ContainerNode {
     /** The variables created as objects that are in the tree now. */
     _liveCreations(): BaseNode[];
     _uniqueName(baseName: string): string;
+    _nameTaken(): (name: string) => boolean;
     execRemoveEntry(node: BaseNode): {
         undo: () => void;
         redo: () => void;
@@ -391,6 +396,15 @@ export default class MatNode extends ContainerNode {
      * other object, whose Value row is the object's.
      */
     _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /**
+     * What puts this file's creations (_creation) back as they stand now, for an object created
+     * (_createObject) for an edit that is then not made (_retype): none of it among them, nor the file
+     * holding creations at all where it held none; and what was found of the file's objects' nodes
+     * while it was in the tree (_twinGroups, _sharingOf), found again once asked. A creation copies
+     * the records and the session it merges into, and adds its node to `created` and `rows`, so the
+     * records and session held now are the ones put back.
+     */
+    _creationRestorer(): () => void;
     /**
      * The variable of this file in place of `node` (_retype), however many times replaced, where
      * `node` is no longer in it and that variable holds no record of its own; or null: the variable

@@ -4,7 +4,8 @@
 // Each case is a file core saved after a user renamed fields of the structs MATLAB R2023b or R2027a
 // wrote into a -v7 or a -v6 file (a field of a struct, of a nested one, of a struct array in every
 // element, a field holding an object, one renamed and then edited, a name of 63 characters, a
-// rename undone), all through the session as a host makes them. MATLAB loaded each saved file in
+// rename renamed back, which an undo did when the gate ran), all through the session as a host
+// makes them. MATLAB loaded each saved file in
 // R2027a, R2023b and R2024b (each case's `verdicts`) with no warning its original does not give,
 // every renamed variable equal to the original with MATLAB's own rename of the same fields, each
 // field in its place, every other variable equal to its original, each variable alone equal, and a
@@ -16,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
+import { parseMat } from '../src/datamodel/parser/MatParser.js';
 
 const TEST = fileURLToPath(new URL('.', import.meta.url));
 
@@ -71,10 +73,12 @@ const STEPS: Record<string, (o: Opened) => void> = {
     o.prop('n.t2', 'Value', '5');
   },
   long: (o) => o.rename('s.c', LONG),
+  // A rename undone, as the gate made it: the second renamed back, the struct array written fresh,
+  // as an undo wrote it then. An undo now writes it as it was read (below).
   undo_mix: (o) => {
     o.rename('s.a', 'q');
     o.rename('sa(1).a', 'aa');
-    o.session.undo();
+    o.rename('sa(1).aa', 'a');
   },
   all: (o) => {
     o.rename('s.d', 'dd');
@@ -103,6 +107,29 @@ describe('each file the struct field rename gate judged saves again, byte for by
       const o = opened(c.original);
       STEPS[c.name.split('__')[0]](o);
       expect(sha(o.save())).toBe(c.sha256);
+    });
+  }
+});
+
+// The gate's rename undone was made when an undo wrote the struct array fresh, as a rename back by
+// hand still does (undo_mix, above). An undo now puts back what the rename marked too
+// (DataNode._editMarks), so the file saved is the one the rename before it alone saves: the struct
+// array as the record MATLAB wrote, beside the struct renamed, as s_first's judged file holds every
+// record but its renamed struct's.
+describe('a field rename undone', () => {
+  for (const c of DOC.cases.filter((x) => x.name.startsWith('undo_mix__'))) {
+    it(c.name.split('__')[1] + ': saves what the rename before it alone saves, the struct array as read', () => {
+      const undone = opened(c.original);
+      undone.rename('s.a', 'q');
+      undone.rename('sa(1).a', 'aa');
+      undone.session.undo();
+      const alone = opened(c.original);
+      alone.rename('s.a', 'q');
+      const bytes = undone.save();
+      expect(sha(bytes)).toBe(sha(alone.save()));
+      const original = new Uint8Array(readFileSync(TEST + c.original));
+      const recordOf = (b: Uint8Array, name: string) => parseMat(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer).records!.find((r) => r.name === name)!.bytes;
+      expect(Buffer.from(recordOf(bytes, 'sa')).equals(Buffer.from(recordOf(original, 'sa')))).toBe(true);
     });
   }
 });

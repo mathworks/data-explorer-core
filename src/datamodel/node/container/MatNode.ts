@@ -75,7 +75,7 @@ import {
   type MatSharing,
 } from '../data/matObjectEdit.js';
 import { mcosPlaceOf, setMcosPlace } from '../mcosPlace.js';
-import { validateMatlabName } from '../../matlabName.js';
+import { newEntryName, uniqueName } from '../../matlabName.js';
 import { owningEntryOf } from '../DataNode.js';
 import type DataNode from '../DataNode.js';
 import { propertyChoices } from '../../parser/McosPropertyRules.js';
@@ -1152,19 +1152,20 @@ export default class MatNode extends ContainerNode {
     return verdict;
   }
 
-  // A new variable named `entryName`, or the class's default name with a counter appended if that
-  // is taken (`var` for a plain variable): the double 0; a 1x1 struct of no field ('MatlabStruct');
-  // or MATLAB's default object of a class getAllowedTypes lists, merged into the subsystem the save
-  // writes (_createObject), its node the one a file holding that object shows. Null, adding
-  // nothing, for a file no save of which can be written (_fileRefusal), for any other class, and for
-  // a name that is no MATLAB name or one the file holds already, by the rule a rename is held to.
+  // A new variable named `entryName`, or the class's default name (`var` for a plain variable), with
+  // a counter appended if that is taken, as a dictionary's Add names one (_newEntryName): the double
+  // 0; a 1x1 struct of no field ('MatlabStruct'); or MATLAB's default object of a class
+  // getAllowedTypes lists, merged into the subsystem the save writes (_createObject), its node the
+  // one a file holding that object shows. Null, adding nothing, for a file no save of which can be
+  // written (_fileRefusal), for any other class, and for a name that is no MATLAB name, as asked for
+  // or with its counter, by the rule a rename is held to.
   execAddEntry(className?: string, entryName?: string): { node: BaseNode; undo: () => void; redo: () => void } | null {
     const kind = !className || PLAIN_VARIABLE_CLASSES.has(className) ? 'plain' : className === 'MatlabStruct' ? 'struct' : 'object';
     this._addRefused = this._addRefusalOf(kind, className, entryName);
     if (this._addRefused) {
       return null;
     }
-    const name = entryName || this._uniqueName(defaultNameOf(className));
+    const { name } = this._newEntryName(className, entryName);
     const node =
       kind === 'plain'
         ? MatlabVariableNode.createDefault(name, this)
@@ -1202,7 +1203,7 @@ export default class MatNode extends ContainerNode {
 
   // Why a new variable of `className` (of `kind`) named `entryName` is refused before one is made:
   // no save of this file can be written; no class this file takes a new variable of; a subsystem no
-  // object can be created in; a name that is no MATLAB name, or one the file holds already.
+  // object can be created in; a name that is no MATLAB name, as asked for or with its counter.
   _addRefusalOf(kind: 'plain' | 'struct' | 'object', className: string | undefined, entryName: string | undefined): string | null {
     const file = this._fileRefusal();
     if (file) {
@@ -1212,15 +1213,18 @@ export default class MatNode extends ContainerNode {
     if (objects) {
       return cannotAdd(this, className, objects);
     }
-    const name = entryName || this._uniqueName(defaultNameOf(className));
-    const invalid = validateMatlabName(name);
+    const { name, invalid } = this._newEntryName(className, entryName);
     if (invalid) {
       return cannotAdd(this, className, "'" + name + "' is not a name MATLAB can load (" + invalid + ')');
     }
-    if (entryName && this._namespaceHolds(entryName) > 0) {
-      return "'" + entryName + "' already exists in " + this._namespaceLabel;
-    }
     return null;
+  }
+
+  // The name a new variable of `className` asked for as `entryName` is given, the class's default
+  // name where none is asked for, and why it is no MATLAB name (matlabName.newEntryName): with a
+  // counter appended where a variable of the file holds it, a record the reader dropped included.
+  _newEntryName(className: string | undefined, entryName: string | undefined): { name: string; invalid: string | null } {
+    return newEntryName(entryName || defaultNameOf(className), this._nameTaken());
   }
 
   /**
@@ -1386,16 +1390,15 @@ export default class MatNode extends ContainerNode {
     return [...(this._creation?.created.keys() ?? [])].filter((n) => n.parent === this);
   }
 
-  // Not a name any variable of the file holds, a record the reader dropped included (_namespaceHolds).
+  // Not a name any variable of the file holds (_nameTaken).
   _uniqueName(baseName: string): string {
-    if (this._namespaceHolds(baseName) === 0) {
-      return baseName;
-    }
-    let i = 1;
-    while (this._namespaceHolds(baseName + i) > 0) {
-      i++;
-    }
-    return baseName + i;
+    return uniqueName(baseName, this._nameTaken());
+  }
+
+  // Whether a variable of the file holds a name, a record the reader dropped included
+  // (_namespaceHolds): for the name a new variable is given (_uniqueName, _newEntryName).
+  _nameTaken(): (name: string) => boolean {
+    return (name) => this._namespaceHolds(name) > 0;
   }
 
   // A delete is written by any save, of any variable, one stored after the subsystem and an object
@@ -1445,8 +1448,12 @@ export default class MatNode extends ContainerNode {
     if (typed === null || (typed === 'string') === isString || (typed === 'string' && this._classRefusal('string'))) {
       return null;
     }
+    // What puts the file's creations back as they are, for a string's creation the edit does not
+    // keep: one left among them is one more a save takes for deleted (_liveCreation).
+    const uncreate = this._creationRestorer();
     const made = typed === 'string' ? this._createObject('string', node.name) : MatlabVariableNode.createDefault(node.name, this);
     if (!made) {
+      uncreate();
       return null;
     }
     const swap = (from: BaseNode, to: BaseNode) => {
@@ -1456,17 +1463,53 @@ export default class MatNode extends ContainerNode {
       this.dirty = true;
     };
     // In its place first, as the edit of its Value judges it there; and put back, the file as it
-    // was, where it refuses the text.
+    // was, where it refuses the text or its setter throws: `node` in its place, the file as dirty as
+    // it was, and nothing created for `made`.
     const dirty = this.dirty;
+    let set: SourceSetResult | undefined;
     swap(node, made);
-    const set = (made as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', text);
+    try {
+      set = (made as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', text);
+    } finally {
+      if (set !== true) {
+        swap(made, node);
+        this.dirty = dirty;
+        uncreate();
+      }
+    }
     if (set !== true) {
-      swap(made, node);
-      this.dirty = dirty;
       return set;
     }
     this._replaced.set(node, made);
     return { node: made, undo: () => swap(made, node), redo: () => swap(node, made) };
+  }
+
+  /**
+   * What puts this file's creations (_creation) back as they stand now, for an object created
+   * (_createObject) for an edit that is then not made (_retype): none of it among them, nor the file
+   * holding creations at all where it held none; and what was found of the file's objects' nodes
+   * while it was in the tree (_twinGroups, _sharingOf), found again once asked. A creation copies
+   * the records and the session it merges into, and adds its node to `created` and `rows`, so the
+   * records and session held now are the ones put back.
+   */
+  _creationRestorer(): () => void {
+    const c = this._creation;
+    const held = c ? { records: c.records, session: c.session, created: new Set(c.created.keys()) } : null;
+    const { _twins: twins, _twinOf: twinOf, _objectNodesById: byId } = this;
+    return () => {
+      this._creation = c;
+      if (c && held) {
+        c.records = held.records;
+        c.session = held.session;
+        for (const n of [...c.created.keys()].filter((k) => !held.created.has(k))) {
+          c.created.delete(n);
+          c.rows.delete(n);
+        }
+      }
+      this._twins = twins;
+      this._twinOf = twinOf;
+      this._objectNodesById = byId;
+    };
   }
 
   /**

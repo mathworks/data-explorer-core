@@ -42,6 +42,7 @@ export default class SectionNode extends ContainerNode {
         redo: () => void;
     } | null;
     _uniqueName(baseName: string): string;
+    _nameTaken(): (name: string) => boolean;
     parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null, options?: {
         asRead?: boolean;
     }): DataNode;

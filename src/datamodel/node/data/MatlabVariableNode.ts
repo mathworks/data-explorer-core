@@ -1734,6 +1734,23 @@ export default class MatlabVariableNode extends DataNode {
     super._markModified(edit);
   }
 
+  // And what this class's _markModified marks besides (DataNode._editMarks): the snapshot of each
+  // value at and above this one made stale, and each sparse array above it edited.
+  _editMarks(): () => void {
+    const marks = super._editMarks();
+    const held: [MatlabVariableNode, boolean, boolean][] = [];
+    for (let node: BaseNode | null = this; node instanceof MatlabVariableNode; node = node.parent) {
+      held.push([node, node._varStale, node._sparseEdited]);
+    }
+    return () => {
+      marks();
+      for (const [node, stale, sparse] of held) {
+        node._varStale = stale;
+        node._sparseEdited = sparse;
+      }
+    };
+  }
+
   // Push an edited element's new value into this container's _elements slot.
   // _elements and the child nodes are two copies of the same data: the children
   // back the table rows, while _elements backs displayValue, the Value getter,

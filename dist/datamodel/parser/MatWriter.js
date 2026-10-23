@@ -1255,7 +1255,8 @@ export function heldByTextDictionary(value) {
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
  * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
  * binary dictionary's dense empty too, and a real rank >= 3 `Matrix(…)` literal
- * (matrixLiteralVariable), and everything else as it was. A copy wherever
+ * (matrixLiteralVariable), a bare Inf, -Inf or NaN as the typed literal MATLAB writes for it
+ * (nonFiniteForm), and everything else as it was. A copy wherever
  * something changed, so the bag a node replays is never touched; the same object where
  * nothing did.
  *
@@ -1271,9 +1272,15 @@ export function textDictionaryForm(x, at = '') {
 }
 function textForm(x, at, place) {
     if (x === null || typeof x !== 'object') {
-        return x;
+        return nonFiniteForm(x) ?? x;
     }
     if (Array.isArray(x)) {
+        // A row of numbers holding Inf, -Inf or NaN, which JSON.stringify writes as null: one literal
+        // of the whole row, as MATLAB writes it (nonFiniteForm).
+        const row = nonFiniteForm(x);
+        if (row) {
+            return row;
+        }
         let changed = false;
         const out = x.map((e) => {
             const t = textForm(e, at, place);
@@ -1409,15 +1416,37 @@ function textForm(x, at, place) {
     let out = null;
     for (const k of Object.keys(o)) {
         const v = o[k];
-        const t = k === '_elements' && Array.isArray(v) ? elementsForm(o, at)
-            : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v, at, 'property')
-                : textForm(v, at, place);
+        // Dims are counts, judged above, and no value: an infinity the text dictionary was read with
+        // stays as read.
+        const t = k === '_dimensions' || k === '_emptyDims' ? v
+            : k === '_elements' && Array.isArray(v) ? elementsForm(o, at)
+                : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v, at, 'property')
+                    : textForm(v, at, place);
         if (t !== o[k]) {
             out = out ?? { ...o };
             out[k] = t;
         }
     }
     return out ?? o;
+}
+/**
+ * A bare Inf, -Inf or NaN, or a bare row of numbers holding one, as a text dictionary holds it, or
+ * null for anything else: JSON has no spelling for any of the three, and JSON.stringify writes each
+ * as `null`, the value lost. A binary dictionary's reader holds a double scalar as a bare number,
+ * so an entry copied out of one carries one so. Measured against MATLAB R2027a, a text dictionary
+ * holds each as the typed literal of a double, `{"_type": "double", "_value": "Inf"}` (`"-Inf"`,
+ * `"NaN"`), alike at an entry, a struct field, a cell's element and an object's property, and reads
+ * it back as the double it is; and a row holding one as one literal of the row,
+ * `"[1.0, Inf, NaN, -Inf]"`.
+ */
+function nonFiniteForm(x) {
+    if (typeof x === 'number') {
+        return Number.isFinite(x) ? null : { _type: 'double', _value: formatNumLiteral(x, 'double') };
+    }
+    if (Array.isArray(x) && x.length > 0 && x.every((e) => typeof e === 'number') && x.some((e) => !Number.isFinite(e))) {
+        return { _type: 'double', _value: formatMatrixSerial(x, [1, x.length], 'double') };
+    }
+    return null;
 }
 /** The class a raw bag holds, as the XML writers name it in a refusal: 'cell', 'single', 'Simulink.Parameter'. */
 function bagClass(o) {

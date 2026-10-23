@@ -162,6 +162,21 @@ export default class DataNode extends BaseNode {
      */
     _isUnchangedCommit(propName: string, stringValue: string): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /**
+     * The rename setProperty makes once it has found `name` one this node takes: the node called
+     * `name`, and every structure keyed by its name told. And the undo's and the redo's of a rename
+     * (_nameRestorer), which put back a name the setter checked once already, or one the file was read
+     * with, which it may not take.
+     */
+    _rename(name: string): void;
+    /**
+     * What puts this node's name back as it is now, for the undo of a rename about to be made, and
+     * the redo of one just made (DataModel.editProperty): the rename itself (_rename), without the
+     * checks of a name typed in. A file another tool wrote can hold a name no rename takes, one of 64
+     * characters, a keyword, `_x`, which MATLAB loads; renamed back through the setter, the name was
+     * refused and the undo kept the new one.
+     */
+    _nameRestorer(): () => void;
     /** The editor this node's source offers of `key`, or null (BaseNode.sourceOfferedEditor). */
     _offeredEditorOf(key: string): SourceOfferedEditor | null;
     /** Whether this node's source judges a value an edit makes (BaseNode.sourceJudgesValues: a MAT-file, a dictionary value's MAT stream). */
@@ -180,6 +195,17 @@ export default class DataNode extends BaseNode {
     execRemoveChild(_child?: BaseNode): ChildUndoRedo | null;
     _renameField(from: string, to: string): void;
     _markModified(edit?: 'value' | 'name'): void;
+    /**
+     * What puts back, as they stand now, the marks an edit at this node sets on it and on every node
+     * above it to its entry (_markModified): what each was read from (`_rawInput`, `_encoded`), and
+     * what was edited of the entry and of each object on the way (`_valueEdited`, `_objectEdited`,
+     * `_plainEdited`). Not the entry's status and stamp, nor its file's dirty flag, which an undo
+     * leaves as every edit does. For the undo of an edit that puts back the value exactly as it was
+     * (DataModel.editProperty, with a node's restorer), after which what the nodes were read from is
+     * what they hold again: a MAT-file's save writes the variable as the record it was read from, as
+     * it did for the undone edit of a variable's own Value, whose marks are its own (_ownStateRestorer).
+     */
+    _editMarks(): () => void;
     _stampLastModified(): void;
     /**
      * What puts this node back as it stands now: every own field but those in `leaves`, and its

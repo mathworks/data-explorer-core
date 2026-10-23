@@ -659,9 +659,15 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
     expect(holds('b', 'y')).toEqual([1, 0]);
     session.redo();
     expect(holds('b', 'y')).toEqual([0, 1]);
-    expect(root.execAddEntry(undefined, 'a')).toBeNull();
+    // A name the file holds, asked for, is given a counter (matlabName.newEntryName).
+    const counted = root.execAddEntry(undefined, 'a');
+    expect([counted.node.name, holds('a', 'a1')]).toEqual(['a1', [1, 1]]);
+    counted.undo();
+    expect(holds('a', 'a1')).toEqual([1, 0]);
     const added = root.execAddEntry(undefined, 'n');
-    expect([holds('n'), root.execAddEntry(undefined, 'n')]).toEqual([[1], null]);
+    const again = root.execAddEntry(undefined, 'n');
+    expect([holds('n', 'n1'), again.node.name]).toEqual([[1, 1], 'n1']);
+    again.undo();
     expect(root.execRemoveEntry(by('n'))).not.toBeNull();
     expect(holds('n')).toEqual([0]);
     added.redo();
@@ -673,12 +679,13 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
     expect(holds('a', 'q', 'z')).toEqual([0, 1, 1]);
   });
 
-  it('a name the file holds as a record the reader dropped is taken: no rename or addition into it', () => {
-    // A record that is not a matrix (an miINT32 at the top level) is dropped by the reader, and
-    // kept by every save as its bytes; its name is still the file's.
+  it('a name another variable holds is taken: a rename into it is refused, and an addition of it given a counter', () => {
     const { root, edit } = opened(matFile([scalar('a', 1), scalar('b', 2)]));
     expect(root._namespaceHolds('a')).toBe(1);
     expect(edit(root.children[1], 'Name', 'a')).toEqual({ error: true, reason: "'a' already exists in f.mat", invalidValue: 'a', validValue: 'b' });
+    // As a dictionary's Add names one (matlabName.newEntryName).
+    expect(root.execAddEntry(undefined, 'a').node.name).toBe('a1');
+    expect(root.children.map((c: any) => c.name)).toEqual(['a', 'b', 'a1']);
   });
 
   it('a record the reader dropped with no name read out of it holds none: an addition and a rename into any name are taken', () => {
@@ -786,11 +793,12 @@ describe('the session, on a .mat', () => {
     parsed = parseMat(arrayBufferOf(save()));
     expect(parsed.records.slice(-2).map((r) => r.name)).toEqual(['var', '']);
     // An entry named by the caller, and what a save could not write.
+    // One it holds already given a counter, as a dictionary's Add gives one.
     expect(session.addEntry('', 'MatlabVariable', 'myVar').name).toBe('myVar');
-    expect(session.addEntry('', 'MatlabVariable', 'kp')).toBeNull();
+    expect(session.addEntry('', 'MatlabVariable', 'kp').name).toBe('kp1');
     expect(session.addEntry('', 'MatlabVariable', '1bad')).toBeNull();
     expect(session.addEntry('', 'Simulink.ConfigSet')).toBeNull();
-    expect(parseMat(arrayBufferOf(save())).records.slice(-3).map((r) => r.name)).toEqual(['var', 'myVar', '']);
+    expect(parseMat(arrayBufferOf(save())).records.slice(-4).map((r) => r.name)).toEqual(['var', 'myVar', 'kp1', '']);
   });
 
   it("a rename into a name the file holds names the file; a dictionary's keeps its wording", () => {

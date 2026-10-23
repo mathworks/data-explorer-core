@@ -767,8 +767,11 @@ describe('a save that cannot write a variable as what it is is refused, naming i
       ['kp', 'the file holds another variable named "kp", and MATLAB loads only one of them'],
     ]) {
       const { root, save } = opened(fixture(CASES), 'cases.mat');
-      // Refused by the editor (MatNode.execAddEntry); added around it, under its own name.
-      expect(root.execAddEntry(undefined, name), name).toBeNull();
+      // Refused by the editor (MatNode.execAddEntry), or, for a name the file holds, given a
+      // counter; added around it, under its own name.
+      const added = root.execAddEntry(undefined, name);
+      expect(added?.node.name ?? null, name).toBe(name === 'kp' ? 'kp1' : null);
+      added?.undo();
       root.execAddEntry().node.name = name;
       expect(thrownBy(save).message, name).toBe(`Cannot write "${name}": ${why}. Nothing was written.`);
     }
