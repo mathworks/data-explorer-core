@@ -249,6 +249,22 @@ export function sourceRestorerFor(node, key) {
     return typeof restorer === 'function' ? restorer.call(source, entry, node, key) : null;
 }
 /**
+ * The variable the source of `node` puts in its place for an edit of `key` to `text` that only a
+ * variable of another kind takes, with what undoes and redoes the swap: a MAT-file's variable whose
+ * Value is typed over as a string, which a save writes only as an object of the file's subsystem
+ * (MatNode._retype). The refusal of the text by the variable put in its place, where it refuses
+ * it; or null, which every other source answers, where the node's own setter makes the edit. Asked
+ * by DataModel.editProperty once the edit is one the source takes at all (sourceEditRefusal).
+ */
+export function sourceRetype(node, key, text) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return null;
+    }
+    const retype = source?._retype;
+    return typeof retype === 'function' ? retype.call(source, entry, node, key, text) : null;
+}
+/**
  * Which rows of `node`'s Property Inspector its source offers in its property groups, by key, and
  * the saved keys of the node's bag a row it shows shows already, and the rows of properties the
  * node has none of; or null where it shows every row the node lays out: what every source but a

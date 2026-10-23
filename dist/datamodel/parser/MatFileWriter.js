@@ -171,18 +171,25 @@ function planOf(matNode, records, subsystem) {
     const added = matNode.children.filter((c) => matNode.recordOf(c) === null);
     const plan = [];
     const ofObjects = [];
+    const placed = new Set();
+    const planAdded = (node) => {
+        placed.add(node);
+        // A variable created as an object (MatNode._createObject): the class-17 element naming it,
+        // and its object written into the subsystem with every edit of it.
+        const element = matNode._createdElement(node);
+        if (element) {
+            refuseName(node.name);
+            plan.push({ kind: 'created', name: node.name, element, bytes: recordBytes(element, compress, node.name) });
+            ofObjects.push(node);
+            return;
+        }
+        plan.push(freshOf(node, null, compress));
+    };
     const addAdded = () => {
         for (const node of added) {
-            // A variable created as an object (MatNode._createObject): the class-17 element naming it,
-            // and its object written into the subsystem with every edit of it.
-            const element = matNode._createdElement(node);
-            if (element) {
-                refuseName(node.name);
-                plan.push({ kind: 'created', name: node.name, element, bytes: recordBytes(element, compress, node.name) });
-                ofObjects.push(node);
-                continue;
+            if (!placed.has(node)) {
+                planAdded(node);
             }
-            plan.push(freshOf(node, null, compress));
         }
     };
     let pastSubsystem = false;
@@ -199,6 +206,12 @@ function planOf(matNode, records, subsystem) {
             continue;
         }
         if (node.parent !== matNode) {
+            // Deleted, or replaced by a variable of another kind (MatNode._retype), which is written in its
+            // place, where MATLAB reads it.
+            const replacement = pastSubsystem ? null : matNode._replacementOf(node);
+            if (replacement && added.includes(replacement) && !placed.has(replacement)) {
+                planAdded(replacement);
+            }
             continue;
         }
         const edit = editOf(node, record);

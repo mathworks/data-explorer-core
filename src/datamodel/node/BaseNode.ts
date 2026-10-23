@@ -444,6 +444,32 @@ export function sourceRestorerFor(node: BaseNode, key: string): (() => void) | n
   return typeof restorer === 'function' ? restorer.call(source, entry, node, key) : null;
 }
 
+/** A variable a source put in place of another (sourceRetype), and what undoes and redoes the swap. */
+export interface SourceRetyped {
+  node: BaseNode;
+  undo: () => void;
+  redo: () => void;
+}
+
+/**
+ * The variable the source of `node` puts in its place for an edit of `key` to `text` that only a
+ * variable of another kind takes, with what undoes and redoes the swap: a MAT-file's variable whose
+ * Value is typed over as a string, which a save writes only as an object of the file's subsystem
+ * (MatNode._retype). The refusal of the text by the variable put in its place, where it refuses
+ * it; or null, which every other source answers, where the node's own setter makes the edit. Asked
+ * by DataModel.editProperty once the edit is one the source takes at all (sourceEditRefusal).
+ */
+export function sourceRetype(node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const retype = (
+    source as unknown as { _retype?: (entry: BaseNode, node: BaseNode, key: string, text: string) => SourceRetyped | Exclude<SourceSetResult, true> | null } | null
+  )?._retype;
+  return typeof retype === 'function' ? retype.call(source, entry, node, key, text) : null;
+}
+
 /**
  * Which rows of a node's Property Inspector its source offers in its groups, which of its rows are
  * of no property the node has, and which saved keys a row shows already (sourceInspectorRows).

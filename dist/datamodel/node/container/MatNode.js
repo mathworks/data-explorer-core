@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import MatlabVariableNode from '../data/MatlabVariableNode.js';
+import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
@@ -28,6 +29,9 @@ export default class MatNode extends ContainerNode {
         super(name, null);
         // Why the last execAddEntry added nothing (addEntryRefusal), or null.
         this._addRefused = null;
+        // Each variable an edit put another in place of (_retype), and that one: what a save follows to
+        // write the variable in place of the record it replaced (_replacementOf).
+        this._replaced = new Map();
         this.header = '';
         this.dirty = false;
         this._valueVerdicts = new WeakMap();
@@ -1212,6 +1216,60 @@ export default class MatNode extends ContainerNode {
             },
         };
     }
+    /**
+     * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
+     * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
+     * that variable; or null, where `node`'s own setter makes the edit. A string typed over a variable
+     * that is not one, as `x = "abc"` makes `x` a string in MATLAB whatever it was: a save writes a
+     * string only as an object of the subsystem, which only its creation makes, so the variable
+     * becomes the one an Add of a string makes (_createObject), of its name and in its place, holding
+     * the text; and a save writes it where the variable it replaced was (_replacementOf). A variable
+     * whose Value takes no edit (valueEditable: a struct, a function handle, a summary) is not one,
+     * nor is one holding an object, a string among them, whose Value row is the object's.
+     */
+    _retype(entry, node, key, text) {
+        if (key !== 'Value' || node !== entry || node.parent !== this || !(node instanceof MatlabVariableNode) || !node.valueEditable) {
+            return null;
+        }
+        if (objectNodeAt(entry, node) || !typedAsString(text) || this._classRefusal('string')) {
+            return null;
+        }
+        const made = this._createObject('string', node.name);
+        if (!made) {
+            return null;
+        }
+        const swap = (from, to) => {
+            const at = this.children.indexOf(from);
+            this.removeChild(from);
+            this.addChild(to, at);
+            this.dirty = true;
+        };
+        // In its place first, as the edit of its Value judges it there; and put back, the file as it
+        // was, where it refuses the text.
+        const dirty = this.dirty;
+        swap(node, made);
+        const set = made.setProperty('Value', text);
+        if (set !== true) {
+            swap(made, node);
+            this.dirty = dirty;
+            return set;
+        }
+        this._replaced.set(node, made);
+        return { node: made, undo: () => swap(made, node), redo: () => swap(node, made) };
+    }
+    /**
+     * The variable of this file in place of `node` (_retype), however many times replaced, where
+     * `node` is no longer in it and that variable holds no record of its own; or null: the variable
+     * a save writes where `node`'s record was (MatFileWriter.planOf).
+     */
+    _replacementOf(node) {
+        for (let n = this._replaced.get(node); n; n = this._replaced.get(n)) {
+            if (n.parent === this) {
+                return this.recordOf(n) === null ? n : null;
+            }
+        }
+        return null;
+    }
     getVariables() {
         const variables = [];
         for (const child of this.children) {
@@ -1346,6 +1404,17 @@ function placeString(n) {
         return true;
     }
     return false;
+}
+// Whether `text`, typed in as a Value, makes a string: as an edit applies it (MatlabVariableNode
+// _applyParsed), and as _valueRefusal tells one.
+function typedAsString(text) {
+    const parsed = MatlabValueParser.parse(text);
+    if (!parsed) {
+        return false;
+    }
+    const value = new MatlabVariableNode('', null, {});
+    value._applyParsed(parsed);
+    return value._kind === 'string' || (value._kind === 'scalar' && value._scalarType === 'string');
 }
 // The ids of the object rows `after` holds past the `before` it held before a merge appended to it:
 // past the null row 0 the first merge into an empty table adds.

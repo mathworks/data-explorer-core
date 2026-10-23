@@ -20,7 +20,7 @@ import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.
 import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
+import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -1723,6 +1723,12 @@ export function createSession(opts = {}) {
                 validValue: isName ? node.name : typeof priorValue === 'string' ? priorValue : node.displayValue,
             };
         }
+        // Or an edit only a variable of another kind takes, which its source makes by putting one in its
+        // place (BaseNode.sourceRetype): a MAT-file's variable typed a string becomes a string variable.
+        const retyped = !isName && typeof newValue === 'string' ? sourceRetype(node, prop?.key ?? propertyName, newValue) : null;
+        if (retyped) {
+            return 'node' in retyped ? recordRetype(node, retyped.node, retyped) : retyped;
+        }
         // Unless the node can put the value back itself, which the undo then has it do: the text
         // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
         const restore = propertyRestorer(node, propertyName);
@@ -1774,6 +1780,33 @@ export function createSession(opts = {}) {
         }
         publishEdited(node, indexed);
         publishMirrored(mirrored);
+        return true;
+    }
+    // The swap a source made of `node` for `replacement` (editProperty, sourceRetype), announced as the
+    // delete of the one and the add of the other, which it is, with `replacement` selected; and
+    // recorded, so that one undo puts `node` back where it was, selected, and the redo the swap again.
+    function recordRetype(node, replacement, swap) {
+        const swapped = (from, to, source) => {
+            const parent = to.parent;
+            setActiveEntry(to);
+            publish('node/deleted', { node: from, section: parent });
+            publish('node/added', { node: to, sectionKey: parent.name });
+            publish('node/edited', { source, nodeId: to.id, kind: 'property' });
+        };
+        const slddNode = getActiveSlddNode();
+        if (slddNode) {
+            UndoManager.pushExecuted(slddNode.name, {
+                execute() {
+                    swap.redo();
+                    swapped(node, replacement, 'undo');
+                },
+                undo() {
+                    swap.undo();
+                    swapped(replacement, node, 'undo');
+                },
+            });
+        }
+        swapped(node, replacement, 'pi');
         return true;
     }
     // Adds an entry of `className` to the active dictionary's section `sectionKey`, or to
