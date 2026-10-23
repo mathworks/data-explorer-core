@@ -549,9 +549,9 @@ describe('what each kind of variable of a .mat takes', () => {
   it("a value typed in that a save cannot write, a string, is refused before it is made", () => {
     const { root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
     const original = new Uint8Array(fileBytes(CASES));
+    // Inside a variable. A whole variable's Value typed as a string makes it a string variable
+    // (MatNode._retype; matRetypeString.test.ts).
     for (const [node, typed, why] of [
-      [by('kp'), '"abc"', 'Cannot edit "kp": kp would be a string, which this package cannot write into a MAT-file.'],
-      [by('kp'), '["a" "b"]', 'Cannot edit "kp": kp would be a string, which this package cannot write into a MAT-file.'],
       [by('cellFlat').children[0], '{1, "a"}', 'Cannot edit "cellFlat": cellFlat{1} would hold a string, which this package cannot write into a MAT-file.'],
       [by('structScalar').children[0], '"x"', 'Cannot edit "structScalar": structScalar.a would be a string, which this package cannot write into a MAT-file.'],
     ] as [any, string, string][]) {

@@ -1,6 +1,6 @@
 import ContainerNode from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
-import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceSetResult } from '../BaseNode.js';
+import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceRetyped, SourceSetResult } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
@@ -66,6 +66,7 @@ export default class MatNode extends ContainerNode {
             remap: (node: BaseNode, state: MatObjectState) => MatObjectState;
         };
     } | undefined;
+    _replaced: Map<BaseNode, BaseNode>;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added
@@ -376,6 +377,24 @@ export default class MatNode extends ContainerNode {
         undo: () => void;
         redo: () => void;
     } | null;
+    /**
+     * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
+     * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
+     * that variable; or null, where `node`'s own setter makes the edit. A string typed over a variable
+     * that is not one, as `x = "abc"` makes `x` a string in MATLAB whatever it was: a save writes a
+     * string only as an object of the subsystem, which only its creation makes, so the variable
+     * becomes the one an Add of a string makes (_createObject), of its name and in its place, holding
+     * the text; and a save writes it where the variable it replaced was (_replacementOf). A variable
+     * whose Value takes no edit (valueEditable: a struct, a function handle, a summary) is not one,
+     * nor is one holding an object, a string among them, whose Value row is the object's.
+     */
+    _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /**
+     * The variable of this file in place of `node` (_retype), however many times replaced, where
+     * `node` is no longer in it and that variable holds no record of its own; or null: the variable
+     * a save writes where `node`'s record was (MatFileWriter.planOf).
+     */
+    _replacementOf(node: BaseNode): BaseNode | null;
     getVariables(): MatVariable[];
     static fromParsed(parsed: MatParse, filename: string, options?: {
         nodeCeiling?: number;
