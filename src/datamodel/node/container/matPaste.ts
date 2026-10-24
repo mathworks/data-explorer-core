@@ -769,7 +769,7 @@ function numberOf(text: string): number | null {
   if (/^nan$/i.test(inner)) {
     return NaN;
   }
-  return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(inner) ? Number(inner) : null;
+  return /^[+-]?(\d+(?:\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(inner) ? Number(inner) : null;
 }
 
 // The rows `node` shows: its table's columns, then the rows its Property Inspector lays out. A key

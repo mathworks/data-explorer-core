@@ -86,7 +86,7 @@ describe('a value the file takes no variable of', () => {
       ['test/fixtures/mcos-templates/targets/r2027a/other.mat', 'd', 'datetime'],
       [MIXED, 'be', 'Simulink.BusElement'],
     ]) {
-      expectOneRefused(copied(file, name), new RegExp(`: it is an? ${cls.replace(/\./g, '\\.')}, and a MAT-file takes a new variable of a plain value, a struct, or one of Simulink\\.Parameter`));
+      expectOneRefused(copied(file, name), new RegExp(`: it is an? ${cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, and a MAT-file takes a new variable of a plain value, a struct, or one of Simulink\\.Parameter`));
     }
   });
 
