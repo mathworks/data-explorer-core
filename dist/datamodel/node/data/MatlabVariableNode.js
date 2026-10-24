@@ -2982,18 +2982,20 @@ export default class MatlabVariableNode extends DataNode {
         }
         if (type === 'char') {
             if (val === '' || val === null || val === undefined) {
-                // MATLAB writes a 0x0 or 1x0 empty char with neither a body nor a Dimension —
-                // char_binary.sldd's charEmpty — and any other with its Dimension:
-                // `Class="char" Dimension="0*2"/>`, `"2*0"`, `"0*0*2"` (the matEmptyString entries of
-                // a binary dictionary MATLAB wrote). Those went out as the 0x0.
+                // MATLAB writes the 0x0 empty char with neither a body nor a Dimension — char_binary.sldd's
+                // charEmpty — and every other with its Dimension, a 1x0 among them, at an entry, a cell's
+                // element and a struct field alike: `Class="char" Dimension="1*0"/>`, `"0*2"`, `"2*0"`,
+                // `"1*0*2"` (measured against MATLAB R2027a: probe_char_empty_binary.m,
+                // char_empty_binary.sldd). A 1x0 went out as a row does, with none, and read back as the 0x0.
                 const empty = this._textDims('');
-                const dimAttr = charNeedsShape(empty) && !(empty.length === 2 && empty[0] === 0 && empty[1] === 0) ? ' Dimension="' + dimensionText(empty) + '"' : '';
+                const zeroByZero = empty.length === 2 && empty[0] === 0 && empty[1] === 0;
+                const dimAttr = zeroByZero ? '' : ' Dimension="' + dimensionText(empty) + '"';
                 return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '/>';
             }
             // The text is already MATLAB's column-major storage order, which is the order
             // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
             // Dimension was missing, so every char BUT a row went out claiming 1xN — a 3x1
-            // came back transposed and a 2x3x2 came back flat (defect 25). A row and an
+            // came back transposed and a 2x3x2 came back flat (defect 25). A row and the 0x0
             // empty char carry no attribute, exactly as MATLAB leaves them, except a row over
             // 512 characters, which MATLAB gives its `Dimension="1*N"` (charRowDimension).
             const text = String(val);
