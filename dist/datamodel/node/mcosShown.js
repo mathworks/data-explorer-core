@@ -8,6 +8,7 @@
 // SignednessBool is 'Auto'); a CoderInfo's Identifier, which it saves as Alias; and a
 // Simulink.Parameter's Value held as a char row, which MATLAB loads as the string scalar it is.
 import { emptyHeaderDims } from '../parser/XmlUtils.js';
+import { setOwn } from '../parser/ownKeys.js';
 import { superclassOf } from './registeredSubclasses.js';
 /**
  * The Signedness MATLAB shows of a saved SignednessBool: true, false, or none (a 0x0 logical), which
@@ -26,6 +27,22 @@ export function signednessShown(saved) {
     }
     const leaf = saved !== null && typeof saved === 'object' ? saved : null;
     return leaf?._type === 'logical' && (leaf._value === '[]' || emptyHeaderDims(leaf._value) !== null) ? 'Auto' : null;
+}
+/**
+ * The SignednessBool MATLAB saves of a Signedness, signednessShown's other way: true, false, or a
+ * 0x0 logical for 'Signed', 'Unsigned', 'Auto'; undefined for anything else.
+ */
+function signednessSaved(shown) {
+    switch (shown) {
+        case 'Signed':
+            return true;
+        case 'Unsigned':
+            return false;
+        case 'Auto':
+            return [];
+        default:
+            return undefined;
+    }
 }
 /** The three shown of a NumericType's saved bag, or null where it holds them not as numbers. */
 export function numericTypeShown(bag) {
@@ -50,12 +67,9 @@ export function numericTypeSaved(bag) {
     if (!numericTypeShown(bag)) {
         return out;
     }
-    const signed = bag.Signed;
-    if (signed === 'Signed' || signed === 'Unsigned' || signed === 'Auto') {
-        const saved = signed === 'Auto' ? [] : signed === 'Signed';
-        if (signednessShown(bag.SignednessBool) !== signed) {
-            out.SignednessBool = saved;
-        }
+    const signednessBool = signednessSaved(bag.Signed);
+    if (signednessBool !== undefined && signednessShown(bag.SignednessBool) !== bag.Signed) {
+        out.SignednessBool = signednessBool;
     }
     const fl = bag.FractionLength;
     const exponent = typeof fl === 'number' && Number.isFinite(fl) ? -fl + 0 : bag.FixedExponent;
@@ -99,6 +113,69 @@ export function withParameterValueShown(bag) {
     return bag;
 }
 /**
+ * What MATLAB R2027a holds of a Simulink.NumericType made with nothing set, in MATLAB's own
+ * alphabetical key order: what a new one is (NumericTypeNode.createDefault), and what MATLAB reads
+ * of a property a dictionary's NumericType does not hold (withDefaultsShown).
+ */
+export const NUMERIC_TYPE_DEFAULTS = Object.freeze({
+    Bias: 0,
+    DataScope: 'Auto',
+    DataTypeMode: 'Double',
+    DataTypeOverride: 'Inherit',
+    Description: '',
+    FixedExponent: 0,
+    HeaderFile: '',
+    IsAlias: false,
+    SignednessBool: true,
+    SlopeAdjustmentFactor: 1,
+    WordLength: 64,
+});
+/**
+ * `bag`, a `className` object's, with what MATLAB reads of each property it does not hold, for a
+ * row to read: a NumericType's default (NUMERIC_TYPE_DEFAULTS), and the FixedExponent of a
+ * FractionLength and the SignednessBool of a Signedness it states, as MATLAB's setter makes each.
+ * A binary dictionary System Composer wrote holds its NumericType's DataTypeMode and IsAlias alone
+ * (arch_binary.sldd), and its rows showed nothing for the rest; measured against MATLAB R2027a, it
+ * reads as one with nothing set does, and a hand-written one stating Signedness, WordLength 16 and
+ * FractionLength 3 (typeLink.sldd) as FixedExponent -3, Slope 0.125. No default is taken of what
+ * the bag states otherwise: a FixedExponent or a SlopeAdjustmentFactor where it states a Slope.
+ * Display only: a copy, `bag` itself never changed, and answered as it is where nothing is added;
+ * for any other class, `bag`.
+ */
+export function withDefaultsShown(className, bag) {
+    if (!bag || className !== 'Simulink.NumericType') {
+        return bag;
+    }
+    const states = (k) => k in bag;
+    let out = null;
+    const fill = (k, v) => {
+        out = out ?? { ...bag };
+        out[k] = v;
+    };
+    for (const [k, v] of Object.entries(NUMERIC_TYPE_DEFAULTS)) {
+        if (states(k)) {
+            continue;
+        }
+        if (k === 'SignednessBool' && (states('Signedness') || states('Signed'))) {
+            // Of the Signedness it states, as MATLAB's setter makes one.
+            const signednessBool = signednessSaved(bag.Signedness ?? bag.Signed);
+            if (signednessBool !== undefined) {
+                fill(k, signednessBool);
+            }
+            continue;
+        }
+        if ((k === 'FixedExponent' || k === 'SlopeAdjustmentFactor') && states('Slope')) {
+            continue;
+        }
+        if (k === 'FixedExponent' && typeof bag.FractionLength === 'number' && Number.isFinite(bag.FractionLength)) {
+            fill(k, -bag.FractionLength + 0);
+            continue;
+        }
+        fill(k, v);
+    }
+    return out ?? bag;
+}
+/**
  * The property bag of a `className` object as MATLAB shows it, for a row to read: what it saves under
  * other names shown as the property it is, of any file, a dictionary's as a MAT-file's. A
  * NumericType's Signedness, FractionLength and Slope (withNumericTypeShown), and a Parameter's or a
@@ -130,6 +207,104 @@ export function shownPropertiesOf(className, bag) {
     }
     return bag;
 }
+/**
+ * `value`, handed to a dictionary (a paste: SectionNode.parseEntry), without what MATLAB shows of
+ * each object in it that it saves under other names (shownPropertiesOf), where the object's bag
+ * also holds the saved keys it is shown of and the two say the same: a NumericType's Signed,
+ * FractionLength and Slope beside its SignednessBool, FixedExponent and SlopeAdjustmentFactor, a
+ * Parameter's or a Signal's CoderInfo Identifier beside its Alias. A MAT-file's object holds both
+ * (mcosTypedNode), and its copy carried both into the dictionary's file, `Signed` a key MATLAB has
+ * no property of; MATLAB saves the saved ones alone, and a dictionary's rows show the rest of them
+ * as the MAT-file's did. A shown key saying otherwise is no copy's, and is kept: what MATLAB would
+ * load of the two is not measured. And, for a binary dictionary (`binary`), a CoderInfo in the
+ * order MATLAB writes one there (savedOnly). A copy where anything changed, the same value where
+ * nothing did.
+ */
+export function withoutShownOfSaved(value, binary = false) {
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return mapKeepingSame(value, (e) => withoutShownOfSaved(e, binary));
+    }
+    const o = value;
+    let out = null;
+    const set = (k, v) => {
+        if (v !== o[k]) {
+            out = out ?? { ...o };
+            setOwn(out, k, v);
+        }
+    };
+    const objectClass = typeof o._object_class === 'string' ? o._object_class : null;
+    if (objectClass && o._properties && typeof o._properties === 'object') {
+        set('_properties', savedOnly(objectClass, o._properties, binary));
+    }
+    else if (typeof o._array_class === 'string' && Array.isArray(o._elements)) {
+        const arrayClass = o._array_class;
+        set('_elements', mapKeepingSame(o._elements, (e) => {
+            const el = e;
+            if (!el || typeof el !== 'object' || !el._properties || typeof el._properties !== 'object') {
+                return withoutShownOfSaved(e, binary);
+            }
+            const props = savedOnly(typeof el._object_class === 'string' ? el._object_class : arrayClass, el._properties, binary);
+            return props === el._properties ? el : { ...el, _properties: props };
+        }));
+    }
+    for (const [k, v] of Object.entries(o)) {
+        if (k !== '_properties' && k !== '_elements') {
+            set(k, withoutShownOfSaved(v, binary));
+        }
+    }
+    return out ?? o;
+}
+// `items`, each through `f`: a new array where `f` changed any, `items` itself where it changed none.
+function mapKeepingSame(items, f) {
+    const out = items.map(f);
+    return out.some((e, i) => e !== items[i]) ? out : items;
+}
+// The bag of a `className` object without what withoutShownOfSaved drops of it, every value in it
+// walked too; the same bag where nothing is dropped. For a binary dictionary, a CoderInfo's in the
+// order MATLAB writes one there (CODER_INFO_ORDER) too: MATLAB R2027a reads a binary dictionary's
+// properties in the order they are written, and an Alias or an Alignment set before the
+// StorageClass, under the 'Auto' it is until then, is lost (Alignment 8 read as -1). The order
+// R2027a's MAT-file saves one in, which its copy carried, sets StorageClass last, and so does a
+// text dictionary's, by name; only the Identifier a MAT-file's copy carried after it, of the Alias,
+// kept that one. A text dictionary is read whatever the order (measured both ways), and keeps its own.
+function savedOnly(className, bag, binary) {
+    let out = null;
+    if (className === 'Simulink.NumericType') {
+        for (const [k, v] of Object.entries(numericTypeShown(bag) ?? {})) {
+            if (k in bag && bag[k] === v) {
+                out = out ?? { ...bag };
+                delete out[k];
+            }
+        }
+    }
+    else if (className === 'Simulink.CoderInfo') {
+        const keys = Object.keys(bag).filter((k) => !(k === 'Identifier' && typeof bag.Alias === 'string' && bag.Identifier === bag.Alias));
+        const ordered = binary ? [...CODER_INFO_ORDER.filter((k) => keys.includes(k)), ...keys.filter((k) => !CODER_INFO_ORDER.includes(k))] : keys;
+        const held = Object.keys(bag);
+        if (ordered.length !== held.length || ordered.some((k, i) => k !== held[i])) {
+            out = {};
+            for (const k of ordered) {
+                setOwn(out, k, bag[k]);
+            }
+        }
+    }
+    for (const [k, v] of Object.entries(out ?? bag)) {
+        const w = withoutShownOfSaved(v, binary);
+        if (w !== v) {
+            out = out ?? { ...bag };
+            setOwn(out, k, w);
+        }
+    }
+    return out ?? bag;
+}
+// A CoderInfo's properties in the order MATLAB R2027a writes them into a binary dictionary, and
+// MATLAB R2024b and earlier save them in a 'handle' opaque (McosSubsystemCodec.handleObjectOf).
+const CODER_INFO_ORDER = [
+    'HasCoderInfo', 'StorageClass', 'TypeQualifier', 'Alias', 'Alignment', 'IsCSCPackageOverridden', 'CSCPackageName', 'ParameterOrSignal', 'CustomStorageClass', 'CustomAttributes',
+];
 /**
  * Of a property a `className` object's row shows at `path` (a schema sourcePath), the property
  * MATLAB shows and what it saves it as, where it saves it under another name (shownPropertiesOf):

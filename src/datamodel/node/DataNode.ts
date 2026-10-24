@@ -453,6 +453,23 @@ export default class DataNode extends BaseNode {
     return (prop as unknown as { nodeProperty?: string }).nodeProperty || prop.key;
   }
 
+  // The row the Property Inspector shows under `key`, where no column does (_propFor).
+  _piPropFor(key: string): PropClass | undefined {
+    return (this.getPILayout() ?? []).flatMap((g) => g.items).find((p) => p.key === key);
+  }
+
+  // How the node shows `prop` (getPropInfo, which the table and the Property Inspector both read):
+  // whether as a row it takes an edit of, and its text. A row that cannot be read is shown read-only,
+  // with no text, so that what asks of it answers rather than throws.
+  _rowShown(prop: PropClass): { editable: boolean; text: string } {
+    try {
+      const info = this.getPropInfo(prop);
+      return { editable: info.editable, text: String(info.displayValue ?? '') };
+    } catch {
+      return { editable: false, text: '' };
+    }
+  }
+
   /**
    * Is `stringValue` the text `propName` shows, on a property this node takes an edit of? Then
    * setting it is no edit, and every setProperty asks this first, the overrides included: it
@@ -608,11 +625,28 @@ export default class DataNode extends BaseNode {
       // quoted. Stored as-is, the quotes became part of the value and the next
       // edit wrapped them again — 'a == 1' → ''a == 1'' → … — so the .sldd ended
       // up holding a condition MATLAB can no longer evaluate.
-      const unformat = this._propFor(propName)?.unformat;
+      const prop = this._propFor(propName);
+      const unformat = prop?.unformat;
       const next = unformat ? unformat(stringValue) : stringValue;
       const sourceRefusal = this._refuseSourceValue(propName, next, stringValue, String(current ?? ''));
       if (sourceRefusal) {
         return sourceRefusal;
+      }
+      // A row this node shows read-only that names nothing it holds: its Kind and Class, and the rows
+      // a schema shows (a NumericType's WordLength, a Parameter's HeaderFile: schemaBridge). The write
+      // below would make a field of that name, which nothing reads, and answer as if the edit were
+      // taken; and the entry was marked edited all the same, and written again from the node, which
+      // spelled some values otherwise: a complex int16 of a binary dictionary went as a double one, a
+      // 1x0 Parameter array as a [] (test/readOnlyRowEdits.test.ts).
+      const shownProp = prop ?? this._piPropFor(propName);
+      const shown = shownProp && !(resolved in self) ? this._rowShown(shownProp) : null;
+      if (shownProp && shown && !shown.editable) {
+        return {
+          error: true,
+          reason: 'Cannot edit "' + (this.owningEntry ?? this).name + '": the ' + shownProp.displayName + ' of ' + this.matlabPath + ' is read-only here.',
+          invalidValue: stringValue,
+          validValue: shown.text,
+        };
       }
       self[resolved] = next;
     }

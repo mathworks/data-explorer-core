@@ -9,6 +9,7 @@ import { newEntryName, uniqueName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { MatBudgetError, MatWriteError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import { withoutHandleMarks } from '../../parser/McosParser.js';
+import { withoutShownOfSaved } from '../mcosShown.js';
 import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -485,8 +486,14 @@ export default class SectionNode extends ContainerNode {
                 throw new MatWriteError('Cannot write "' + String(rawEntry.name ?? '') + '": its ' + (unread.at || 'value') + " is MATLAB's own handle data, which was not read whole (" + unread.why
                     + '), and a dictionary would hold the rest as its defaults. Nothing was written.');
             }
-            if (value !== rawEntry.value) {
-                rawEntry = { ...rawEntry, value };
+            // And by the keys MATLAB saves alone (mcosShown.withoutShownOfSaved): a MAT-file's object
+            // holds what MATLAB shows of it under other names too, which its copy carried into the file.
+            // Here, the one place a value enters a dictionary from elsewhere, and not when it is written:
+            // a file's own entries are saved as it holds them. Into a binary dictionary (`!text`), a
+            // CoderInfo is also put in the order MATLAB writes one there.
+            const saved = withoutShownOfSaved(value, !text);
+            if (saved !== rawEntry.value) {
+                rawEntry = { ...rawEntry, value: saved };
             }
         }
         // Before textDictionaryForm, which asks the record, as SlddNode.parse records each entry

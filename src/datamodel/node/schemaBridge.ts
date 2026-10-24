@@ -17,7 +17,7 @@
 import { getSchema, getSchemaClasses, getLayout, hydrate, isTypedScalar, sourceLeaf, writeSourcePath } from '../schema/index.js';
 import type { ResolvedProp } from '../schema/types.js';
 import { formatMatlabNum } from '../parser/XmlUtils.js';
-import { shownOfSaved, shownPropertiesOf } from './mcosShown.js';
+import { shownOfSaved, shownPropertiesOf, withDefaultsShown } from './mcosShown.js';
 import type { PropClass, PIGroupDef } from './BaseNode.js';
 import type BaseNode from './BaseNode.js';
 import type { SetPropertyResult } from './DataNode.js';
@@ -283,9 +283,11 @@ function propertiesOf(node: BaseNode): Record<string, unknown> | undefined {
 
 // The bag a row of `node` reads, as MATLAB shows it (mcosShown.shownPropertiesOf): a NumericType's
 // Signedness, FractionLength and Slope and a CoderInfo's Identifier of what it saves them as, in a
-// dictionary as in a MAT-file. Display only: an edit writes the node's own bag (propertiesOf).
+// dictionary as in a MAT-file, and what MATLAB reads of a NumericType's property the bag does not
+// hold (mcosShown.withDefaultsShown). Display only: an edit writes the node's own bag (propertiesOf).
 function shownOf(node: BaseNode): Record<string, unknown> | undefined {
-    return shownPropertiesOf(String((node as unknown as { className?: unknown }).className ?? ''), propertiesOf(node));
+    const className = String((node as unknown as { className?: unknown }).className ?? '');
+    return shownPropertiesOf(className, withDefaultsShown(className, propertiesOf(node)));
 }
 
 // Why an edit of `prop`, a row shown read-only, is refused where what it shows is saved under another

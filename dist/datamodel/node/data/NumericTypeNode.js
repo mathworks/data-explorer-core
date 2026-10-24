@@ -3,7 +3,7 @@ import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
-import { numericTypeSaved } from '../mcosShown.js';
+import { NUMERIC_TYPE_DEFAULTS, numericTypeSaved } from '../mcosShown.js';
 const CLASS_NAME = 'Simulink.NumericType';
 export default class NumericTypeNode extends SimulinkObjectNode {
     constructor(name, parent, props, serial) { super(name, parent, serial); this.Description = props.Description || ''; }
@@ -21,7 +21,7 @@ export default class NumericTypeNode extends SimulinkObjectNode {
     // A copy is this bag, and carried the saved three from before the edit.
     _serializedOverrides() { return { ...this._gatedProps({ Description: this.Description }), ...numericTypeSaved(this.serial._properties) }; }
     static get defaultName() { return 'NumericType'; }
-    // Every value below is MEASURED from what MATLAB R2027a writes for `Simulink.NumericType`
+    // Every value of NUMERIC_TYPE_DEFAULTS (mcosShown) is MEASURED from what MATLAB R2027a writes for `Simulink.NumericType`
     // with nothing set, in MATLAB's own alphabetical key order — not a guess at a sensible
     // default. This bag used to be EMPTY, which made a newly added NumericType the one entry in
     // a dictionary that declared no type at all: MATLAB fills the absent keys from its own
@@ -30,7 +30,7 @@ export default class NumericTypeNode extends SimulinkObjectNode {
     // Note the three storage-side spellings — SignednessBool, FixedExponent,
     // SlopeAdjustmentFactor — are what MATLAB SAVES; Signedness/FractionLength/Slope are derived
     // accessors it never writes, so they belong in neither this bag nor a file.
-    static createDefault(name, parent) { const rawVal = NumericTypeNode._defaultRawVal(CLASS_NAME, { Bias: 0, DataScope: 'Auto', DataTypeMode: 'Double', DataTypeOverride: 'Inherit', Description: '', FixedExponent: 0, HeaderFile: '', IsAlias: false, SignednessBool: true, SlopeAdjustmentFactor: 1, WordLength: 64 }); const props = NumericTypeNode._propsOf(rawVal); return new NumericTypeNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    static createDefault(name, parent) { const rawVal = NumericTypeNode._defaultRawVal(CLASS_NAME, { ...NUMERIC_TYPE_DEFAULTS }); const props = NumericTypeNode._propsOf(rawVal); return new NumericTypeNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
     static parse(rawVal, name, parent) { const props = NumericTypeNode._propsOf(rawVal); return new NumericTypeNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=NumericTypeNode.js.map

@@ -122,6 +122,12 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
   const cell = (d: unknown[]) => ({ _array_type: 'Cell', _dimensions: d, _elements: [1] });
   const struct = (d: unknown[]) => ({ _array_type: 'Struct', _dimensions: d, _elements: [{ f: 1 }], _fields: ['f'] });
   const refusal = (e: Error | null) => e && [e.name, (e as any).reason, e.message];
+  // An edit of the pasted value's first leaf: a cell's element, a struct's first field (a struct
+  // element's own Value row is read-only, and its edit is refused: test/readOnlyRowEdits.test.ts).
+  const editLeaf = (entry: any) => {
+    const first = entry.children[0];
+    return (first.children?.[0] ?? first).setProperty('Value', '2');
+  };
   const pasteInto = (file: string, value: unknown, edit?: (entry: any) => unknown) => {
     const session = createSession();
     const root: any = ingest(session, sparseFixture(file), { filename: file });
@@ -150,7 +156,7 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
     it(`${said}: a pasted cell or struct, edited, the same`, () => {
       for (const [value, cls] of [[() => cell([...d]), 'cell'], [() => struct([...d]), 'struct']] as const) {
         const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
-        const text = pasteInto(TEXT, value(), (entry) => entry.children[0].setProperty('Value', '2'));
+        const text = pasteInto(TEXT, value(), editLeaf);
         expect([refusal(text.save), refusal(text.copy)], cls).toEqual([want, want]);
       }
     });
@@ -159,7 +165,7 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
   it('in a binary dictionary, an edited pasted struct with [NaN,1] or [1,Infinity] is copied as it stands, and its save is refused', () => {
     // A binary value's serialize() is its copy as it stands; the check is the text writer's.
     for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[1,Infinity]', [1, Infinity]]] as const) {
-      const binary = pasteInto(BINARY, struct([...d]), (entry) => entry.children[0].setProperty('Value', '2'));
+      const binary = pasteInto(BINARY, struct([...d]), editLeaf);
       expect([binary.copy, (binary.entry.serialize() as any).value._dimensions, refusal(binary.save)], said).toEqual([
         null,
         [...d],
