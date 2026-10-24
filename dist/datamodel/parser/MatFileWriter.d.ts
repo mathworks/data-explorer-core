@@ -69,6 +69,16 @@ export declare function renameWhy(record: MatRecord): string | null;
  */
 export declare function freshRefusal(node: BaseNode, record: MatRecord | null): MatWriteError | null;
 /**
+ * The refusal a save throws for writing `node`, a variable added since the read, fresh, or null where
+ * it writes it: freshRefusal's; then what only its bytes say, MatWriter's budget and every other
+ * refusal of MatWriter's, by writing the element the save writes for it (freshElement); and then the
+ * save's own self-check of a record written fresh, the element read back alone, after `headerBytes`,
+ * the file's header, and held to the variable it was written from (selfCheck, `differs`). Nothing of
+ * it is kept. Asked of a value pasted into the file before it is added (matPaste), so that a paste
+ * taken is a variable the save writes as it is.
+ */
+export declare function freshWriteRefusal(node: BaseNode, headerBytes: Uint8Array): MatWriteError | null;
+/**
  * The first node at or under `at` that MatWriter cannot write as what it is (the rule of
  * MatlabVariableNode._matWritable), with its MATLAB path and what it is, or null for none. Asked
  * by freshRefusal, and by the editor of a value about to be typed in (MatNode._valueRefusal).

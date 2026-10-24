@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { defaultBus, createEventBus } from './EventBus.js';
+import type { Topics } from './EventBus.js';
 import DefaultUndoManager, { createUndoManager } from './UndoManager.js';
 import SlddNode from '../datamodel/node/container/SlddNode.js';
 import ModelNode from '../datamodel/node/container/ModelNode.js';
@@ -11,7 +12,8 @@ import type { ParsedSlx } from '../datamodel/parser/SlxParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
-import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
+import { serializeBinarySldd, serializeEntryToXml } from '../datamodel/parser/BinarySlddSerializer.js';
+import { MatWriteError } from '../datamodel/parser/MatWriter.js';
 import { serializeMatFile } from '../datamodel/parser/MatFileWriter.js';
 import { catalogFunctionRenames, catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
@@ -33,6 +35,9 @@ import RowCellPool from '../datamodel/node/RowCellPool.js';
 import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
 import type BaseNode from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
+import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
+import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
+import * as NodeRegistry from '../datamodel/node/NodeRegistry.js';
 
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -47,6 +52,8 @@ import type {
   FindNodesQuery,
   LinkResolution,
   NodeUsage,
+  PastePayload,
+  PasteResult,
   SerializedSource,
 } from './sessionTypes.js';
 
@@ -60,7 +67,7 @@ import type {
 // `sessionTypes.js` instead: `AllNode` and `SourceMeta` are aliases published here, the
 // barrel is a released surface, and that test asserts the shape of the UsageIndex edge.
 export type { AllNode, SourceMeta } from './sessionTypes.js';
-export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, SerializedSource };
+export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource };
 
 // A link target split into the entry name it asks for and the source it asks in.
 //
@@ -2083,6 +2090,195 @@ function addEntryRefusal(): string | null {
   return typeof source?.addEntryRefusal === 'function' ? source.addEntryRefusal() : null;
 }
 
+/**
+ * Paste `payloads`, entries a host copied (DataNode.serialize: `{ name, metadata, value }`, of a
+ * dictionary's entries or a MAT-file's variables), into the MAT-file `srcId` as new variables
+ * (MatNode.execPasteEntries): each named as it was, or made unique against the file and the entries
+ * pasted before it. All of them or none: where one is refused, nothing is added, published or
+ * recorded, the file is as it was, and the answer says why, naming the entry and the file.
+ *
+ * A paste made is ONE undo step of `srcId`'s stack (one 'undo/changed'), whatever it added, as a
+ * delete of several entries is one (deleteEntryBatch); its undo takes every variable out and its redo
+ * puts them back. Each variable added is announced ('node/added'), and each taken out by the undo
+ * ('node/deleted'). The selection is not moved: a host that pasted selects what it pasted itself,
+ * from the nodes answered. Addressed by srcId, not by the selection, for the reason the (nodeId)
+ * forms are: a drop lands in a file the selection need not be in.
+ *
+ * Only a MAT-file: a dictionary takes a paste through its section (SectionNode.parseEntry), whose
+ * host splices the entry into the file's own text, and is refused here so, as is a srcId no open
+ * source has.
+ */
+function pasteEntries(srcId: string, payloads: readonly PastePayload[]): PasteResult {
+  const source = dataSources.get(srcId);
+  const refused = pasteTargetRefusal(srcId, source);
+  if (refused) {
+    return { error: true, reason: refused };
+  }
+  const mat = source as unknown as MatNode;
+  if (!Array.isArray(payloads)) {
+    return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": what was handed over is not a list of entries. Nothing was pasted.' };
+  }
+  if (payloads.length === 0) {
+    return { nodes: [] };
+  }
+  const made = mat.execPasteEntries(payloads);
+  if ('error' in made) {
+    return made;
+  }
+  const nodes = made.nodes as unknown as INode[];
+  const scope = mat as unknown as ISourceNode;
+  const added = () => {
+    for (const node of nodes) {
+      indexSubtree(node);
+    }
+    for (const node of nodes) {
+      publishIndexed('node/added', { node, sectionKey: scope.name });
+    }
+  };
+  UndoManager.pushExecuted(scope.name, {
+    execute() {
+      made.redo();
+      added();
+    },
+    undo() {
+      // Each variable's ids read while it is in the tree (heldSubtree), taken out of the index once
+      // it has left it (unindexHeld), and the selection released from what left, as every removal
+      // of the session does, before the change is announced.
+      const held = nodes.map((node) => heldSubtree(node));
+      made.undo();
+      for (const h of held) {
+        unindexHeld(h);
+      }
+      releaseSubtreeSelection(held.flatMap((h) => h.nodes));
+      for (const node of nodes) {
+        publishIndexed('node/deleted', { node, section: scope as unknown as IContainerNode });
+      }
+    },
+  });
+  added();
+  return { nodes };
+}
+
+/**
+ * Why a paste of `payload` into the MAT-file `srcId` would be refused, in the words pasteEntries
+ * would answer, or null where it would be made (MatNode.pasteRefusal). By default only what is known
+ * without making anything: the file, what was handed over, its name, its kind and class. With `deep`,
+ * the paste itself, made and taken back, which no host sees: nothing published or recorded, and the
+ * file as it was, its save the bytes it was. So a deep answer of null is a paste that will be made.
+ */
+function pasteRefusal(srcId: string, payload: PastePayload, opts?: { deep?: boolean }): string | null {
+  const source = dataSources.get(srcId);
+  const refused = pasteTargetRefusal(srcId, source);
+  return refused ?? (source as unknown as MatNode).pasteRefusal(payload, opts?.deep === true);
+}
+
+// Why `source`, the source `srcId` names, takes no paste through the session: none is open under
+// it, or it is not a MAT-file.
+function pasteTargetRefusal(srcId: string, source: ISourceNode | undefined): string | null {
+  if (!source) {
+    return 'Cannot paste into "' + srcId + '": no source of that id is open. Nothing was pasted.';
+  }
+  if (!(source instanceof MatNode)) {
+    return 'Cannot paste into "' + basenameOf(srcId) + '": a paste through the session is supported only into a MAT-file; '
+      + "a dictionary's section takes one entry at a time (parseEntry). Nothing was pasted.";
+  }
+  return null;
+}
+
+// Publish `topic` for a node the index already describes (indexSubtree, or the ids deleted), as
+// publishEdited does: without the rebuild of the whole index the topic otherwise asks for, which a
+// paste of N variables would make N times.
+function publishIndexed<K extends 'node/added' | 'node/deleted'>(topic: K, payload: Topics[K]): void {
+  indexCurrent = true;
+  try {
+    (publish as (topic: K, payload: Topics[K]) => void)(topic, payload);
+  } finally {
+    indexCurrent = false;
+  }
+}
+
+/**
+ * Why the entry `nodeId` (a dictionary's entry or a MAT-file's variable) cannot be copied, in words
+ * naming it, or null where it can: a copy is its serialize(), which refuses what has no value to
+ * write (one not decoded, a struct or a cell none of whose elements were read, dims that are no
+ * size) and what is past MatWriter's budget. With `target`, the kind of dictionary it is to be pasted
+ * into, also what that dictionary refuses of it, by its own rules on a dictionary of that kind held
+ * by nobody: a text dictionary's ('json': SectionNode.parseEntry, which refuses a MAT stream MatWriter
+ * cannot write, and the entry's text, serialize()), a binary one's ('xml': the entry's XML,
+ * serializeEntryToXml, which refuses a function handle, say), and what it would read back as there:
+ * an entry that would land as another value than it holds. And an entry whose copy reads back as
+ * another value than it holds (matPaste.copyDifference: a MAT-file's int8 0x3 copies as `[]`). Not what a JSON
+ * round trip would make of a value (a bare Inf, a -0): a host carries a copy as the value it is, which
+ * every writer here spells. Asked by a host before it puts the entry on the clipboard or starts a
+ * drag, so that a copy that cannot land is refused where it is made.
+ */
+function copyRefusal(nodeId: string, target?: 'json' | 'xml'): string | null {
+  const node = resolveId(nodeId);
+  if (!node) {
+    return 'Cannot copy "' + nodeId + '": no entry of that id is open. Nothing was copied.';
+  }
+  if (!node.isEntry) {
+    return 'Cannot copy "' + node.name + '": only an entry or a variable is copied, whole. Nothing was copied.';
+  }
+  // A writer's refusal (a MatWriteError) in its own words; any other failure of the copy's writing,
+  // which no refusal says, as what it says, so that a copy that cannot be written is refused and
+  // not thrown at the host asking.
+  const refusal = (e: unknown, into?: string): string => {
+    if (!(e instanceof Error)) {
+      throw e;
+    }
+    const why = e instanceof MatWriteError ? writerWhy(e) : 'it could not be written (' + e.message + ')';
+    return 'Cannot copy "' + node.name + '"' + (into ? ' into ' + into : '') + ': ' + why + '. Nothing was copied.';
+  };
+  let payload: { name: string; metadata: unknown; value: unknown };
+  let lossy: string | null;
+  const ofMatFile = ownerSourceOf(node) instanceof MatNode;
+  try {
+    payload = (node as unknown as { serialize: () => { name: string; metadata: unknown; value: unknown } }).serialize();
+    // A copy that reads back as another value than the entry holds would paste as one
+    // (matPaste.copyDifference), out of a MAT-file or a dictionary alike.
+    lossy = copyDifference(node as unknown as BaseNode, payload, ofMatFile);
+  } catch (e) {
+    return refusal(e);
+  }
+  if (lossy) {
+    return 'Cannot copy "' + node.name + '": what a copy carries of it reads back as another value (' + lossy + '). Nothing was copied.';
+  }
+  if (!target) {
+    return null;
+  }
+  // As a host pastes it: into a dictionary's section (prepareEntryForPaste gives an entry with no
+  // metadata, a MAT-file's variable, one with a uuid), held by a dictionary of `target`'s kind no file is.
+  const scratch = new SlddNode('clipboard.sldd');
+  scratch.sourceFormat = target;
+  const section = scratch.getSection(isDerivedPayload(payload) ? 'arch' : 'design')!;
+  const metadata = payload.metadata ?? { uuid: '00000000-0000-4000-8000-000000000000' };
+  const into = target === 'xml' ? 'a binary dictionary' : 'a text dictionary';
+  let landed: string | null;
+  try {
+    const entry = section.parseEntry({ name: payload.name, metadata, value: payload.value });
+    // And read back as that dictionary reads what it wrote: an entry that lands as another value
+    // than the one copied (a char 1x0 a binary dictionary's writer spells as the 0x0) is refused.
+    let back: INode | null;
+    if (target === 'xml') {
+      back = readEntryFragment(serializeEntryToXml(entry).trim()) as unknown as INode | null;
+    } else {
+      const text = JSON.parse(JSON.stringify((entry.serialize() as { value: unknown }).value ?? null));
+      back = NodeRegistry.parseValue(text, payload.name, section) as unknown as INode;
+    }
+    landed = back ? landedDifference(node as unknown as BaseNode, back as unknown as BaseNode, ofMatFile) : null;
+  } catch (e) {
+    return refusal(e, into);
+  }
+  return landed ? 'Cannot copy "' + node.name + '" into ' + into + ': it would land there as another value (' + landed + '). Nothing was copied.' : null;
+}
+
+// Whether `payload` is an architectural (derived) entry's, which a host pastes into that section.
+function isDerivedPayload(payload: { metadata: unknown }): boolean {
+  const md = payload.metadata as { isderived?: unknown } | null;
+  return !!md && typeof md === 'object' && md.isderived === '1';
+}
+
 // What a mutation does to the selection, and the only thing that differs between the
 // selection-driven forms and the (nodeId) forms below.
 //
@@ -2587,6 +2783,11 @@ function getActiveSourceNode(): ISourceNode | null {
     editProperty,
     addEntry,
     addEntryRefusal,
+    // A paste of copied entries into a MAT-file, as one undo step, and what it would refuse; and
+    // whether an entry can be copied at all, for the kind of dictionary it is to land in.
+    pasteEntries,
+    pasteRefusal,
+    copyRefusal,
     // The selection-driven mutation forms, for a host that already tracks a
     // selection, and the explicit (nodeId) forms beside them for one that does not.
     // Both are supported surface: neither is a deprecation of the other.

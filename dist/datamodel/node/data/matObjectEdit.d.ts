@@ -31,6 +31,13 @@ export interface MatBagEditor {
 }
 /** What the node `holder` shows of the property an editor writes (MatBagEditor): its field, else its bag's key. */
 export declare function matBagEditorShown(holder: BaseNode, editor: MatBagEditor): unknown;
+/**
+ * The keys of an object's property bag a row of its shows under another name, which its Property
+ * Inspector's "Other" does not list again (MatNode._inspectorRows): a NumericType's SignednessBool,
+ * FixedExponent and SlopeAdjustmentFactor, which its Signedness, FractionLength and Slope show; a
+ * Bus's elements, which its rows are; a ValueType's own element.
+ */
+export declare const MAT_SHOWN_SAVED_KEYS: readonly string[];
 /** Every editor a MAT-file offers on a node of `className` (BAG_EDITORS). */
 export declare function matBagEditorsOf(className: string): MatBagEditor[];
 /**
@@ -39,6 +46,14 @@ export declare function matBagEditorsOf(className: string): MatBagEditor[];
  * row's class a BusElement), its ELEMENT_SPOTS.
  */
 export declare function matOffersSpot(objectClass: string | null, rowClass: string, property: string): boolean;
+/**
+ * The keys of `rowKeys`, the rows a node of `className` shows, whose property a MAT-file offers an
+ * editor of, in the order the editor judges them (OWN_SPOTS: a NumericType's mode first), and then
+ * the columns of an object it holds (HELD_COLUMNS: a CoderInfo's StorageClass); of a bus element's
+ * row, its ELEMENT_SPOTS, its Name apart. What a paste sets of a copied object on the one it makes
+ * (matPaste.carryInto), by the spots the editor writes and no list of its own.
+ */
+export declare function matCarriedKeysOf(className: string, rowKeys: readonly string[]): string[];
 /** The editor a MAT-file offers of `key` on a node of `className`, or null (BAG_EDITORS). */
 export declare function matBagEditorOf(className: string, key: string): MatBagEditor | null;
 /** One object a node edits: the node's own, or one it holds. */

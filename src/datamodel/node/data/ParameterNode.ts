@@ -725,6 +725,12 @@ export default class ParameterNode extends DataNode {
         }
         if ('DocUnits' in sp || this.Unit) { props.DocUnits = this.Unit; }
         if ('Description' in sp || this.Description) { props.Description = this.Description; }
+        // The DataType the node shows, where it is not the one the bag holds: a MAT-file's object's,
+        // which an edit sets on the node (and a Value edit follows, _followSourceDataType) and its
+        // save writes into the file's objects. A copy is this bag, and carried the DataType from
+        // before the edit. A dictionary shows the bag's own, which this leaves as it is.
+        const dataType = props.DataType === undefined || props.DataType === null || props.DataType === '' ? 'auto' : props.DataType;
+        if (this.DataType && this.DataType !== dataType) { props.DataType = this.DataType; }
         return props;
     }
 

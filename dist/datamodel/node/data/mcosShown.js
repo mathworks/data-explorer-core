@@ -25,6 +25,40 @@ export function numericTypeShown(bag) {
     }
     return { Signed: signed, FractionLength: -fe + 0, Slope: saf * 2 ** fe };
 }
+/**
+ * The saved three of a NumericType's bag that the shown three it also holds say otherwise, as what they
+ * say: numericTypeShown's other way (SignednessBool true, false or a 0x0 logical for 'Signed',
+ * 'Unsigned', 'Auto'; FixedExponent = -FractionLength; SlopeAdjustmentFactor = Slope * 2^FractionLength).
+ * Only of a bag that holds both, which is a MAT-file's node's (withNumericTypeShown), whose edits write
+ * the shown three while its save writes the saved: what a copy of it holds of them, so that the copy is
+ * what the save writes. A dictionary's bag holds the saved three alone, or a hand-written shown pair.
+ */
+export function numericTypeSaved(bag) {
+    const out = {};
+    if (!numericTypeShown(bag)) {
+        return out;
+    }
+    const signed = bag.Signed;
+    if (signed === 'Signed' || signed === 'Unsigned' || signed === 'Auto') {
+        const saved = signed === 'Auto' ? [] : signed === 'Signed';
+        if (signednessShown(bag.SignednessBool) !== signed) {
+            out.SignednessBool = saved;
+        }
+    }
+    const fl = bag.FractionLength;
+    const exponent = typeof fl === 'number' && Number.isFinite(fl) ? -fl + 0 : bag.FixedExponent;
+    if (exponent !== bag.FixedExponent) {
+        out.FixedExponent = exponent;
+    }
+    const slope = bag.Slope;
+    if (typeof slope === 'number' && Number.isFinite(slope)) {
+        const factor = slope / 2 ** exponent;
+        if (factor !== bag.SlopeAdjustmentFactor) {
+            out.SlopeAdjustmentFactor = factor;
+        }
+    }
+    return out;
+}
 /** `bag`, a NumericType's as MCOS decoded it, with the shown three added where it holds the saved. */
 export function withNumericTypeShown(bag) {
     const shown = numericTypeShown(bag);

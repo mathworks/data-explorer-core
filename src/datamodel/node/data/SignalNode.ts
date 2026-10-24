@@ -129,7 +129,7 @@ export default class SignalNode extends DataNode {
         if ('Max' in sp || this.Max !== undefined) { props.Max = this.Max !== undefined ? this.Max : []; }
         if (unitKey in sp || this.Unit) { props[unitKey] = this.Unit; }
         if ('Description' in sp || this.Description) { props.Description = this.Description; }
-        Object.assign(props, this._enumOverrides(sp));
+        Object.assign(props, this._enumOverrides(sp), this._dataTypeOverride(sp));
         return props;
     }
 
@@ -144,8 +144,18 @@ export default class SignalNode extends DataNode {
         if ('Max' in sp || this.Max !== undefined) { overrides.Max = this.Max; }
         if (unitKey in sp || this.Unit) { overrides[unitKey] = this.Unit; }
         if ('Description' in sp || this.Description) { overrides.Description = this.Description; }
-        Object.assign(overrides, this._enumOverrides(sp));
+        Object.assign(overrides, this._enumOverrides(sp), this._dataTypeOverride(sp));
         return this._serializeSimulinkObject(overrides);
+    }
+
+    // The DataType the node shows, under the key the bag holds it at, where it is not the one the
+    // bag holds: a MAT-file's object's, which an edit sets on the node and its save writes into the
+    // file's objects; a copy is this bag, and carried the DataType from before the edit. A
+    // dictionary shows the bag's own (its DataType takes no edit there), which this leaves as it is.
+    _dataTypeOverride(sp: Record<string, unknown>): Record<string, unknown> {
+        const key = 'DataType_internal' in sp ? 'DataType_internal' : 'DataType';
+        const held = sp[key] === undefined || sp[key] === null || sp[key] === '' ? 'auto' : sp[key];
+        return this.DataType && this.DataType !== held ? { [key]: this.DataType } : {};
     }
 
     // Complexity and DimensionsMode, as both save paths write them: the key when the file had

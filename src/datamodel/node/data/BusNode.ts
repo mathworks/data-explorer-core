@@ -156,6 +156,10 @@ export class BusElementNode extends BaseBusElementNode {
         if ('Complexity' in sp || (this.Complexity && this.Complexity !== 'real')) { props.Complexity = this.Complexity; }
         if ('DimensionsMode' in sp || (this.DimensionsMode && this.DimensionsMode !== 'Fixed')) { props.DimensionsMode = this.DimensionsMode; }
         if ('Description' in sp || this.Description) { props.Description = this.Description; }
+        // And the Dimensions the row shows, where it is not what the bag holds: a MAT-file's element
+        // row's, which an edit sets on the row alone (the bag is its bus's too) and the save writes
+        // into the bus's elements. A dictionary's row takes no such edit, and shows the bag's own.
+        if (this.Dimensions !== undefined && JSON.stringify(this.Dimensions) !== JSON.stringify(sp.Dimensions)) { props.Dimensions = this.Dimensions; }
     }
 }
 

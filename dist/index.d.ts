@@ -8,6 +8,7 @@ export * as UndoManager from './core/UndoManager.js';
 export { createSession } from './core/DataModel.js';
 export type { Session, CreateSessionOptions } from './core/DataModel.js';
 export type { SerializedSource } from './core/DataModel.js';
+export type { PastePayload, PasteResult } from './core/DataModel.js';
 export type { FindNodesQuery } from './core/DataModel.js';
 export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
 export { identifiersIn } from './datamodel/expressions.js';

@@ -4,6 +4,21 @@ export type { IAllNode as AllNode, SourceMeta };
 export interface CreateSessionOptions {
     bus?: EventBusInstance;
 }
+export type { PastePayload } from '../datamodel/node/container/matPaste.js';
+/**
+ * What session.pasteEntries answers: the variables made, in the order the entries were handed
+ * over, each named as it was or made unique against the file; or the paste refused, whole, with why
+ * in words naming the entry (`name`) and the file, nothing of it made, published or recorded.
+ * Discriminated on `error` for the reason SerializedSource is discriminated on `kind`: the refusal is
+ * the arm a host acts on, by showing it.
+ */
+export type PasteResult = {
+    nodes: INode[];
+} | {
+    error: true;
+    reason: string;
+    name?: string;
+};
 /**
  * One source's content, ready to be written back over the file it came from.
  *

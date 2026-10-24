@@ -23,6 +23,7 @@ export default class SignalNode extends DataNode {
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
+    _dataTypeOverride(sp: Record<string, unknown>): Record<string, unknown>;
     _enumOverrides(sp: Record<string, unknown>): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): SignalNode;

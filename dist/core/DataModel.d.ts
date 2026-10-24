@@ -1,9 +1,9 @@
 import type { INode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 import type { RowData } from '../datamodel/node/BaseNode.js';
-import type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, SerializedSource } from './sessionTypes.js';
+import type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource } from './sessionTypes.js';
 export type { AllNode, SourceMeta } from './sessionTypes.js';
-export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, SerializedSource };
+export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource };
 export declare function createSession(opts?: CreateSessionOptions): {
     allNode: IAllNode;
     addDataSource: (srcId: string, content: Record<string, unknown>, meta?: Partial<SourceMeta>, warnings?: ParseWarning[]) => ISourceNode;
@@ -50,6 +50,11 @@ export declare function createSession(opts?: CreateSessionOptions): {
     };
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
     addEntryRefusal: () => string | null;
+    pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
+    pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
+        deep?: boolean;
+    }) => string | null;
+    copyRefusal: (nodeId: string, target?: "json" | "xml") => string | null;
     addChild: () => INode | null;
     deleteNode: () => boolean;
     addChildTo: (nodeId: string) => INode | null;
@@ -111,6 +116,11 @@ declare const DataModel: {
     };
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
     addEntryRefusal: () => string | null;
+    pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
+    pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
+        deep?: boolean;
+    }) => string | null;
+    copyRefusal: (nodeId: string, target?: "json" | "xml") => string | null;
     addChild: () => INode | null;
     deleteNode: () => boolean;
     addChildTo: (nodeId: string) => INode | null;

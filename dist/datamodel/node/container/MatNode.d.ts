@@ -8,6 +8,7 @@ import { type McosSubsystemRecords } from '../../parser/McosSubsystemCodec.js';
 import { type McosAppendSession, type McosNewObject } from '../../parser/McosTemplateMerge.js';
 import { type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
 import { MatSpotVerdicts, type MatObjectState, type MatObjectsWritten, type MatSharing } from '../data/matObjectEdit.js';
+import { type PasteMade, type PasteRefused } from './matPaste.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
@@ -332,6 +333,45 @@ export default class MatNode extends ContainerNode {
         undo: () => void;
         redo: () => void;
     } | null;
+    _attachNew(node: BaseNode): {
+        node: BaseNode;
+        undo: () => void;
+        redo: () => void;
+    };
+    /**
+     * The variable `name` of this file made as an Add makes an object of `className` (execAddEntry),
+     * or why it is not, as a clause: what a paste of a copied object starts from (matPaste.carryObject).
+     */
+    _addObject(className: string, name: string): {
+        node: BaseNode;
+        undo: () => void;
+        redo: () => void;
+    } | string;
+    /**
+     * The paste of `payloads`, what a host copied of entries and variables (DataNode.serialize), as
+     * variables of this file (matPaste.pasteInto): all of them made, and what takes them out and puts
+     * them back; or, where one is refused, none, the file as it was, and why, naming the entry.
+     */
+    execPasteEntries(payloads: readonly unknown[]): PasteMade | PasteRefused;
+    /**
+     * Why a paste of `payload` into this file is refused, in words naming it and the file, or null where
+     * it would be made (matPaste.pasteRefusalOf): what is known of it without making it, or, `deep`, the
+     * making itself, taken back, which is the paste's own answer.
+     */
+    pasteRefusal(payload: unknown, deep?: boolean): string | null;
+    /**
+     * The tokens of the entries a paste or a drop into this file takes, as a dictionary's section
+     * answers them (SectionNode.getAdmittedTypes): a host predicting one judges a copied entry by its
+     * value's `_array_class`, or 'MatlabVariable' where it has none (a plain value, a struct, a string,
+     * a Constant). So 'MatlabVariable', and each object class a paste makes here (matPaste.
+     * admittedTypesOf), which execPasteEntries takes; a value of either can still be refused for what
+     * it holds, which only the paste, or the deep pasteRefusal, can say.
+     *
+     * Empty for a file no save of which can be written (_fileRefusal), which takes no paste at all. A
+     * host that reads an empty list as "no restriction", as a dictionary's section means it, has to
+     * tell such a file by its `readOnly` instead, which is true for exactly these files.
+     */
+    getAdmittedTypes(): string[];
     /**
      * Why the last execAddEntry added nothing, in words naming this file, or null where it added a
      * variable: what a host shows of a refused Add, as it shows a refused edit's reason (DataModel's
