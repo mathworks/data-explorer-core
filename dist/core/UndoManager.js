@@ -21,25 +21,33 @@ export function createUndoManager(bus) {
         stack.redo = [];
         bus.publish('undo/changed', { srcId });
     }
-    function undo(srcId) {
-        const stack = getStack(srcId);
-        if (stack.undo.length === 0) {
+    // The step on top of `from`, run, and moved onto `to` once it has run: one that throws stays
+    // where it was, to be tried again. The change is published whether or not it threw, since what
+    // ran of it before the throw may have changed the tree.
+    function step(srcId, from, to, run) {
+        if (from.length === 0) {
             return;
         }
-        const command = stack.undo.pop();
-        command.undo();
-        stack.redo.push(command);
-        bus.publish('undo/changed', { srcId });
+        const command = from[from.length - 1];
+        try {
+            run(command);
+            const at = from.lastIndexOf(command);
+            if (at >= 0) {
+                from.splice(at, 1);
+                to.push(command);
+            }
+        }
+        finally {
+            bus.publish('undo/changed', { srcId });
+        }
+    }
+    function undo(srcId) {
+        const stack = getStack(srcId);
+        step(srcId, stack.undo, stack.redo, (command) => command.undo());
     }
     function redo(srcId) {
         const stack = getStack(srcId);
-        if (stack.redo.length === 0) {
-            return;
-        }
-        const command = stack.redo.pop();
-        command.execute();
-        stack.undo.push(command);
-        bus.publish('undo/changed', { srcId });
+        step(srcId, stack.redo, stack.undo, (command) => command.execute());
     }
     function canUndo(srcId) {
         if (!srcId || !stacks.has(srcId)) {
