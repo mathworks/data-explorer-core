@@ -68,6 +68,7 @@ import {
   matNumericTypeAfter,
   BUS_ELEMENTS,
   ELEMENTS_SAVED,
+  MAT_SHOWN_SAVED_KEYS,
   type MatBagEditor,
   MatSpotVerdicts,
   type MatObjectState,
@@ -81,6 +82,7 @@ import type DataNode from '../DataNode.js';
 import { propertyChoices } from '../../parser/McosPropertyRules.js';
 import { sourceLeaf, writeSourcePath } from '../../schema/index.js';
 import { basenameOf } from '../../fileKinds.js';
+import { admittedTypesOf, pasteInto, pasteRefusalOf, type PasteMade, type PasteRefused } from './matPaste.js';
 
 // What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
 // host's, whose parse may be an older one's, without the records a save splices.
@@ -684,7 +686,7 @@ export default class MatNode extends ContainerNode {
     if (!object) {
       return { shows: () => true, hides: (key) => key === 'Description', skips: [] };
     }
-    const skips = ['SignednessBool', 'FixedExponent', 'SlopeAdjustmentFactor', 'Elements_internal', 'be'];
+    const skips = [...MAT_SHOWN_SAVED_KEYS];
     const identity = (key: string) => key === 'Name' || key === 'Kind' || key === 'Class' || (key === 'DataType' && node instanceof MatlabVariableNode);
     const state = this._objectStateNow(object);
     if (typeof state === 'string') {
@@ -1176,6 +1178,13 @@ export default class MatNode extends ContainerNode {
       this._addRefused ??= cannotAdd(this, className, 'its object could not be made of MATLAB\'s default one');
       return null;
     }
+    return this._attachNew(node);
+  }
+
+  // `node`, a variable made for this file and in no tree, added as its last variable, New, and what
+  // takes it out and puts it back: the end of every variable an Add or a paste makes (execAddEntry,
+  // matPaste), whose save writes it fresh, or as the object it was created as (_createObject).
+  _attachNew(node: BaseNode): { node: BaseNode; undo: () => void; redo: () => void } {
     this.addChild(node);
     (node as unknown as { status: string }).status = 'New';
     this.dirty = true;
@@ -1190,6 +1199,52 @@ export default class MatNode extends ContainerNode {
         this.dirty = true;
       },
     };
+  }
+
+  /**
+   * The variable `name` of this file made as an Add makes an object of `className` (execAddEntry),
+   * or why it is not, as a clause: what a paste of a copied object starts from (matPaste.carryObject).
+   */
+  _addObject(className: string, name: string): { node: BaseNode; undo: () => void; redo: () => void } | string {
+    const added = this.execAddEntry(className, name);
+    if (added) {
+      return added;
+    }
+    return (this._addRefused ?? cannotAdd(this, className, 'it could not be made')).replace(/^Cannot add .*? to "[^"]*": /, '').replace(/\.$/, '');
+  }
+
+  /**
+   * The paste of `payloads`, what a host copied of entries and variables (DataNode.serialize), as
+   * variables of this file (matPaste.pasteInto): all of them made, and what takes them out and puts
+   * them back; or, where one is refused, none, the file as it was, and why, naming the entry.
+   */
+  execPasteEntries(payloads: readonly unknown[]): PasteMade | PasteRefused {
+    return pasteInto(this, payloads);
+  }
+
+  /**
+   * Why a paste of `payload` into this file is refused, in words naming it and the file, or null where
+   * it would be made (matPaste.pasteRefusalOf): what is known of it without making it, or, `deep`, the
+   * making itself, taken back, which is the paste's own answer.
+   */
+  pasteRefusal(payload: unknown, deep = false): string | null {
+    return pasteRefusalOf(this, payload, deep);
+  }
+
+  /**
+   * The tokens of the entries a paste or a drop into this file takes, as a dictionary's section
+   * answers them (SectionNode.getAdmittedTypes): a host predicting one judges a copied entry by its
+   * value's `_array_class`, or 'MatlabVariable' where it has none (a plain value, a struct, a string,
+   * a Constant). So 'MatlabVariable', and each object class a paste makes here (matPaste.
+   * admittedTypesOf), which execPasteEntries takes; a value of either can still be refused for what
+   * it holds, which only the paste, or the deep pasteRefusal, can say.
+   *
+   * Empty for a file no save of which can be written (_fileRefusal), which takes no paste at all. A
+   * host that reads an empty list as "no restriction", as a dictionary's section means it, has to
+   * tell such a file by its `readOnly` instead, which is true for exactly these files.
+   */
+  getAdmittedTypes(): string[] {
+    return admittedTypesOf(this);
   }
 
   /**

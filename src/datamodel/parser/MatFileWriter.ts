@@ -537,6 +537,40 @@ export function freshRefusal(node: BaseNode, record: MatRecord | null): MatWrite
   return null;
 }
 
+/**
+ * The refusal a save throws for writing `node`, a variable added since the read, fresh, or null where
+ * it writes it: freshRefusal's; then what only its bytes say, MatWriter's budget and every other
+ * refusal of MatWriter's, by writing the element the save writes for it (freshElement); and then the
+ * save's own self-check of a record written fresh, the element read back alone, after `headerBytes`,
+ * the file's header, and held to the variable it was written from (selfCheck, `differs`). Nothing of
+ * it is kept. Asked of a value pasted into the file before it is added (matPaste), so that a paste
+ * taken is a variable the save writes as it is.
+ */
+export function freshWriteRefusal(node: BaseNode, headerBytes: Uint8Array): MatWriteError | null {
+  const refused = freshRefusal(node, null);
+  if (refused) {
+    return refused;
+  }
+  const value = valueNodeOf(node)!;
+  let named: Uint8Array | null;
+  try {
+    named = elementNamed(freshElement(value), node.name);
+  } catch (e) {
+    if (e instanceof MatWriteError) {
+      return e;
+    }
+    throw e;
+  }
+  if (!named) {
+    return refusal(node.name, 'the element written for it has no name to replace');
+  }
+  const got = readAlone(node.name, headerBytes, named);
+  const difference = !got || got.status !== 'read' || got.name !== node.name || !got.variable
+    ? 'it does not read back as a variable'
+    : differs(value._var, got.variable, node.name);
+  return difference ? refusal(node.name, 'it would not read back as it was written (' + difference + ')') : null;
+}
+
 // The rules of MatFileCheck a variable's own element can break whose break says that what this
 // package read of it is not a value MATLAB loads: char data MATLAB does not read as text, or
 // reads otherwise (miUINT8 Latin-1 bytes, which this reader decodes as UTF-8, miUTF32, which it

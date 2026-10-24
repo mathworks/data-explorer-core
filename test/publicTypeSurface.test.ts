@@ -358,6 +358,28 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
+  it('names what session.pasteEntries() takes and hands back', { timeout: COMPILE_TIMEOUT }, () => {
+    // A host builds the payloads out of its own clipboard register and switches on the refusal
+    // arm of the answer to show it, in helpers of its own over types it has to be able to declare.
+    expect(
+      diagnose(`
+        import { createSession } from '../src/index.js';
+        import type { Session, PastePayload, PasteResult } from '../src/index.js';
+
+        const session: Session = createSession();
+        const register: PastePayload[] = [{ name: 'x', metadata: null, value: 1 }, { name: 'y', value: [1, 2] }];
+
+        function shown(r: PasteResult): string {
+          return 'error' in r ? r.reason + (r.name ?? '') : r.nodes.map((n) => n.id).join();
+        }
+
+        const refused: string | null = session.pasteRefusal('f.mat', register[0], { deep: true });
+        const why: string | null = session.copyRefusal('f.mat/x', 'xml');
+        export const out = shown(session.pasteEntries('f.mat', register)) + refused + why;
+      `),
+    ).toEqual([]);
+  });
+
   it('names what session.rowsOf() hands back, and narrows a UsedBy cell', { timeout: COMPILE_TIMEOUT }, () => {
     // The other half of item 4. `RowData` was already exported for the cell a host
     // builds itself (the test above); what is new is that a row now ARRIVES with the

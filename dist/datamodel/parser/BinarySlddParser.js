@@ -1369,11 +1369,14 @@ function charValue(text, dimension, format) {
     // with no character in it, `Matrix(0,2)\n[]`: MATLAB writes `Class="char" Dimension="0*2"/>`
     // for a 0x2, and this returned `''` for every empty, the 0x0 MATLAB writes with no Dimension at
     // all (char_binary.sldd's charEmpty), so the 0x2, 2x0 and 0x0x2 were each read and saved as
-    // that 0x0. A 0x0 that states one is still `''`, which is what it is, and so is a 1x0, a row.
+    // that 0x0. A 0x0 that states one is still `''`, which is what it is. A 1x0 is not: `''` is the
+    // 0x0, and MATLAB reads `Class="char" Dimension="1*0"/>` as the 1x0 it says (measured against
+    // MATLAB R2027a: dispcat_bin.sldd's dx_char_1x0), so it keeps its extents as every other empty
+    // does; a row with characters in it is its text.
     if (dimParts.length === 2 && dimParts[0] === 0 && dimParts[1] === 0) {
         return '';
     }
-    if (!charNeedsShape(dimParts)) {
+    if (!charNeedsShape(dimParts) && !dimParts.includes(0)) {
         return text || '';
     }
     // An empty one says it was read here, as every classed or shaped empty does (emptyOf).

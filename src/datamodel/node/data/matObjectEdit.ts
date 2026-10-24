@@ -144,6 +144,14 @@ const BAG_EDITORS: Readonly<Record<string, Readonly<Record<string, MatBagEditor>
   },
 };
 
+/**
+ * The keys of an object's property bag a row of its shows under another name, which its Property
+ * Inspector's "Other" does not list again (MatNode._inspectorRows): a NumericType's SignednessBool,
+ * FixedExponent and SlopeAdjustmentFactor, which its Signedness, FractionLength and Slope show; a
+ * Bus's elements, which its rows are; a ValueType's own element.
+ */
+export const MAT_SHOWN_SAVED_KEYS: readonly string[] = Object.freeze(['SignednessBool', 'FixedExponent', 'SlopeAdjustmentFactor', 'Elements_internal', 'be']);
+
 /** Every editor a MAT-file offers on a node of `className` (BAG_EDITORS). */
 export function matBagEditorsOf(className: string): MatBagEditor[] {
   return Object.values(BAG_EDITORS[className] ?? {});
@@ -156,6 +164,37 @@ export function matBagEditorsOf(className: string): MatBagEditor[] {
  */
 export function matOffersSpot(objectClass: string | null, rowClass: string, property: string): boolean {
   return objectClass !== null ? (OWN_SPOTS[objectClass] ?? []).includes(property) : rowClass === BUS_ELEMENT && ELEMENT_SPOTS.includes(property);
+}
+
+/**
+ * The keys of `rowKeys`, the rows a node of `className` shows, whose property a MAT-file offers an
+ * editor of, in the order the editor judges them (OWN_SPOTS: a NumericType's mode first), and then
+ * the columns of an object it holds (HELD_COLUMNS: a CoderInfo's StorageClass); of a bus element's
+ * row, its ELEMENT_SPOTS, its Name apart. What a paste sets of a copied object on the one it makes
+ * (matPaste.carryInto), by the spots the editor writes and no list of its own.
+ */
+export function matCarriedKeysOf(className: string, rowKeys: readonly string[]): string[] {
+  const rows = rowKeys.filter((k) => k !== 'Name' && k !== 'name');
+  // A string's text, which is all of it a save writes (matPropertyAt).
+  if (className === STRING) {
+    return rows.filter((k) => k === 'Value');
+  }
+  const spots = className === BUS_ELEMENT ? ELEMENT_SPOTS.filter((p) => p !== 'Name') : (OWN_SPOTS[className] ?? []);
+  const keys: string[] = [];
+  for (const property of spots) {
+    const key = rows.find((k) => capitalized(k) === property && !heldColumnOf(className, k));
+    if (key !== undefined && !keys.includes(key)) {
+      keys.push(key);
+    }
+  }
+  if (className !== BUS_ELEMENT) {
+    for (const key of rows) {
+      if (heldColumnOf(className, key) && !keys.includes(key)) {
+        keys.push(key);
+      }
+    }
+  }
+  return keys;
 }
 
 /** The editor a MAT-file offers of `key` on a node of `className`, or null (BAG_EDITORS). */
@@ -191,6 +230,13 @@ const HELD_COLUMNS: Readonly<Record<string, { classes: readonly string[]; saved:
   alignment: { classes: [PARAMETER, SIGNAL], saved: 'CoderInfo', property: 'Alignment' },
   identifier: { classes: [PARAMETER, SIGNAL], saved: 'CoderInfo', property: 'Identifier' },
 };
+
+// The HELD_COLUMNS entry of the row `key` of an object of `cls`, or null where that row is no
+// property of an object it holds.
+function heldColumnOf(cls: string, key: string): (typeof HELD_COLUMNS)[string] | null {
+  const held = Object.prototype.hasOwnProperty.call(HELD_COLUMNS, key) ? HELD_COLUMNS[key] : null;
+  return held && held.classes.includes(cls) ? held : null;
+}
 
 // The properties a Bus's element row offers an editor of, as the element node's fields.
 const ELEMENT_SPOTS: readonly string[] = ['Name', 'DataType', 'Min', 'Max', 'Unit', 'Description', 'Complexity', 'DimensionsMode', ...bagSpots(BUS_ELEMENT)];
@@ -1040,8 +1086,8 @@ export function matPropertyAt(state: MatObjectState, object: BaseNode, node: Bas
     if (cls === BUS && key === 'Value') {
       return { key: BUS_ELEMENTS };
     }
-    const held = Object.prototype.hasOwnProperty.call(HELD_COLUMNS, key) ? HELD_COLUMNS[key] : null;
-    if (held && held.classes.includes(cls)) {
+    const held = heldColumnOf(cls, key);
+    if (held) {
       return spotted({ nested: { saved: held.saved, index: 0 }, property: held.property }, object.matlabPath);
     }
     return spotted({ nested: null, property: capitalized(key) }, object.matlabPath);

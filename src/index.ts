@@ -20,6 +20,10 @@ export type { Session, CreateSessionOptions } from './core/DataModel.js';
 // What session.serializeSource() hands back. Public because a consumer writing the
 // result to a file has to be able to name the discriminated shape it switches on.
 export type { SerializedSource } from './core/DataModel.js';
+// What session.pasteEntries takes and answers. Public for the reason SerializedSource is: a host
+// builds the payloads out of its clipboard, holds them in its own register, and switches on the
+// refusal arm of the answer to show it, none of which it can write down while the types have no name.
+export type { PastePayload, PasteResult } from './core/DataModel.js';
 // What session.findNodes()/findNode() take. Public for the same reason: a host builds
 // one of these from its own search UI, holds it in a field, and passes it around —
 // none of which it can write down while the type has no name.

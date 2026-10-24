@@ -198,6 +198,26 @@ from a parse without its records (an older host's, through
 double `0`. What only a value's bytes can say is still checked by the save, and
 refused in the same words.
 
+`session.pasteEntries(srcId, payloads)` pastes what a host copied, each entry's
+`serialize()` (`{ name, metadata, value }`) of a dictionary or of a MAT-file, as new
+variables of the MAT-file `srcId`: all of them or none, as one undo step, each named
+as it was or with a counter appended. A plain value (numbers, text, a logical, a
+sparse array, a struct, a cell, and structs and cells of these) is written fresh. A
+`Simulink.Parameter`, `Signal`, `Bus` (with its elements), `NumericType`,
+`AliasType` or `ValueType`, and a string, is made as `addEntry` makes one, and each
+property the copy holds is set on it as an edit sets it; the object made is then held
+to the copy, row by row and in the properties no row shows, and a difference refuses
+the paste, naming the property. So does anything else no save could write as it was
+copied: a function handle, an object array, an object or a string inside a struct or
+a cell, an enumeration, the classes `addEntry` does not offer, a value past the
+writer's budget, and a Parameter Value whose text does not hold it (an integer,
+`single` or complex Value, a struct). `session.pasteRefusal(srcId, payload, { deep })`
+answers what the paste would refuse, cheaply or, with `deep`, by making the paste and
+taking it back; `getAdmittedTypes()` of the file lists what a paste takes by the
+value's `_array_class` (`'MatlabVariable'` for one with none). `session.copyRefusal(nodeId,
+target?)` says whether an entry can be copied at all, and into a text (`'json'`) or a
+binary (`'xml'`) dictionary.
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a

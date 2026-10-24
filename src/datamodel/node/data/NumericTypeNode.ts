@@ -5,6 +5,7 @@ import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
+import { numericTypeSaved } from './mcosShown.js';
 const CLASS_NAME = 'Simulink.NumericType';
 export default class NumericTypeNode extends SimulinkObjectNode {
     Description: string;
@@ -17,7 +18,11 @@ export default class NumericTypeNode extends SimulinkObjectNode {
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType, PropDescription]; }
     // PI layout is schema-driven (schema/classes/numericType.json).
-    _serializedOverrides(): Record<string, unknown> { return this._gatedProps({ Description: this.Description }); }
+    // And the SignednessBool, FixedExponent and SlopeAdjustmentFactor MATLAB saves, where the bag holds
+    // the Signedness, FractionLength and Slope it shows of them otherwise: a MAT-file's node's, whose
+    // edits set the shown three and whose save writes the saved ones from them (mcosShown.numericTypeSaved).
+    // A copy is this bag, and carried the saved three from before the edit.
+    _serializedOverrides(): Record<string, unknown> { return { ...this._gatedProps({ Description: this.Description }), ...numericTypeSaved(this.serial._properties as Record<string, unknown>) }; }
     static get defaultName(): string { return 'NumericType'; }
     // Every value below is MEASURED from what MATLAB R2027a writes for `Simulink.NumericType`
     // with nothing set, in MATLAB's own alphabetical key order — not a guess at a sensible
