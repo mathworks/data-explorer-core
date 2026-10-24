@@ -2099,7 +2099,7 @@ export function createSession(opts = {}) {
         try {
             const entry = section.parseEntry({ name: payload.name, metadata, value: payload.value });
             // And read back as that dictionary reads what it wrote: an entry that lands as another value
-            // than the one copied (a char 1x0 a binary dictionary's writer spells as the 0x0) is refused.
+            // than the one copied is refused.
             let back;
             if (target === 'xml') {
                 back = readEntryFragment(serializeEntryToXml(entry).trim());

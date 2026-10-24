@@ -1,7 +1,7 @@
 {
   "version": "27.1.0.3417384 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-23",
+  "date": "2026-10-24",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
@@ -78,6 +78,20 @@
       "opened": true,
       "warnings": [],
       "entries": 7,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_char_empty_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 15,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_char_empty_binary_older.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 15,
       "notSelfEqual": []
     },
     {
@@ -2001,6 +2015,236 @@
       }
     },
     {
+      "fixture": "fixtures/char_empty_binary.sldd",
+      "variant": "",
+      "original": "orig_char_empty_binary.sldd",
+      "file": "m9_char_empty_binary_1.sldd",
+      "section": "design",
+      "entry": "c0x0",
+      "kind": "char",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "c0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "d2663e1a6c9375af2f1cad5b8e950946b87c93d1bd3290ff8f46ec1f43eae5c9",
+        "parts": "7b415260b50109b01d44ecff0b07a4c64a7b3020330fd831b0dffae0c69fdfaa"
+      },
+      "merged": false,
+      "untouched": [
+        14,
+        14
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "char",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 14,
+          "same": 14,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/char_empty_binary.sldd",
+      "variant": "",
+      "original": "orig_char_empty_binary.sldd",
+      "file": "m9_char_empty_binary_2.sldd",
+      "section": "design",
+      "entry": "c0x2",
+      "kind": "char/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "c0x2M9",
+      "refused": "",
+      "save": {
+        "chunk": "86a545f5cec5aeae583c1d339df791f3d73bdb97de6aeaa8309f98bb45151bf4",
+        "parts": "7b415260b50109b01d44ecff0b07a4c64a7b3020330fd831b0dffae0c69fdfaa"
+      },
+      "merged": false,
+      "untouched": [
+        14,
+        14
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "char",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 14,
+          "same": 14,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/char_empty_binary.sldd",
+      "variant": "",
+      "original": "orig_char_empty_binary.sldd",
+      "file": "m9_char_empty_binary_3.sldd",
+      "section": "design",
+      "entry": "cell_c0x0",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cell_c0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "5447181956fce6405d04b1c4b1a4387078ad7872a38cdcdba811e04395a1dd98",
+        "parts": "7b415260b50109b01d44ecff0b07a4c64a7b3020330fd831b0dffae0c69fdfaa"
+      },
+      "merged": false,
+      "untouched": [
+        14,
+        14
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 14,
+          "same": 14,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/char_empty_binary.sldd",
+      "variant": "",
+      "original": "orig_char_empty_binary.sldd",
+      "file": "m9_char_empty_binary_4.sldd",
+      "section": "design",
+      "entry": "field_c0x0",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "field_c0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "dd5fd9e3f887f1067b723e405d413c6a85e127c09e7b6cbdbeaf3f46d4f516be",
+        "parts": "7b415260b50109b01d44ecff0b07a4c64a7b3020330fd831b0dffae0c69fdfaa"
+      },
+      "merged": false,
+      "untouched": [
+        14,
+        14
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 14,
+          "same": 14,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/char_empty_binary.sldd",
+      "variant": "older save",
+      "original": "orig_char_empty_binary_older.sldd",
+      "file": "m9_char_empty_binary_older_1.sldd",
+      "section": "design",
+      "entry": "cell_c0x0",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cell_c0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "1b3abf333389a9f630342ed5efd5d27c413296a02f9a344f2eef4af9e793482c",
+        "parts": "7b415260b50109b01d44ecff0b07a4c64a7b3020330fd831b0dffae0c69fdfaa"
+      },
+      "merged": true,
+      "untouched": [
+        14,
+        14
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 14,
+          "same": 14,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
       "fixture": "fixtures/char_rowdim_binary.sldd",
       "variant": "",
       "original": "orig_char_rowdim_binary.sldd",
@@ -3511,18 +3755,18 @@
       "original": "orig_display_dispcat_bin.sldd",
       "file": "m9_display_dispcat_bin_4.sldd",
       "section": "design",
-      "entry": "dx_char_1x0",
+      "entry": "dx_char_0x2",
       "kind": "char/empty",
       "path": "",
       "edit": "rename",
       "prop": "Name",
-      "value": "dx_char_1x0M9",
+      "value": "dx_char_0x2M9",
       "refused": "",
       "save": {
-        "chunk": "dacf698d424a364b65bafae340da569513244e08888c96886fb518aa2fcb0f25",
+        "chunk": "c50d05b28eb242d14a0a1c3cbacd36e5d549726a4d7a3981976098cf6896c809",
         "parts": "05b4225b842bef368ed86487b29f69ffa335216f9b6bde433227b0f207ec8c5c"
       },
-      "merged": true,
+      "merged": false,
       "untouched": [
         75,
         75
@@ -4983,52 +5227,6 @@
       "original": "orig_display_dispcat_bin_older.sldd",
       "file": "m9_display_dispcat_bin_older_2.sldd",
       "section": "design",
-      "entry": "dx_char_1x0",
-      "kind": "char/empty",
-      "path": "",
-      "edit": "rename",
-      "prop": "Name",
-      "value": "dx_char_1x0M9",
-      "refused": "",
-      "save": {
-        "chunk": "e25879f2a6d5bcfa70e559fbee0730c03dc7486827adf296c51888d121cdee94",
-        "parts": "05b4225b842bef368ed86487b29f69ffa335216f9b6bde433227b0f207ec8c5c"
-      },
-      "merged": true,
-      "untouched": [
-        75,
-        75
-      ],
-      "otherPartsKept": true,
-      "matlab": {
-        "opened": true,
-        "warnings": [],
-        "asExpected": true,
-        "asOriginal": true,
-        "edited": {
-          "class": "char",
-          "same": true,
-          "sameAsMatlabEdit": true,
-          "absentOld": true,
-          "bySignature": false,
-          "why": "",
-          "whyMatlab": ""
-        },
-        "unedited": {
-          "checked": 75,
-          "same": 75,
-          "bySignature": 0,
-          "differ": []
-        },
-        "error": ""
-      }
-    },
-    {
-      "fixture": "fixtures/display/dispcat_bin.sldd",
-      "variant": "older save",
-      "original": "orig_display_dispcat_bin_older.sldd",
-      "file": "m9_display_dispcat_bin_older_3.sldd",
-      "section": "design",
       "entry": "dx_string_0x0",
       "kind": "string",
       "path": "",
@@ -5073,7 +5271,7 @@
       "fixture": "fixtures/display/dispcat_bin.sldd",
       "variant": "older save",
       "original": "orig_display_dispcat_bin_older.sldd",
-      "file": "m9_display_dispcat_bin_older_4.sldd",
+      "file": "m9_display_dispcat_bin_older_3.sldd",
       "section": "other",
       "entry": "tbl_2x2",
       "kind": "table",

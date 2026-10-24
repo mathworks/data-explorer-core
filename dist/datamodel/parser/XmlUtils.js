@@ -684,8 +684,9 @@ export function formatMatrixSerial(values, dims, type) {
 //                 {"_type":"mxchar","_value":"Matrix(2,2)\n[[97, 98]; [99, 100]]"} —
 //                 char CODES, one bracketed group per ROW.
 //   binary/.slx   <P Class="char" Dimension="2*2">acbd</P>, column-major text; a row
-//                 and an empty char carry no Dimension at all, but for a row over 512
-//                 characters in a binary dictionary (charRowDimension).
+//                 and the 0x0 empty char carry no Dimension at all, but for a row over 512
+//                 characters in a binary dictionary (charRowDimension). Every other empty
+//                 char, a 1x0 among them, carries its own (char_empty_binary.sldd).
 //
 // Both spellings are MATLAB's own, read off char_text.sldd and char_binary.sldd
 // (test/parity/matlab/probe_char_shape.m wrote them).

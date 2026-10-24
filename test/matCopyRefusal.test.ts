@@ -132,17 +132,15 @@ describe('what a copy is refused for', () => {
     expect([m.session.copyRefusal(v.id), m.session.copyRefusal(v.id, 'xml')]).toEqual([null, null]);
   });
 
-  it("a binary dictionary's char 1x0, read as the 1x0 it is, copied as one, and refused where it would land as the 0x0", () => {
+  it("a binary dictionary's char 1x0, read as the 1x0 it is, copied as one, and landing as one in every venue", () => {
     const b = open('test/fixtures/display/dispcat_bin.sldd');
     const e = b.by('dx_char_1x0');
     expect([e.className, e._dims]).toEqual(['char', [1, 0]]);
-    expect([b.session.copyRefusal(e.id), b.session.copyRefusal(e.id, 'json')]).toEqual([null, null]);
-    // A binary dictionary writes an entry's char 1x0 with no Dimension, which reads as the 0x0.
-    expect(b.session.copyRefusal(e.id, 'xml')).toBe(
-      'Cannot copy "dx_char_1x0" into a binary dictionary: it would land there as another value (dx_char_1x0: its size reads back as 0x0 where 1x0 was written). Nothing was copied.',
-    );
-    // Into a text dictionary and a MAT-file, the 1x0 it is.
+    // A binary dictionary writes it with its Dimension="1*0", as MATLAB does (binaryEmptyChar.test.ts).
+    expect([b.session.copyRefusal(e.id), b.session.copyRefusal(e.id, 'json'), b.session.copyRefusal(e.id, 'xml')]).toEqual([null, null, null]);
+    // Into a text dictionary, a binary one and a MAT-file, the 1x0 it is.
     expect(pasteIntoDictionary(TEXT, structuredClone(e.serialize()))._dims).toEqual([1, 0]);
+    expect(pasteIntoDictionary(BINARY, structuredClone(e.serialize()))._dims).toEqual([1, 0]);
     const t = target(fixture(MIXED));
     t.session.pasteEntries('t.mat', [structuredClone(e.serialize())]);
     expect(reopened(t.save()).children.find((c: Any) => c.name === 'dx_char_1x0')._var.dimensions).toEqual([1, 0]);
