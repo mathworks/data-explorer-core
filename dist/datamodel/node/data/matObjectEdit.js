@@ -9,7 +9,7 @@ import { addBusElements, busElementsOf, removeBusElement } from '../../parser/Mc
 import { editedObjects, handleRuleObjectOf, heldObjectIds, ruleObjectOf, writeObjectEdits } from '../../parser/McosObjectWrite.js';
 import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRefusal, planPropertyEdits, propertyRowOf, } from '../../parser/McosPropertyRules.js';
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
-import { numericTypeShown } from './mcosShown.js';
+import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
 import { nodePropertyValue, REFUSED } from './mcosObjectEdit.js';
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
@@ -43,7 +43,7 @@ export function matBagEditorShown(holder, editor) {
 }
 // The editors a MAT-file offers, by the node's class and the key the node shows the property
 // under (the Property Inspector's, and a table column's).
-// A CoderInfo's Identifier, shown beside the Alias it is saved as (mcosShown.withCoderInfoShown).
+// A CoderInfo's Identifier, shown beside the Alias it is saved as (mcosShown.shownPropertiesOf).
 const IDENTIFIER = { property: 'Identifier', bag: 'CoderInfo.Identifier', mirror: 'CoderInfo.Alias', kind: 'text' };
 const BAG_EDITORS = {
     [PARAMETER]: { identifier: IDENTIFIER },

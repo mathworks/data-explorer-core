@@ -424,6 +424,21 @@ export declare function editHandleCoderInfo(cell: Uint8Array, edits: Partial<Mco
     cell: Uint8Array;
 } | McosCodecRefusal;
 /**
+ * Every property object 1 of a 'handle' opaque saves, and its class: the whole object, as every
+ * property is saved there (above). Each as R2027a's MCOS decode reads the same object's
+ * (McosParser): text as text, a logical or a real numeric scalar as itself, an object it holds as
+ * `{_object_class, _properties}` of that object's own. So a copy of the object it is a property of
+ * carries all of it: a CoderInfo read for its StorageClass, Identifier and Alignment alone went into
+ * a dictionary without its CSCPackageName, and MATLAB R2027a loaded it warning that the package of
+ * its custom storage classes had changed from 'Simulink' to ''. Or why not: an opaque that does not
+ * read, or a property saved in a form not read here.
+ */
+export declare function handleObjectOf(cell: Uint8Array): {
+    ok: true;
+    className: string;
+    properties: Record<string, unknown>;
+} | McosCodecRefusal;
+/**
  * A subsystem with no class and no object, for a file that has none, in the shape MATLAB R2027a
  * writes one: a version-4.0 blob of null records (class row 0, object 0, property list 0, no
  * constructor-argument or dynamic-property list), an empty removed-property map and per-array

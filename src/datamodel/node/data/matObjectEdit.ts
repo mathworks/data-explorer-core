@@ -36,7 +36,7 @@ import {
   type McosTripleOp,
 } from '../../parser/McosPropertyRules.js';
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
-import { numericTypeShown } from './mcosShown.js';
+import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
 import { nodePropertyValue, REFUSED, type McosObjectState } from './mcosObjectEdit.js';
 import type { McosHeld } from '../../parser/McosEditRules.js';
@@ -100,7 +100,7 @@ export function matBagEditorShown(holder: BaseNode, editor: MatBagEditor): unkno
 
 // The editors a MAT-file offers, by the node's class and the key the node shows the property
 // under (the Property Inspector's, and a table column's).
-// A CoderInfo's Identifier, shown beside the Alias it is saved as (mcosShown.withCoderInfoShown).
+// A CoderInfo's Identifier, shown beside the Alias it is saved as (mcosShown.shownPropertiesOf).
 const IDENTIFIER: MatBagEditor = { property: 'Identifier', bag: 'CoderInfo.Identifier', mirror: 'CoderInfo.Alias', kind: 'text' };
 
 const BAG_EDITORS: Readonly<Record<string, Readonly<Record<string, MatBagEditor>>>> = {

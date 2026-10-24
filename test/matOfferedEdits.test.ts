@@ -133,19 +133,19 @@ describe('an offered editor takes text as its kind says, and refuses the rest na
     });
   });
 
-  // BUG: a property the schema bridge shows (schemaBridge.ts formatSchemaValue, `String(value)`)
-  // spells a double Inf as JavaScript does, "Infinity", where MATLAB, the property's own rule
-  // ("a positive double or Inf") and every other surface of this package spell it "Inf". So a
-  // MAT-file Signal whose SampleTime is Inf, as typed here or as MATLAB saved it, shows
-  // "Infinity" in the Property Inspector, before the save and after.
-  it.fails('shows a SampleTime of Inf as MATLAB spells it, before and after a save', () => {
+  // A property the schema bridge shows (schemaBridge.ts formatSchemaValue) spells a double Inf as
+  // MATLAB, the property's own rule ("a positive double or Inf") and every other surface of this
+  // package do, "Inf". It spelled it as JavaScript does (`String(value)`), "Infinity", so a MAT-file
+  // Signal whose SampleTime is Inf, as typed here or as MATLAB saved it, showed "Infinity" in the
+  // Property Inspector, before the save and after.
+  it('shows a SampleTime of Inf as MATLAB spells it, before and after a save', () => {
     const r = infSampleTime();
     expect({ shown: r.shown, reopened: r.reopened }).toEqual({ shown: 'Inf', reopened: 'Inf' });
   });
 
-  // BUG: and a refused edit of it hands back "Infinity" as the valid value (MatNode offeredText,
-  // `String(v)`), which is a second spelling of the same number to fix.
-  it.fails('hands a SampleTime of Inf back as MATLAB spells it when an edit of it is refused', () => {
+  // And a refused edit of it hands back the valid value as the row spells it (MatNode._setOffered,
+  // formatSchemaValue), not "Infinity", a second spelling of the same number.
+  it('hands a SampleTime of Inf back as MATLAB spells it when an edit of it is refused', () => {
     expect(infSampleTime().refusal.validValue).toBe('Inf');
   });
 

@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
-import { withCoderInfoShown, withNumericTypeShown } from './mcosShown.js';
+import { shownPropertiesOf, withParameterValueShown } from '../mcosShown.js';
+import { superclassOf } from '../registeredSubclasses.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots } from '../../parser/McosParser.js';
@@ -78,9 +79,20 @@ warnings) {
     // dispatches on _array_class — known class -> its typed node (scalar), unknown or
     // multi-element -> ObjectNode — so both converge on the same recursion the SLDD
     // paths use. Every typed node's parse() tolerates an empty _properties.
-    // A NumericType's Signedness, FractionLength and Slope as MATLAB shows them, and a CoderInfo's
-    // Identifier, beside what it saves them as, which is all a file holds (mcosShown).
-    const bagOf = (e) => !e ? {} : className === 'Simulink.NumericType' ? withNumericTypeShown(e) : className === 'Simulink.Parameter' || className === 'Simulink.Signal' ? withCoderInfoShown(e) : e;
+    // What the object saves under other names as the property MATLAB shows (mcosShown.shownPropertiesOf:
+    // a NumericType's Signedness, FractionLength and Slope, a CoderInfo's Identifier), the one rule a
+    // dictionary's rows read too, held in the bag, which a MAT-file's editor writes; and a Parameter's
+    // Value held as a char row as the string MATLAB loads it as.
+    const parameter = className === 'Simulink.Parameter' || superclassOf(className) === 'Simulink.Parameter';
+    const bagOf = (e) => {
+        if (!e) {
+            return {};
+        }
+        const shown = shownPropertiesOf(className, e) ?? e;
+        // On a bag of its own: shownPropertiesOf answers the decoded bag itself where it adds
+        // nothing, which the decode's caller holds, and reads again where the typed view fails.
+        return parameter ? withParameterValueShown({ ...shown }) : shown;
+    };
     const rawVal = {
         _array_class: className,
         _array_type: 'MATLABArray',

@@ -161,7 +161,7 @@ describe('what a paste makes of what it is handed', () => {
   it('a NumericType MATLAB saved, its signedness, fraction length and slope as MATLAB shows them of what it saves', () => {
     const shown = (n: Any) => Object.fromEntries(rowsOf(n).map((r) => r.split(' = ')));
     const numeric = (file: string, name: string) => copiesOf(file).find((c) => c.entry.name === name)!.payload;
-    // fixdt(1,16,8): FixedExponent -8, which a dictionary's NumericType row shows nothing of.
+    // fixdt(1,16,8), which MATLAB saves as FixedExponent -8 and a dictionary's rows show as it does.
     for (const file of ['test/parity/artifacts/text/params.sldd', 'test/parity/artifacts/binary/params.sldd']) {
       const { again } = pasteSaveReopen(numeric(file, 'MyNumType'), fixture(NONE), 'MyNumType', 'Simulink.NumericType');
       const s = shown(again);

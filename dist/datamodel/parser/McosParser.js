@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { enumerationInstanceOf, functionHandleText as handleText, isUnheldStructArray, opaqueElementOf, parseMatrix, structElementsHeld, } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { handleCoderInfoOf } from './McosSubsystemCodec.js';
+import { handleCoderInfoOf, handleObjectOf, isHandleOpaque } from './McosSubsystemCodec.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
@@ -315,6 +315,63 @@ const isFinitePart = (x) => typeof x !== 'number' || Number.isFinite(x);
 // where it showed the double 0, and the bridge says so (mcosTypedNode.reportUndecoded), where it
 // said nothing. A side table rather than a key of the bag, which every writer would spell.
 const unreadSlots = new WeakMap();
+/**
+ * The key a value read out of a 'handle' opaque is marked with where it is not read whole (a
+ * CoderInfo saving a property in a form not read, a LoggingInfo saving any): why, in one clause. A
+ * copy of what holds it carries less than the file, and a dictionary would load the class's
+ * defaults for the rest, so a copy into one is refused (DataModel.copyRefusal). A key of the bag
+ * rather than a side table, as the bag is copied (mcosShown.shownPropertiesOf) and a copy is its
+ * serialize(); it reaches no file: a MAT-file writes the opaque, and no dictionary takes it.
+ */
+export const HANDLE_UNREAD_KEY = '_handleUnread';
+/**
+ * `value`, handed to a dictionary (a paste: SectionNode.parseEntry), without the mark this reader
+ * gives what it read out of a 'handle' opaque (`_handleOpaque`): there it is a value of the
+ * dictionary's own, which its editors write and its writers spell, and the mark made a pasted
+ * entry's StorageClass refuse every edit, and went into a text dictionary's JSON as a key MATLAB
+ * has no property of. A copy where anything changed, the same value where nothing did. And where
+ * a value under it was not read whole (HANDLE_UNREAD_KEY), the first such, by its path from
+ * `value` and why: the dictionary would hold the class's defaults for what it does not.
+ */
+export function withoutHandleMarks(value) {
+    let unread = null;
+    let changed = false;
+    const walk = (v, path) => {
+        if (v === null || typeof v !== 'object') {
+            return v;
+        }
+        if (Array.isArray(v)) {
+            const out = v.map((e) => walk(e, path));
+            return out.some((e, i) => e !== v[i]) ? out : v;
+        }
+        const o = v;
+        if (o._handleOpaque === true) {
+            if (typeof o[HANDLE_UNREAD_KEY] === 'string' && !unread) {
+                unread = { at: path, why: o[HANDLE_UNREAD_KEY] };
+            }
+            const rest = {};
+            for (const [k, x] of Object.entries(o)) {
+                if (k !== '_handleOpaque' && k !== HANDLE_UNREAD_KEY) {
+                    setOwn(rest, k, walk(x, path));
+                }
+            }
+            changed = true;
+            return rest;
+        }
+        let out = null;
+        for (const [k, x] of Object.entries(o)) {
+            const below = k.startsWith('_') ? path : path ? path + '.' + k : k;
+            const w = walk(x, below);
+            if (w !== x) {
+                out = out ?? { ...o };
+                setOwn(out, k, w);
+            }
+        }
+        return out ?? o;
+    };
+    const out = walk(value, '');
+    return { value: changed ? out : value, unread };
+}
 /** The slots of `bag`, a cell resolveValue built, that it could not read; undefined for any other value. */
 export function unreadCellSlots(bag) {
     return bag !== null && typeof bag === 'object' ? unreadSlots.get(bag) : undefined;
@@ -351,18 +408,40 @@ function resolveValue(cell, ctx, path, depth, owner, propName) {
     if (!cell)
         return undefined;
     // A CoderInfo MATLAB R2024b and earlier save (and every object made from the R2023b templates)
-    // is a 'handle' opaque holding a small blob of its own: what it holds of its StorageClass, its
-    // Identifier (saved as Alias) and its Alignment, under the names R2027a's MCOS CoderInfo has, for
-    // the columns that show them. Anything else it holds is not read here.
-    if (cell.isOpaque && cell.className === 'Simulink.CoderInfo') {
-        const element = opaqueElementOf(cell);
-        const read = element ? handleCoderInfoOf(element) : null;
-        if (read?.ok) {
-            const { StorageClass, Identifier, Alignment } = read.settings;
-            // Marked, for the setters (schemaBridge.heldOpaqueRefusal): the opaque, not these, is what a
-            // file holds, which only a source that writes it (a MAT-file) takes an edit of.
-            return { _object_class: 'Simulink.CoderInfo', _properties: { StorageClass, Alias: Identifier, Alignment }, _handleOpaque: true };
+    // is a 'handle' opaque holding a small blob of its own: every property it saves, under the names
+    // R2027a's MCOS CoderInfo has (handleObjectOf), its StorageClass, Identifier (saved as Alias) and
+    // Alignment as the columns show them (handleCoderInfoOf). All of it, which a copy carries: one
+    // that carried the three alone was pasted into a dictionary without its CSCPackageName and
+    // CustomStorageClass, which MATLAB R2027a loaded warning that the package of its custom storage
+    // classes had changed. Marked, for the setters (schemaBridge.heldOpaqueRefusal): the opaque, not
+    // these, is what the file holds, which only a source that writes it (a MAT-file) takes an edit
+    // of; and where it does not read whole, for a copy (HANDLE_UNREAD_KEY).
+    //
+    // Any other 'handle' opaque is a Signal's LoggingInfo that MATLAB R2023b saves. One saving no
+    // property is its class's default, which a copy carries by holding nothing, as it always has;
+    // one saving any is held as unread, so that a copy of it is not taken for the default.
+    const handle = cell.isOpaque ? opaqueElementOf(cell) : null;
+    if (handle && isHandleOpaque(handle)) {
+        const whole = handleObjectOf(handle);
+        if (cell.className === 'Simulink.CoderInfo') {
+            const read = handleCoderInfoOf(handle);
+            if (read.ok) {
+                const { StorageClass, Identifier, Alignment } = read.settings;
+                const all = whole.ok && whole.className === 'Simulink.CoderInfo' ? whole.properties : null;
+                return {
+                    _object_class: 'Simulink.CoderInfo',
+                    _properties: { ...all, StorageClass, Alias: Identifier, Alignment },
+                    _handleOpaque: true,
+                    ...(all ? {} : { [HANDLE_UNREAD_KEY]: whole.ok ? 'it holds a ' + whole.className : whole.message }),
+                };
+            }
+            return { _object_class: 'Simulink.CoderInfo', _properties: {}, _handleOpaque: true, [HANDLE_UNREAD_KEY]: read.message };
         }
+        if (whole.ok && Object.keys(whole.properties).length === 0) {
+            return undefined;
+        }
+        const why = whole.ok ? 'its ' + whole.className + ' saves ' + Object.keys(whole.properties).join(', ') + ', which is not read' : whole.message;
+        return { _object_class: cell.className, _properties: {}, _handleOpaque: true, [HANDLE_UNREAD_KEY]: why };
     }
     if (isObjectHandle(cell)) {
         const empty = emptyObjectArray(cell.value, ctx, owner, propName);

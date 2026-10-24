@@ -180,8 +180,11 @@ describe("MATLAB's read-back of S2's merged binary saves (M9)", () => {
     }
   });
 
-  it('an anonymous function handle is equal to no other, so the one entry holding one is held to its class and fullsig alone', () => {
+  // And a Simulink.NumericType of Auto signedness is not isequal to itself in MATLAB R2027a either
+  // (isequal(a, a) is false of one; of a Signed one, true).
+  it('an anonymous function handle is equal to no other, nor an Auto NumericType to itself, so the entries holding one are held to their class and fullsig alone', () => {
     expect(ORIGINALS.filter((o) => list(o.notSelfEqual).length > 0).map((o) => [o.file, list(o.notSelfEqual)])).toEqual([
+      ['orig_shown_saved_shown_saved_binary.sldd', ['design|ntAuto']],
       ['orig_sparse_hexobj_binary.sldd', ['design|anonAlias']],
     ]);
   });
