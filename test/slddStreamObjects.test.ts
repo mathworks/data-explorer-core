@@ -234,7 +234,9 @@ describe('inside a stream, an allow-listed property the stream stores a value fo
         }
         for (const prop of PROPS) {
           const result = node.setProperty(prop, '1');
-          expect(result, node.matlabPath + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+          // A value with no Description says so first (DataNode._noDescriptionRefusal).
+          const reason = prop === 'Description' && !node.descriptionApplies ? / has no Description\.$/ : ENCODED_REASON;
+          expect(result, node.matlabPath + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(reason) });
         }
       }
     }
@@ -679,7 +681,8 @@ describe('a stream that is not an entry\'s whole value stays read-only, as it wa
     for (const node of subtree(held)) {
       expect(node.valueEditable, node.matlabPath).toBe(false);
       for (const prop of ['Value', 'Description', 'Min']) {
-        expect(node.setProperty(prop, '1'), node.matlabPath + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
+        const reason = prop === 'Description' && !node.descriptionApplies ? / has no Description\.$/ : ENCODED_REASON;
+        expect(node.setProperty(prop, '1'), node.matlabPath + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(reason) });
       }
     }
     expect(edit(session, root, 'plainS{1}', 'Value', '2')).toBe(true);

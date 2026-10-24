@@ -113,6 +113,10 @@ export default class ModelBlockNode extends BaseNode {
       Value: this.blockType,
       DataType: paramLink ? { text: paramText, linkTarget: paramLink } : paramText,
       _valueEditable: false,
+      // A block has a Description (get_param(block, 'Description')), which this view does not read.
+      Description: '',
+      _descriptionEditable: false,
+      _descriptionApplies: true,
       _graphTarget: this.modelSrcId,
       // How a caller asks the usage index about THIS block (UsageIndex.paramsOf) and
       // what a link back to it carries (NodeUsage.linkTarget) — the SID, because the

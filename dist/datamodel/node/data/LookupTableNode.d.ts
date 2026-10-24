@@ -10,8 +10,8 @@ export default class LookupTableNode extends SimulinkObjectNode {
     get displayValue(): string;
     get valueEditable(): boolean;
     getProperties(): PropClass[];
-    get descriptionEditable(): boolean;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    get descriptionApplies(): boolean;
+    _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): LookupTableNode;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): LookupTableNode;

@@ -1897,6 +1897,12 @@ function editProperty(
   if (typeof newValue === 'string' && newValue === priorValue) {
     return true;
   }
+  // A Description the object has none of is refused first, as no property is there to write
+  // (DataNode._noDescriptionRefusal): the source's refusal below would name another reason.
+  const noDescription = (node as unknown as { _noDescriptionRefusal?: (key: string, text: string) => { error: boolean; reason: string; invalidValue: string; validValue: string } | null })._noDescriptionRefusal?.(propertyName, String(newValue));
+  if (noDescription) {
+    return noDescription;
+  }
   // An edit the node's source would not write is refused before any setter is asked
   // (BaseNode.sourceEditRefusal): a MAT-file's object, say, takes a rename and nothing else.
   // Every setter asks the same rule (DataNode._refuseEncodedEdit); this is for one that does

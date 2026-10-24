@@ -49,6 +49,9 @@ export default class ObjectNode extends DataNode {
     get displayValue(): string;
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
+    get descriptionApplies(): boolean;
+    _descriptionText(): string;
+    _descriptionChild(): DataNode | undefined;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];

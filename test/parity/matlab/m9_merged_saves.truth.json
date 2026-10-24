@@ -284,6 +284,13 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_subclasses_subclass_defaults_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 7,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_text_empty_readback_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -8718,6 +8725,328 @@
         "unedited": {
           "checked": 27,
           "same": 27,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_1.sldd",
+      "section": "design",
+      "entry": "subAlias",
+      "kind": "dexsub.Alias",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subAliasM9",
+      "refused": "",
+      "save": {
+        "chunk": "92a9d8149b1e513f11b3b520cb05d4f67c291ed52b033653255249daffc82071",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.Alias",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_2.sldd",
+      "section": "design",
+      "entry": "subBus",
+      "kind": "dexsub.Bus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subBusM9",
+      "refused": "",
+      "save": {
+        "chunk": "3b752453dcfa63a172fafa87d5d85db9030c512d1a109259cf837fb04719a0a3",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_3.sldd",
+      "section": "design",
+      "entry": "subNum",
+      "kind": "dexsub.Num",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subNumM9",
+      "refused": "",
+      "save": {
+        "chunk": "6e09ff314cc9f6f1f7f9570523a587a0b4392e70c37d7336a820a1269b0a0296",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.Num",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_4.sldd",
+      "section": "design",
+      "entry": "subParam",
+      "kind": "dexsub.Param",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subParamM9",
+      "refused": "",
+      "save": {
+        "chunk": "5e0db29dcf3ade8cfbdf0ec7d55e256641cb0ba452ddce53c70be828720f8990",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.Param",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_5.sldd",
+      "section": "design",
+      "entry": "subSig",
+      "kind": "dexsub.Sig",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subSigM9",
+      "refused": "",
+      "save": {
+        "chunk": "16f335131b56c5014a3bf54cf62732bcb5f5245151e13483649fb1974ee47ba0",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.Sig",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_6.sldd",
+      "section": "design",
+      "entry": "subVT",
+      "kind": "dexsub.VT",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "subVTM9",
+      "refused": "",
+      "save": {
+        "chunk": "313414448ab3159a536100a8b9c289272d0fced3377a5cd5d918057e1909595a",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "dexsub.VT",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/subclasses/subclass_defaults_binary.sldd",
+      "variant": "",
+      "original": "orig_subclasses_subclass_defaults_binary.sldd",
+      "file": "m9_subclasses_subclass_defaults_binary_7.sldd",
+      "section": "design",
+      "entry": "vcDefault",
+      "kind": "Simulink.VariantConfigurations",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "vcDefaultM9",
+      "refused": "",
+      "save": {
+        "chunk": "ddd0ad879cd031fd36417e2e4688f7f877ced06311765e02dc8c9eebca1fcd27",
+        "parts": "36de5acb6efe4bacd277917e5100b525923847eed77c4a0dcd1a27ebad8f4e63"
+      },
+      "merged": false,
+      "untouched": [
+        6,
+        6
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.VariantConfigurations",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 6,
+          "same": 6,
           "bySignature": 0,
           "differ": []
         },

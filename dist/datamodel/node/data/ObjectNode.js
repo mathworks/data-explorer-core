@@ -15,6 +15,8 @@ import { uudecode } from '../../parser/CdataCodec.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { dimensionText, extentDigits } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import { formatMatlabChar } from '../../parser/MatlabValueParser.js';
+import { classHasDescription } from '../descriptionClasses.js';
 import { elementOriginAt, originAttr, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 // The class of `child`, one of the element nodes of an object array of class `arrayClass`: the
 // class ObjectNode.parse built it as, which its value's wrapper names, and otherwise the array's.
@@ -171,6 +173,15 @@ function enumeralNamesFor(node, className) {
     }
     return null;
 }
+// An object's Description column and field: its property of that name (ObjectNode._descriptionText).
+const PropObjectDescription = {
+    key: PropDescription.key,
+    displayName: PropDescription.displayName,
+    editor: PropDescription.editor,
+    column: PropDescription.column,
+    format: PropDescription.format,
+    readValue: (node) => node._descriptionText(),
+};
 export default class ObjectNode extends DataNode {
     constructor(name, parent, arrayClass, serial) {
         super(name, parent, serial);
@@ -342,11 +353,55 @@ export default class ObjectNode extends DataNode {
     get valueEditable() {
         return !isEnumBag(this.serial._rawVal) && !this._textEnum() && super.valueEditable;
     }
-    // Nor a Description: an enumeration value has none in the file to hold one (`<P Name="Value"
-    // IsEnum="1">` is all MATLAB writes of it), so one typed here would show and be gone on the
-    // next read. An empty enumeration entry refused one already, while it read as a numeric empty.
+    // Nor a Description where the object has none (descriptionApplies), an enumeration value among
+    // them: it has none in the file to hold one (`<P Name="Value" IsEnum="1">` is all MATLAB writes
+    // of it), so one typed here would show and be gone on the next read. An empty enumeration entry
+    // refused one already, while it read as a numeric empty. Nor a table's, which is the Description
+    // of its Properties: this editor shows it and does not write it.
     get descriptionEditable() {
-        return !isEnumBag(this.serial._rawVal) && super.descriptionEditable;
+        return this.className !== 'table' && super.descriptionEditable;
+    }
+    // Whether the object has a Description (BaseNode.descriptionApplies). An object array and an
+    // enumeration value have none of their own; of a class MATLAB was asked about, its answer
+    // (descriptionClasses). Of any other, what the file holds of the object: a Description in its
+    // bag, or the CoderInfo a Simulink.Parameter or a Simulink.Signal saves, which names which
+    // (ParameterOrSignal) and which a LookupTable's and a Breakpoint's beside their Table or
+    // Breakpoints do not tell apart. Measured with MATLAB R2027a of a default object of a user's
+    // subclass of each (fixtures/subclasses): one of AliasType, NumericType or Bus saves its
+    // Description at its default too, in a text and a binary dictionary, so its bag holds it; one
+    // of Parameter or Signal saves in a text dictionary only what is set on it beside that CoderInfo
+    // (dpPlain: its CoderInfo, Complexity and Dimensions); a binary dictionary saves every property
+    // of each. One of ValueType at its defaults a text dictionary saves as no property at all, and
+    // nothing tells it from an object of a class with none: it is taken for one, the side on which
+    // an edit cannot write a key into a class that may not have it.
+    get descriptionApplies() {
+        const rawVal = this.serial._rawVal || {};
+        const dims = rawVal._object_class ? [1, 1] : (rawVal._dimensions ?? [1, 1]);
+        if (this._isElementArray || elementCount(dims) !== 1 || isEnumBag(rawVal) || this._textEnum()) {
+            return false;
+        }
+        const measured = classHasDescription(this.className);
+        if (measured !== null) {
+            return measured;
+        }
+        const bag = this._storedProperties();
+        const has = (k) => Object.prototype.hasOwnProperty.call(bag, k);
+        if (has('Description')) {
+            return true;
+        }
+        const coder = bag.CoderInfo;
+        const which = (coder?._properties ?? coder?._elements?.[0]?._properties)?.ParameterOrSignal;
+        return (which === 'Parameter' || which === 'Signal') && !has('Table') && !has('Breakpoints');
+    }
+    // The Description the object holds, its property of that name, as text; '' where it holds none.
+    _descriptionText() {
+        const child = this._descriptionChild();
+        const value = child ? child.serializeValue() : '';
+        return typeof value === 'string' ? value : '';
+    }
+    // The row of the object's Description property, where its bag holds one.
+    _descriptionChild() {
+        return this.children.find((c) => c.name === 'Description');
     }
     // And a value set on one is refused rather than taken: DataNode's generic tail would keep the
     // text on a field nothing writes, and report the edit done. An entry holding an empty
@@ -358,6 +413,19 @@ export default class ObjectNode extends DataNode {
     // `true` and was gone from the save. Its value is edited through its property rows. One still
     // in the encoded stream it was read from keeps that refusal's own reason.
     setProperty(propName, stringValue) {
+        // Its Description is its property of that name, a row of it: the edit is that row's, or
+        // adds the row where the bag holds none (the property at its default, ''), which the save
+        // writes with the rest (_rebuiltProperties). Typed into the column, it went into a field
+        // nothing writes, and was gone on the save.
+        if (this._resolveProperty(propName) === 'Description' && this.descriptionEditable) {
+            const child = this._descriptionChild();
+            if (child) {
+                return child.setProperty('Value', formatMatlabChar(stringValue));
+            }
+            this.addChild(NodeRegistry.parseValue(stringValue, 'Description', this));
+            this._markModified();
+            return true;
+        }
         if (this._resolveProperty(propName) === 'Value') {
             if (isEnumBag(this.serial._rawVal) || this._textEnum()) {
                 return {
@@ -377,15 +445,14 @@ export default class ObjectNode extends DataNode {
         return super.setProperty(propName, stringValue);
     }
     getProperties() {
-        return [PropName, PropValue, PropDataType, PropDescription];
+        return [PropName, PropValue, PropDataType, PropObjectDescription];
     }
     getPILayout() {
         // Object nodes carry a dynamic className (the MATLAB class), so they can't
         // be schema-keyed; author the common "General" identity group directly to
-        // match the schema-driven classes.
-        return [
-            { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }
-        ];
+        // match the schema-driven classes. A Description field where the object has one.
+        const items = [PropName, PropValue, PropDataType, PropKind, PropClassAtom];
+        return [{ group: 'General', items: this.descriptionApplies ? [...items, PropObjectDescription] : items }];
     }
     // Rebuild the object's serialized value from its LIVE child nodes so a property
     // edit writes back (issue #3). Without this the loaded `_rawVal` is emitted

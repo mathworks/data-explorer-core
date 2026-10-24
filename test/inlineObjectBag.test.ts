@@ -343,7 +343,9 @@ describe.each(OTHER_CASES)('the entry %s, holding its properties beside its clas
     const { session, root } = openOther();
     const entry = entryOf(root, name);
     for (const [prop, text] of [['Description', 'x'], ...edits] as [string, string][]) {
-      expect(entry.setProperty(prop, text), prop).toMatchObject({ error: true, reason: editRefusal(name), invalidValue: text });
+      // A Description the class has none of says so first (DataNode._noDescriptionRefusal).
+      const reason = prop === 'Description' && !entry.descriptionApplies ? entry._noDescriptionRefusal(prop, text).reason : editRefusal(name);
+      expect(entry.setProperty(prop, text), prop).toMatchObject({ error: true, reason, invalidValue: text });
     }
     expect(session.serializeSource(root.name)!.text).toBe(OTHER_DICTIONARY);
   });

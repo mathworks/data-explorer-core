@@ -192,13 +192,17 @@ describe('per-class display differences', () => {
     expect(n.displayValue).toBe('<1x1 CustomObject>');
   });
 
-  it('CustomObject omits Description entirely until one is set', () => {
-    // Writing an empty Description into a file that never had one would be a
-    // spurious diff on save.
+  it('CustomObject omits Description entirely, and has none, where its file holds none', () => {
+    // Writing an empty Description into a file that never had one would be a spurious diff on
+    // save; and with no MATLAB class to ask, what the file holds says whether it has one
+    // (CustomObjectNode.descriptionApplies).
     const n = CustomObjectNode.parse(wrap('CustomObject'), 'n', null) as any;
     expect(n._getSerializedProperties()).toEqual({});
-    expect(n.setProperty('Description', 'hi')).toBe(true);
-    expect(n._getSerializedProperties()).toEqual({ Description: 'hi' });
+    expect(n.setProperty('Description', 'hi')).toMatchObject({ error: true, reason: 'Cannot edit "n": a CustomObject has no Description.' });
+    expect(n._getSerializedProperties()).toEqual({});
+    const held = CustomObjectNode.parse(wrap('CustomObject', { Description: 'was' }), 'm', null) as any;
+    expect(held.setProperty('Description', 'hi')).toBe(true);
+    expect(held._getSerializedProperties()).toEqual({ Description: 'hi' });
   });
 
   it('CustomObject keeps an explicitly empty Description that was in the file', () => {

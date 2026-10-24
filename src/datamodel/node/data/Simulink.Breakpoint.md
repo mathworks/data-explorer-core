@@ -142,8 +142,8 @@ unmodelled.
   identifier, unique in namespace, max 63 chars, not a keyword).
   Test: `test/parity/fidelity/typedef.fidelity.test.ts`.
 
-- Description: refused outright by `BreakpointNode.setProperty`, with MATLAB's message,
-  because the class has no such property.
+- Description: refused outright by `BreakpointNode._noDescriptionRefusal`, which every setter and
+  the session's edit ask first, with MATLAB's message, because the class has no such property.
   Test: `test/lutBreakpointNoDescription.test.ts`.
 
 - `storageClass`: enforced by `trySetSchemaProperty` against this class's own 17-value

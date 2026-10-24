@@ -1,0 +1,292 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "subAlias",
+						"metadata": {
+							"uuid": "649d9415-76e7-414e-a295-590ffb030411",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.485873",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.Alias",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"BaseType": "double",
+										"DataScope": "Auto",
+										"Description": "",
+										"HeaderFile": ""
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "subBus",
+						"metadata": {
+							"uuid": "d85bd4fb-535f-4783-86fe-f007dd204f0b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.506544",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.Bus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DataScope": "Auto",
+										"Description": "",
+										"Elements_internal": [],
+										"HeaderFile": "",
+										"PreserveElementDimensions": false
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "subNum",
+						"metadata": {
+							"uuid": "7060c735-62d0-4c73-b022-a5e88e61d4f8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.504570",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.Num",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Bias": 0,
+										"DataScope": "Auto",
+										"DataTypeMode": "Double",
+										"DataTypeOverride": "Inherit",
+										"Description": "",
+										"FixedExponent": 0,
+										"HeaderFile": "",
+										"IsAlias": false,
+										"SignednessBool": true,
+										"SlopeAdjustmentFactor": 1,
+										"WordLength": 64
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "subParam",
+						"metadata": {
+							"uuid": "cbef7c8f-fd46-474d-83f0-dc255ee521ba",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.508143",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.Param",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											0,
+											0
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "subSig",
+						"metadata": {
+							"uuid": "15ddcf2a-b3a7-4f66-8978-f17fce21f49a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.509505",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.Sig",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Signal",
+												"StorageClass": "Auto"
+											}
+										},
+										"LoggingInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.LoggingInfo",
+											"_properties": {}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "subVT",
+						"metadata": {
+							"uuid": "d894db6f-b24a-4410-b354-eb27186033c3",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.506176",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsub.VT",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "vcDefault",
+						"metadata": {
+							"uuid": "f8e446ac-f71a-4076-881d-a7857b9420c7",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261024T171517.509909",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.VariantConfigurations",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_custom_save": {
+										"_array_type": "Struct",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"AreSubModelConfigurationsMigrated": true,
+												"ComponentConfigurationData": {
+													"_type": "struct",
+													"_value": "[]"
+												},
+												"Configurations": {
+													"_type": "struct",
+													"_value": "[]"
+												},
+												"Constraints": {
+													"_type": "struct",
+													"_value": "[]"
+												},
+												"DataDictionaryName": "",
+												"DataDictionarySection": "",
+												"DefaultConfigurationName": "",
+												"PreferredConfiguration": "",
+												"VariantConfigurations": {
+													"_type": "struct",
+													"_value": "[]"
+												},
+												"Version": "27.1"
+											}
+										],
+										"_fields": [
+											"Configurations",
+											"VariantConfigurations",
+											"Constraints",
+											"PreferredConfiguration",
+											"DefaultConfigurationName",
+											"DataDictionaryName",
+											"DataDictionarySection",
+											"AreSubModelConfigurationsMigrated",
+											"ComponentConfigurationData",
+											"Version"
+										]
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

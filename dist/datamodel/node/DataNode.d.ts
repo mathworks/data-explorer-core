@@ -166,6 +166,13 @@ export default class DataNode extends BaseNode {
      * summary). That refusal changes nothing either.
      */
     _isUnchangedCommit(propName: string, stringValue: string): boolean;
+    /**
+     * The refusal of an edit of a Description the object has none of (BaseNode.descriptionApplies),
+     * or null for any other edit: asked before every other gate, the session's included, as what
+     * refuses the rest of an edit of the node (its source, an encoded stream) would give a reason the
+     * object could be written for, and there is no property to write.
+     */
+    _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
      * The rename setProperty makes once it has found `name` one this node takes: the node called

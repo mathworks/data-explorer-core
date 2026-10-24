@@ -3,7 +3,6 @@ import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
-import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { type MatVariable } from '../../parser/MatParser.js';
@@ -148,10 +147,11 @@ export default class MatlabVariableNode extends DataNode {
         value: string;
     }> | null;
     get descriptionEditable(): boolean;
+    get descriptionApplies(): boolean;
     getProperties(): PropClass[];
     getPILayout(): {
         group: string;
-        items: (typeof PropKind | typeof PropDescription)[];
+        items: (typeof PropKind)[];
     }[];
     _ofMcosString(): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;

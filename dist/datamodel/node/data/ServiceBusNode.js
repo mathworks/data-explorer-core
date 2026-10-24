@@ -26,6 +26,8 @@ export class FunctionElementNode extends BaseBusElementNode {
     // absent (a FunctionElement owns neither — see note above); the Value column
     // shows the Prototype via displayValue.
     getPILayout() { return [{ group: 'General', items: [PropName, PropKind, PropClassAtom] }]; }
+    // Nor has it a Description to show or edit: isprop is false (BaseNode.descriptionApplies).
+    get descriptionApplies() { return false; }
     // In MATLAB the Name is the function the Prototype declares: setting the Name renames
     // that function in the Prototype (see Simulink.FunctionElement.md). So a rename here
     // renames it too, in this same call (_rename), which is what makes it one edit: the

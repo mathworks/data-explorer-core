@@ -10,9 +10,10 @@ export default class BreakpointNode extends SimulinkObjectNode {
     // What the FILE says, shown read-only. MATLAB's Simulink.Breakpoint has no Description:
     // `isprop` is 0, setting one fails with MATLAB:noPublicFieldForClass (R2027a, measured
     // 2026-10-16), and a dictionary MATLAB writes carries no such key. A key some other writer
-    // left is read here for the Description column and written back exactly as read: nothing
-    // overrides it (`_serializedOverrides` is the inherited empty one), so the file's own bag
-    // passes through. Simulink.FunctionElement is the precedent (ServiceBusNode.ts).
+    // left is shown, read-only, among the Property Inspector's other keys (the row shows none:
+    // descriptionApplies) and written back exactly as read: nothing overrides it
+    // (`_serializedOverrides` is the inherited empty one), so the file's own bag passes through.
+    // Simulink.FunctionElement is the precedent (ServiceBusNode.ts).
     Description: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.Description = (props.Description as string) || ''; }
     get icon(): string { return 'wsSimulinkBreakpoint'; }
@@ -22,19 +23,14 @@ export default class BreakpointNode extends SimulinkObjectNode {
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/breakpoint.json).
-    // No editor in the table (`row._descriptionEditable`) or the Property Inspector.
-    get descriptionEditable(): boolean { return false; }
-    // An edit is refused in MATLAB's words, rather than accepted and saved as a key MATLAB
-    // ignores on load, which is what an edit here used to do.
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
-        // One whose properties are held beside its class, which the save writes back as read, refuses
-        // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
-        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
-        if (inlineRefusal) { return inlineRefusal; }
-        if (propName === 'Description') {
-            return { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: this.Description };
-        }
-        return super.setProperty(propName, stringValue);
+    // MATLAB's Simulink.Breakpoint has no Description: isprop is false (BaseNode.descriptionApplies),
+    // so no editor in the table (`row._descriptionEditable`) or the Property Inspector.
+    get descriptionApplies(): boolean { return false; }
+    // And an edit of one is refused in MATLAB's words, by every setter and the session's gate alike
+    // (DataNode._noDescriptionRefusal, SimulinkObjectNode.setProperty), rather than accepted and
+    // saved as a key MATLAB ignores on load, which is what an edit here used to do.
+    _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null {
+        return propName === 'Description' ? { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: '' } : null;
     }
     static get defaultName(): string { return 'Breakpoint'; }
     // MEASURED from what MATLAB R2027a writes for `Simulink.Breakpoint` with nothing set, in

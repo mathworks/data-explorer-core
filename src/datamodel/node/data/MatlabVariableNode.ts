@@ -1244,6 +1244,13 @@ export default class MatlabVariableNode extends DataNode {
     return false;
   }
 
+  // Nor has the value one: MATLAB's isprop(v, 'Description') is false of a number, a char, a
+  // string, a logical, a cell, a struct and a function handle (BaseNode.descriptionApplies), and of
+  // an object array this node holds whole, an empty one among them, no element holds one here.
+  get descriptionApplies(): boolean {
+    return false;
+  }
+
   getProperties(): PropClass[] {
     return this._ofMcosString() ? [PropName, PropValue, PropDataType] : [PropName, PropValue, PropDataType, PropDescription];
   }
@@ -1251,12 +1258,12 @@ export default class MatlabVariableNode extends DataNode {
   getPILayout() {
     // className is dynamic (double/int8/struct/the opaque MCOS class), so this
     // can't be schema-keyed; author the common "General" identity group directly.
-    const items = [PropName, PropValue, PropDataType, PropKind, PropClassAtom];
-    return [{ group: 'General', items: this._ofMcosString() ? items : [...items, PropDescription] }];
+    // No Description field: a value has none (descriptionApplies).
+    return [{ group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom] }];
   }
 
   // A MAT-file's `string`, or an element of one (_mcosString): MATLAB's string has no Description,
-  // so it shows no such row.
+  // so it shows no such column.
   _ofMcosString(): boolean {
     return !!this._mcosString || (this.parent instanceof MatlabVariableNode && !!this.parent._mcosString);
   }

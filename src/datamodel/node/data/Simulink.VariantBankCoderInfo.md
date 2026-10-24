@@ -183,8 +183,8 @@ reported here:
 to offer one anyway (`descriptionEditable` was inherited, and true), `setProperty('Description', …)`
 returned true and marked the entry Modified, and both save paths dropped the text, so the edit was
 silently lost. Now, as for a Variant Control (decision D11), `descriptionEditable` is false and the
-edit is refused: "A Variant Bank Coder Info has no Description in a dictionary, so one cannot be
-saved for '<name>'." The General group keeps the identity five, with no Description.
+edit is refused: "Cannot edit "<name>": a Simulink.VariantBankCoderInfo has no Description." (MATLAB:
+isprop is false; `descriptionApplies`). The General group keeps the identity five, with no Description.
 
 ## Value: the class has none
 

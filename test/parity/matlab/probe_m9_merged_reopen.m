@@ -51,6 +51,7 @@ fixtures = fullfile(here, '..', '..', 'fixtures');
 addpath(fullfile(fixtures, 'mcos'));      % GearMode, Widget, WidgetPart, MyGadget, +dexdata
 addpath(fullfile(fixtures, 'sparse'));    % +dexsparse
 addpath(fullfile(fixtures, 'display'));   % DispLevel, DispWidget
+addpath(fullfile(fixtures, 'subclasses')); % +dexsub
 fid = fopen(fullfile(outdir, 'dProbeColors.m'), 'w');
 fprintf(fid, 'classdef dProbeColors < Simulink.IntEnumType\n  enumeration\n    Red(0)\n    Green(1)\n    Blue(2)\n  end\nend\n');
 fclose(fid);
