@@ -173,14 +173,6 @@ describe('MatlabVariable round-trip fidelity', () => {
 
       // --- Complex scalar (in-process only: binary cdata encoding) ---
       it('cplxScalar: edit to new complex, round-trips in-process', () => {
-        if (format === 'json') {
-          // A text dictionary holds a complex value as a MAT stream, which is shown and not
-          // edited (the C-012 ruling, 2026-10-15; test/cdataDisplayOnly.test.ts).
-          const uri = `test://var-fid-${format}-cplxScalar.sldd`;
-          const node = entryByName(loadModel(format, FIXTURE, uri), uri, 'cplxScalar');
-          expect(node.setProperty('Value', '3+4i')).toMatchObject({ error: true });
-          return;
-        }
         const { fresh } = editAndRoundTrip(format, 'cplxScalar', '3+4i');
         expect(fresh._kind).toBe('scalar');
         expect(fresh._scalarType).toBe('complex');

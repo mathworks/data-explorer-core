@@ -138,7 +138,7 @@ export default class ParameterNode extends DataNode {
         if (this._inlineObjectBag()) {
             return false;
         }
-        // Nor a Value read from a MAT stream, which is shown and not edited
+        // Nor a Value read from a MAT stream that is shown and not edited
         // (MatlabVariableNode._streamHolder). A complex scalar displays whole, so it offered one.
         if (this._refuseStreamValue('')) {
             return false;
@@ -164,9 +164,9 @@ export default class ParameterNode extends DataNode {
         return !!this._valueNode && (isEnumBag(raw) || textEnumValueOf(raw) !== undefined);
     }
 
-    // The refusal of a Value edit when the Value was read from a MAT stream, or null: what the
-    // value node's own setter answers (MatlabVariableNode._refuseStreamEdit). Every other
-    // property of the Parameter was read from the JSON beside it and stays editable.
+    // The refusal of a Value edit when the Value was read from a MAT stream that is shown and not
+    // edited, or null: what the value node's own setter answers (MatlabVariableNode._refuseStreamEdit).
+    // Every other property of the Parameter was read from the JSON beside it and stays editable.
     _refuseStreamValue(stringValue: string): SetPropertyResult | null {
         const valueNode = this._valueNode as MatlabVariableNode | null;
         return typeof valueNode?._refuseStreamEdit === 'function' ? valueNode._refuseStreamEdit(stringValue) : null;
@@ -492,7 +492,7 @@ export default class ParameterNode extends DataNode {
             if (streamRefusal) {
                 return streamRefusal;
             }
-            const sourceRefusal = this._refuseValueForSource(stringValue);
+            const sourceRefusal = this._refuseValueForSource(stringValue) ?? this._refuseValueForStream(stringValue);
             if (sourceRefusal) {
                 return sourceRefusal;
             }
@@ -647,14 +647,37 @@ export default class ParameterNode extends DataNode {
     // The refusal of the Value `stringValue` makes by this Parameter's source, which may write some
     // Values and not others (BaseNode.sourceValueRefusal: a MAT-file, whose save writes a Value into
     // the object's cell, refuses one MATLAB loads with a warning, 300 under a DataType of 'uint8').
-    // Asked of the Value node the edit makes, made by this very setter on a twin of this Parameter
-    // that holds none of its Value and stands nowhere, so that what is judged is what the edit
-    // would hold, and nothing of this one changes for an edit refused. Null where the source judges
-    // no value, and where the twin refuses the text, as this setter then does.
+    // Asked of the Value node the edit makes (_valueMadeBy). Null where the source judges no value,
+    // and where the twin refuses the text, as this setter then does.
     _refuseValueForSource(stringValue: string): SetPropertyResult | null {
         if (!sourceJudgesValues(this)) {
             return null;
         }
+        const valueNode = this._valueMadeBy(stringValue);
+        const refused = valueNode ? sourceValueRefusal(this, 'Value', valueNode) : null;
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
+    }
+
+    // The refusal of the Value `stringValue` makes where this Parameter's Value was read from a
+    // text dictionary's MAT stream that takes edits, and what the edit makes is held as a stream
+    // there that would not read back as it (MatlabVariableNode._heldStreamRefusal): the rule an
+    // edit of such a value at an entry is held to (_refuseStreamWrite). Asked of the Value node
+    // the edit makes, as _refuseValueForSource asks it.
+    _refuseValueForStream(stringValue: string): SetPropertyResult | null {
+        const valueNode = this._valueNode as MatlabVariableNode | null;
+        if (typeof valueNode?._isTextDictionaryStream !== 'function' || !valueNode._isTextDictionaryStream()) {
+            return null;
+        }
+        const made = this._valueMadeBy(stringValue) as MatlabVariableNode | null;
+        const refused = typeof made?._heldStreamRefusal === 'function' ? made._heldStreamRefusal() : null;
+        return refused ? { error: true, reason: valueNode._streamEditReason(refused), invalidValue: stringValue, validValue: this.displayValue } : null;
+    }
+
+    // The Value node the Value `stringValue` makes, made by this very setter on a twin of this
+    // Parameter that holds none of its Value and stands nowhere, so that what is judged is what the
+    // edit would hold, and nothing of this one changes for an edit refused. Null where the twin
+    // refuses the text, as this setter then does.
+    _valueMadeBy(stringValue: string): BaseNode | null {
         const raw = this.serial._rawVal as Record<string, unknown> | undefined;
         const element = (raw?._elements as Record<string, unknown>[] | undefined)?.[0];
         const props = { ...((element?._properties as Record<string, unknown> | undefined) ?? {}), Value: undefined };
@@ -662,9 +685,7 @@ export default class ParameterNode extends DataNode {
         if (twin.setProperty('Value', stringValue) !== true || (twin.Value === undefined && !twin._valueNode)) {
             return null;
         }
-        const valueNode = twin._valueNode ?? NodeRegistry.parseValue(twin.Value === undefined ? [] : twin.Value, 'Value', null);
-        const refused = sourceValueRefusal(this, 'Value', valueNode);
-        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
+        return twin._valueNode ?? NodeRegistry.parseValue(twin.Value === undefined ? [] : twin.Value, 'Value', null);
     }
 
     // For DataModel.editProperty: what puts the Value back exactly as it is now, for the undo of

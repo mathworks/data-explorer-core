@@ -484,9 +484,9 @@ describe('every value presents the same in the .mat as in each other venue that 
         const b = nodeAt(variables, path);
         const text = fx.file === 'complex.sldd';
         const shown = (n: any) => (text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
-        if (text) {
-          expect(editableIn(presentation(b, b.displayName)), `${path}: a MAT stream, display-only`).not.toContain(true);
-        }
+        // A text dictionary's MAT stream takes edits where its value is a plain one its writer
+        // writes as it reads back (the revised C-012 ruling), which test/textStreamEdits.test.ts
+        // holds over every stream; here it is compared without its editors.
         // What the other venue is held to: the .mat as it presents, or at an object's path as it
         // would without its save's rule, of which the .mat's own differs only by its editors.
         let mine = a;

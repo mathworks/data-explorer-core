@@ -79,10 +79,10 @@ function complexRows(root: any): Record<string, string> {
 describe('the fixtures are what these tests need', () => {
   it('hold editable complex elements, dense and sparse, with an Inf or NaN part among them', () => {
     const all = FILES.flatMap((f) => complexElements(open(f)));
-    expect(all.length).toBeGreaterThan(60);
-    // None of them sparse now: a text dictionary's complex arrays, sparse_text's among them,
-    // are MAT streams, which are shown and not edited (the C-012 ruling, 2026-10-15), and a
-    // binary dictionary's sparse array is hex, read-only already.
+    expect(all.length).toBeGreaterThan(100);
+    // None of them sparse: a text dictionary's sparse array is a MAT stream holding one, which
+    // is shown and not edited (the C-012 ruling, revised 2026-10-24, keeps it so), and a binary
+    // dictionary's sparse array is hex, read-only already.
     expect(all.some((el) => el.parent._sparse)).toBe(false);
     expect(all.some((el) => !el.parent._sparse)).toBe(true);
     expect(all.some((el) => /Inf|NaN/.test(el.displayValue))).toBe(true);
@@ -98,16 +98,10 @@ describe('a complex value typed into an element of a complex array is taken, and
       const root = open(file, session);
       const before = complexRows(root);
       const firsts = complexElements(root).filter((el: any) => el.parent.children[0] === el);
-      if (root.sourceFormat === 'json') {
-        // A text dictionary holds every complex array as a MAT stream, which is shown and not
-        // edited (the C-012 ruling, 2026-10-15): there is none to type into.
-        const streams = root.flatten().filter((n: any) => n._scalarType === 'complex' && n.parent?._elementType === 'complex');
-        expect(streams.length).toBeGreaterThan(0);
-        for (const el of streams) {
-          expect(el.setProperty('Value', '3-4i'), el.id).toMatchObject({ error: true });
-        }
-        expect(firsts).toEqual([]);
-        return;
+      // A text dictionary holds every complex array as a MAT stream: a dense one takes the edit
+      // (the C-012 ruling, revised 2026-10-24), and a sparse one is shown and not edited.
+      for (const el of root.flatten().filter((n: any) => n._scalarType === 'complex' && n.parent?._sparse && n._streamHolder?.())) {
+        expect(el.setProperty('Value', '3-4i'), el.id).toMatchObject({ error: true });
       }
       expect(firsts.length).toBeGreaterThan(0);
       for (const el of firsts) {

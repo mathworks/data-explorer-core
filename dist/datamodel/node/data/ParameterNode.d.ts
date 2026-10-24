@@ -39,6 +39,8 @@ export default class ParameterNode extends DataNode {
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _refuseValueForSource(stringValue: string): SetPropertyResult | null;
+    _refuseValueForStream(stringValue: string): SetPropertyResult | null;
+    _valueMadeBy(stringValue: string): BaseNode | null;
     _restorerFor(propName: string): (() => void) | null;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
