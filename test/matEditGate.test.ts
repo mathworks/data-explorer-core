@@ -768,7 +768,8 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
 });
 
 describe('the session, on a .mat', () => {
-  it('a file a save can write is not read-only', () => {
+  // Every fixture, opened and asked: 0.6 s alone, up to 1.8 s in a full run, and 42 s once on a loaded machine.
+  it('a file a save can write is not read-only', { timeout: 30_000 }, () => {
     for (const file of FIXTURES) {
       expect(opened(fileBytes(file)).root.readOnly, shown(file)).toBe(false);
     }

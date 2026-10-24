@@ -195,7 +195,8 @@ describe('MatParser keeps every opaque\'s object handle', () => {
     );
   const files = [...matFiles(join(TEST_DIR, 'fixtures')), ...matFiles(join(TEST_DIR, 'parity/artifacts'))];
 
-  it('on every MCOS fixture, equal to the handle the raw-byte scan finds', () => {
+  // Every .mat of the test tree, parsed and scanned: 0.2 s alone, up to 2.4 s in a full run.
+  it('on every MCOS fixture, equal to the handle the raw-byte scan finds', { timeout: 30_000 }, () => {
     const withObjects: string[] = [];
     let checked = 0;
     for (const file of files) {
@@ -626,7 +627,8 @@ describe('the containers attach a decode to every opaque in the tree', () => {
     expect(mcosDecodedFor(p)).toBeUndefined();
   });
 
-  it('keeps the parsed variable type free of the decoder\'s', () => {
+  // The module graph of the whole src/ tree: 0.1 s alone, up to 1.7 s in a full run.
+  it('keeps the parsed variable type free of the decoder\'s', { timeout: 30_000 }, () => {
     // MatVariable is public, and McosParser's result type is not: a field typed with it
     // would hand a consumer a name it cannot import. MatParser therefore names nothing
     // from McosParser, not even as a type.

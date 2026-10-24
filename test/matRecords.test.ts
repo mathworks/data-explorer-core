@@ -145,7 +145,8 @@ describe('every Level-5 fixture is its header and its records, byte for byte', (
     });
   }
 
-  it('holds files with a subsystem and without one, compressed and plain', () => {
+  // Every .mat of the test tree, parsed: 0.1 s alone, up to 1.9 s in a full run.
+  it('holds files with a subsystem and without one, compressed and plain', { timeout: 30_000 }, () => {
     const parsed = files.filter((f) => !REFUSED.has(basename(f))).map((f) => parseMat(fixture(shown(f))));
     expect(parsed.some((p) => p.subsystemOffset !== 0)).toBe(true);
     expect(parsed.some((p) => p.subsystemOffset === 0 && p.records.length > 0)).toBe(true);

@@ -1376,7 +1376,8 @@ describe('no accepted edit of any binary fixture leaves the entry it changes unm
   };
 
   for (const path of BINARY) {
-    it(relative(HERE, path), () => {
+    // Every edit a fixture offers, made and saved: up to 1.2 s alone (sparse_binary.sldd), 1.9 s in a full run.
+    it(relative(HERE, path), { timeout: 30_000 }, () => {
       const plan = entries(open(path).root).map(attemptsOf);
       const rounds = Math.max(0, ...plan.map((p) => p.length));
       let accepted = 0;
