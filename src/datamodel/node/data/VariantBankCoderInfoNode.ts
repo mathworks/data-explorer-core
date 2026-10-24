@@ -251,9 +251,10 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     get displayValue(): string { return this._valueInFile ? PropValue.format(this.Value) : ''; }
     // The column stays, read-only, for a Value a file already carries.
     get valueEditable(): boolean { return false; }
-    // MATLAB's class has no Description (decision D11, as for a Variant Control): no editor is
-    // offered, and DataNode's setProperty refuses one, which both save paths used to drop.
-    get descriptionEditable(): boolean { return false; }
+    // MATLAB's Simulink.VariantBankCoderInfo has no Description: isprop is false (decision D11, as
+    // for a Variant Control; BaseNode.descriptionApplies). No editor is offered (descriptionEditable),
+    // and every setter refuses one (DataNode._noDescriptionRefusal), which both save paths used to drop.
+    get descriptionApplies(): boolean { return false; }
     getProperties(): PropClass[] {
         return [
             PropName, PropValue, PropDataType,
@@ -265,6 +266,11 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     // the entry Modified and answer `true`, and the file would gain a key MATLAB ignores. One still
     // in the encoded stream it was read from keeps that refusal's own reason.
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        // A Description first, as every setter answers one the class has none of (_noDescriptionRefusal).
+        const noDescription = this._noDescriptionRefusal(propName, stringValue);
+        if (noDescription) {
+            return noDescription;
+        }
         // One whose properties are held beside its class, which the save writes back as read, refuses
         // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
         const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);

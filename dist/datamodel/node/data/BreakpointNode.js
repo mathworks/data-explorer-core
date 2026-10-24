@@ -12,21 +12,14 @@ export default class BreakpointNode extends SimulinkObjectNode {
     get valueEditable() { return false; }
     getProperties() { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/breakpoint.json).
-    // No editor in the table (`row._descriptionEditable`) or the Property Inspector.
-    get descriptionEditable() { return false; }
-    // An edit is refused in MATLAB's words, rather than accepted and saved as a key MATLAB
-    // ignores on load, which is what an edit here used to do.
-    setProperty(propName, stringValue) {
-        // One whose properties are held beside its class, which the save writes back as read, refuses
-        // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
-        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
-        if (inlineRefusal) {
-            return inlineRefusal;
-        }
-        if (propName === 'Description') {
-            return { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: this.Description };
-        }
-        return super.setProperty(propName, stringValue);
+    // MATLAB's Simulink.Breakpoint has no Description: isprop is false (BaseNode.descriptionApplies),
+    // so no editor in the table (`row._descriptionEditable`) or the Property Inspector.
+    get descriptionApplies() { return false; }
+    // And an edit of one is refused in MATLAB's words, by every setter and the session's gate alike
+    // (DataNode._noDescriptionRefusal, SimulinkObjectNode.setProperty), rather than accepted and
+    // saved as a key MATLAB ignores on load, which is what an edit here used to do.
+    _noDescriptionRefusal(propName, stringValue) {
+        return propName === 'Description' ? { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: '' } : null;
     }
     static get defaultName() { return 'Breakpoint'; }
     // MEASURED from what MATLAB R2027a writes for `Simulink.Breakpoint` with nothing set, in

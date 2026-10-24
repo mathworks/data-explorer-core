@@ -153,6 +153,11 @@ export default class StructNode extends DataNode {
         return false;
     }
 
+    // Nor has the struct one: isprop(s, 'Description') is false (BaseNode.descriptionApplies).
+    get descriptionApplies(): boolean {
+        return false;
+    }
+
     getProperties(): PropClass[] {
         return [PropName, PropValue, PropDataType, PropDescription];
     }
@@ -161,7 +166,7 @@ export default class StructNode extends DataNode {
         // className is the data type 'struct' (shared with plain struct variables),
         // so this can't be schema-keyed; author the common "General" group directly.
         return [
-            { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }
+            { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom] }
         ];
     }
 

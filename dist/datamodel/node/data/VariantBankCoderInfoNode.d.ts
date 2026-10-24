@@ -16,7 +16,7 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     get className(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
-    get descriptionEditable(): boolean;
+    get descriptionApplies(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _restorerFor(propName: string): (() => void) | null;

@@ -8,6 +8,7 @@ export default class CustomObjectNode extends SimulinkObjectNode {
     get className(): string;
     get displayValue(): string;
     getProperties(): PropClass[];
+    get descriptionApplies(): boolean;
     _serializedOverrides(): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): CustomObjectNode;

@@ -503,6 +503,24 @@ export default class DataNode extends BaseNode {
     }
   }
 
+  /**
+   * The refusal of an edit of a Description the object has none of (BaseNode.descriptionApplies),
+   * or null for any other edit: asked before every other gate, the session's included, as what
+   * refuses the rest of an edit of the node (its source, an encoded stream) would give a reason the
+   * object could be written for, and there is no property to write.
+   */
+  _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null {
+    if (this.descriptionApplies || this._resolveProperty(propName) !== 'Description') {
+      return null;
+    }
+    return {
+      error: true,
+      reason: `Cannot edit "${(this.owningEntry ?? this).name}": ${classPhrase(this.className)} has no Description.`,
+      invalidValue: stringValue,
+      validValue: '',
+    };
+  }
+
   setProperty(propName: string, stringValue: string): true | SetPropertyResult {
     if (this._isUnchangedCommit(propName, stringValue)) {
       return true;
@@ -590,14 +608,15 @@ export default class DataNode extends BaseNode {
       this._rename(stringValue);
       return true;
     }
-    // Same shape as the name guard: a node that has nowhere to serialize a Description
-    // refuses one rather than holding it until the file is read again (see
-    // BaseNode.descriptionEditable). The generic tail below would otherwise write it,
-    // because the FIELD exists on every node whether the format carries it or not.
+    // Same shape as the name guard: a Description this node has nowhere to write
+    // (descriptionEditable; one the object has none of is refused above) is refused rather than
+    // held until the file is read again. The generic tail below would otherwise write it, because
+    // the FIELD exists on every node whether the object has the property or not.
     if (resolved === 'Description' && !this.descriptionEditable) {
+      const entry = (this.owningEntry ?? this).name;
       return {
         error: true,
-        reason: `A ${this.kind || 'value'} has no Description in a dictionary, so one cannot be saved for '${this.displayName}'.`,
+        reason: `Cannot edit "${entry}": the Description of ${this.matlabPath} is shown here but not written.`,
         invalidValue: stringValue,
         validValue: (this as unknown as { Description?: string }).Description || '',
       };
@@ -1435,6 +1454,12 @@ export default class DataNode extends BaseNode {
    * editor for.
    */
   _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null {
+    // The gate every setter asks first, so it answers first for a Description the object has none
+    // of, whatever holds the rest of the edit back (_noDescriptionRefusal).
+    const noDescription = this._noDescriptionRefusal(propName, stringValue);
+    if (noDescription) {
+      return noDescription;
+    }
     const isName = this._resolveProperty(propName) === 'name';
     const holder = encodedHolderOf(this);
     if (holder && !(holder === this && isName)) {

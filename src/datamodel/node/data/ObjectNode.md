@@ -43,7 +43,7 @@ icon (architectural data support).
 | Name          | text     | Entry name                                    |
 | Value         | none     | Shows `<RxC ClassName>`, or an enumeration value's enumeral; an edit is refused, in three arms (below) |
 | DataType      | label    | Read-only label                               |
-| Description   | textArea | Not for an enumeration value in the `_is_enum` form (`isEnumBag`), nor for a value still in its encoded stream (`descriptionEditable`); elsewhere it takes an edit that no save writes (see Open questions) |
+| Description   | textArea | Only where the object has one (`descriptionApplies`: MATLAB's isprop for its class, `descriptionClasses.ts`; for a class MATLAB was not asked about, a `Description` key in its bag or the CoderInfo of a Parameter or Signal subclass); not an object array or an enumeration value, nor a table (its Description is in its Properties) or a value still in its encoded stream. The column shows the object's `Description` property row and an edit sets that row, or adds it where the file held the default, which the save writes (see "A Description" below) |
 
 ## A Value edit is refused
 
@@ -141,16 +141,18 @@ saves through saveobj, whose `_custom_save` is its whole state, was saved as
 
 ## Open questions / deferred
 
-- **A Description typed into an object's Description column** (F2-4's ObjectNode half,
-  held for the maintainer). `descriptionEditable` is true for every object but an
-  enumeration value in the `_is_enum` form (`isEnumBag`) and a value still in its
-  encoded stream; a text dictionary's enumeration value (`_textEnum()`) is not
-  excluded. So the column takes the edit, `setProperty('Description', …)` answers
-  `true` and the cell shows the text, but nothing writes it: `serializeValue` and
-  `serializeXml` write an object from its raw value and its property rows, never from
-  that field, and the text is gone on the next read. The recorded case is
-  `embedded.fi` (`fi_vec`), and it is not the only one: at `f9acdf9` the same holds
-  for `custom_object_*.sldd`'s `widget`, and for the text dictionaries' enumeration
-  values. Open: is "has a Description" decided per entry (by a `Description` key in
-  its bag) or per class, and where an object has one, is the column edit routed into
-  that property or refused? This page records the question, not a ruling.
+- **A Description** (the user's ruling, 2026-10-24: "Description is just a property: if the
+  object has it, show it and allow editing; if there is no such property, show it as invalid").
+  Decided per class, from MATLAB's isprop (`descriptionClasses.ts`,
+  `test/parity/matlab/probe_description_isprop.m`), and for a class MATLAB was not asked about,
+  per entry from its bag: a `Description` key, or a CoderInfo naming a Parameter or Signal
+  subclass, which a text dictionary saves with only the properties set on it. Measured of a
+  default object of a user's subclass of each class one is made of (`fixtures/subclasses`): a
+  subclass of AliasType, NumericType or Bus saves its Description at its default, in a text and a
+  binary dictionary; a binary dictionary saves every property of all of them; a text dictionary
+  saves a ValueType subclass's at its defaults as no property at all, which nothing tells from a
+  class with none, so it is shown with none. Where the object has one, the column is its
+  `Description` property row: an edit sets it, or adds it, and the save writes it (MATLAB R2027a
+  reads it back, `test/descriptionApplies.test.ts`). Where it has none (`embedded.fi`, the
+  fixtures' `widget`, an enumeration value, an object array), the row shows none and the edit is
+  refused, naming the class.

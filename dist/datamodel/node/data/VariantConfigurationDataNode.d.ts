@@ -10,6 +10,7 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get displayValue(): string;
     get valueEditable(): boolean;
     getProperties(): PropClass[];
+    get descriptionApplies(): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _serializedOverrides(): Record<string, unknown>;
     static get defaultName(): string;

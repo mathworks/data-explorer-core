@@ -811,7 +811,7 @@ describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a value MATLAB would r
     const node = entryIn(source, 'ciA');
     expect(node.setProperty('Description', 'kept?')).toMatchObject({
       error: true,
-      reason: "A Variant Bank Coder Info has no Description in a dictionary, so one cannot be saved for 'ciA'.",
+      reason: 'Cannot edit "ciA": a Simulink.VariantBankCoderInfo has no Description.',
       invalidValue: 'kept?',
     });
     expect(node.status).not.toBe('Modified');

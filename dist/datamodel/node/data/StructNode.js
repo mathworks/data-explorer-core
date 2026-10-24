@@ -125,6 +125,10 @@ export default class StructNode extends DataNode {
     get descriptionEditable() {
         return false;
     }
+    // Nor has the struct one: isprop(s, 'Description') is false (BaseNode.descriptionApplies).
+    get descriptionApplies() {
+        return false;
+    }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropDescription];
     }
@@ -132,7 +136,7 @@ export default class StructNode extends DataNode {
         // className is the data type 'struct' (shared with plain struct variables),
         // so this can't be schema-keyed; author the common "General" group directly.
         return [
-            { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }
+            { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom] }
         ];
     }
     // setOwn rather than an assignment: the names are the file's, and a field called

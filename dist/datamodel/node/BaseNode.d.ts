@@ -37,6 +37,7 @@ export interface RowData {
     Value?: unknown;
     _valueEditable?: boolean;
     _descriptionEditable?: boolean;
+    _descriptionApplies?: boolean;
     DataType?: string | {
         prefix?: string;
         text: string;
@@ -360,6 +361,7 @@ export default class BaseNode {
     _labelUnder(parentLabel: () => string): string | null;
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
+    get descriptionApplies(): boolean;
     getPropInfo(PropClassRef: PropClass): PropInfo;
     toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];

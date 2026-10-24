@@ -255,6 +255,14 @@ describe('a property the file never had', () => {
     // open document, and then be gone on reopen.
     for (const c of CASES) {
       const node = c.parse(rawVal(c.className, {}), 'e');
+      if (!node.descriptionApplies) {
+        // A CustomObject, a class MATLAB has no definition of, has a Description only where its
+        // file holds one (CustomObjectNode.descriptionApplies): this one has none, and refuses one.
+        expect(c.label).toBe('CustomObject');
+        expect(node.setProperty(c.prop, c.typed), `${c.label} setProperty`).toMatchObject({ error: true, reason: 'Cannot edit "e": a CustomObject has no Description.' });
+        expect(binaryPath(node), `${c.label} binary`).not.toHaveProperty(c.key);
+        continue;
+      }
       expect(node.setProperty(c.prop, c.typed), `${c.label} setProperty`).toBe(true);
       expect(binaryPath(node)[c.key], `${c.label} binary`).toBe(c.typed);
       expect(textFileBag(node)[c.key], `${c.label} text`).toBe(c.typed);

@@ -18,6 +18,11 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get displayValue(): string { return ''; }
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType]; }
+    // Nor a Description: none of its ten properties is one, and isprop(obj, 'Description') is 0
+    // (MATLAB R2027a, test/parity/matlab/probe_description_isprop.m), so the row shows none and an
+    // edit is refused (BaseNode.descriptionApplies). One was taken by DataNode's generic tail, which
+    // kept the text on a field `_serializedOverrides` never writes, and was gone on the save.
+    get descriptionApplies(): boolean { return false; }
     // PI layout: schema-driven "General" group (classes/variantConfigurationData.json).
     // MATLAB's Simulink.VariantConfigurations has no Value, as Simulink.VariantBank has none
     // (R2027a, test/parity/matlab/probe_variantconfigurations_value.m: under either name the

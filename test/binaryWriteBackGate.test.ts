@@ -372,7 +372,8 @@ describe('C-199: a value saved beside an envelope can be cleared, as MATLAB clea
     const legacy = reparseModel(zipSync(parts), 'binary', FIXTURE, URI);
     const v = entryByName(legacy, URI, 'aVariant');
     expect(v.Specification).toBe('');
-    expect(v.setProperty('Description', 'note')).toBe(true);
+    // An edit of the entry elsewhere (a Simulink.VariantVariable has no Description to edit).
+    expect(v.setProperty('Name', 'aVariant2')).toBe(true);
     // Written as it was read: the envelope still says B, and the empty sibling stays empty.
     expect(specTags(variantBlock(chunkOf(serializeModel(legacy, 'binary'))))).toEqual([SAVED, EMPTY_SIBLING]);
   });

@@ -15,6 +15,10 @@ export default class CustomObjectNode extends SimulinkObjectNode {
     get className(): string { return CLASS_NAME; }
     get displayValue(): string { return '<1x1 ' + CLASS_NAME + '>'; }
     getProperties(): PropClass[] { return [PropName, PropValue, PropDataType, PropDescription]; }
+    // No MATLAB class is named CustomObject, so isprop has no answer for it, and what the file holds
+    // decides, as for any object of a class MATLAB cannot load (ObjectNode.descriptionApplies): a
+    // Description where its bag holds one. The one the Add gallery makes holds none.
+    get descriptionApplies(): boolean { return Object.prototype.hasOwnProperty.call(this.serial._properties ?? {}, 'Description'); }
     // PI layout: schema-driven "General" group (classes/customObject.json).
     _serializedOverrides(): Record<string, unknown> { return this._gatedProps({ Description: this.Description }); }
     static get defaultName(): string { return 'CustomObject'; }

@@ -13,6 +13,8 @@ export default class VariantExpressionNode extends SimulinkObjectNode {
     get className(): string { return CLASS_NAME; }
     get displayValue(): string { return PropCondition.format(this.Condition); }
     getProperties(): PropClass[] { return [PropName, PropCondition, PropDataType]; }
+    // MATLAB's Simulink.VariantExpression has no Description: isprop is false (BaseNode.descriptionApplies).
+    get descriptionApplies(): boolean { return false; }
     // PI layout: schema-driven "General" group (classes/variantExpression.json).
     // UNGATED: the Condition is the expression itself, so it is written whether or not the
     // file carried the key.

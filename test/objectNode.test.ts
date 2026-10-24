@@ -78,7 +78,8 @@ describe('ObjectNode — scalar object', () => {
   });
 
   it('offers the object property set in the table and inspector', () => {
-    const n = parse(valueObject('My.Thing', [{ A: 1 }]));
+    // A class MATLAB was not asked about, whose bag holds a Description: it has one.
+    const n = parse(valueObject('My.Thing', [{ A: 1, Description: 'd' }]));
     expect(n.getProperties().map((p: any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Description']);
     expect(n.getPILayout()).toEqual([
       { group: 'General', items: expect.arrayContaining(n.getProperties()) },
@@ -88,6 +89,11 @@ describe('ObjectNode — scalar object', () => {
     expect(n.getPILayout()[0].items.map((p: any) => p.key)).toEqual([
       'Name', 'Value', 'DataType', 'Kind', 'Class', 'Description',
     ]);
+    expect([n.toRow()._descriptionApplies, n.toRow().Description]).toEqual([true, 'd']);
+    // One whose bag holds none, of a class MATLAB was not asked about, has none: no field.
+    const none = parse(valueObject('My.Thing', [{ A: 1 }]));
+    expect(none.getPILayout()[0].items.map((p: any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class']);
+    expect([none.toRow()._descriptionApplies, none.toRow()._descriptionEditable]).toEqual([false, false]);
   });
 });
 

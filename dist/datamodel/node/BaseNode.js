@@ -705,7 +705,18 @@ export default class BaseNode {
     // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
     // and can still be described.
     get descriptionEditable() {
-        return !encodedHolderOf(this) && !sourceEditRefused(this, 'Description');
+        return this.descriptionApplies && !encodedHolderOf(this) && !sourceEditRefused(this, 'Description');
+    }
+    // Whether the object this node stands for has a Description property at all, as MATLAB answers
+    // isprop(obj, 'Description') (measured in MATLAB R2027a: test/descriptionApplies.test.ts). Where
+    // it has none, the row shows no Description and takes no edit of one (descriptionEditable), the
+    // Property Inspector offers no Description field, and DataNode.setProperty refuses one, naming
+    // the class. Before, every row took one, and the save wrote it nowhere, or as a key MATLAB has no
+    // property of. True here, false in the classes whose object has none (a plain value, a struct, a
+    // LookupTable, a Breakpoint, a VariantControl…), the direction descriptionEditable is declared in;
+    // ObjectNode, which holds an object of any class, asks its class (descriptionClasses).
+    get descriptionApplies() {
+        return true;
     }
     getPropInfo(PropClassRef) {
         const key = PropClassRef.key;
@@ -837,6 +848,13 @@ export default class BaseNode {
         // DEDICATED_COLUMNS), so the editability has to travel as its own key — the same
         // arrangement `_valueEditable` already has, and for the same reason.
         row._descriptionEditable = this.descriptionEditable;
+        // And whether the object has a Description at all: one it has none of shows none, whatever a
+        // subclass's row put in the cell.
+        row._descriptionApplies = this.descriptionApplies;
+        if (!row._descriptionApplies) {
+            row.Description = '';
+            row._descriptionEditable = false;
+        }
         // The reverse projection, reached through the resolver the session stamped on this
         // node's source root rather than through a session reference a node must not hold.
         // This is the seam that makes the column non-blank in a host that changed nothing:
@@ -873,7 +891,10 @@ export default class BaseNode {
     // a schema layout nor an override applies → no curated groups (toPIObject may
     // still show the "Other" group).
     getPILayout() {
-        return buildPILayout(this.className);
+        // With no Description field where the object has none (descriptionApplies): a class whose
+        // objects answer one by one (CustomObjectNode) has one schema layout for all of them.
+        const layout = buildPILayout(this.className);
+        return !layout || this.descriptionApplies ? layout : layout.map((g) => ({ ...g, items: g.items.filter((p) => p.key !== 'Description') }));
     }
     toPIObject() {
         const authored = this.getPILayout();

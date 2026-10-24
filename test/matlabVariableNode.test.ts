@@ -1654,20 +1654,15 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect([n.displayValue, n.valueEditable]).toEqual([NOT_AVAILABLE, false]);
   });
 
-  it('offers the four table properties and one General group in the inspector', () => {
+  it('offers the four table properties and one General group in the inspector, with no Description field', () => {
     const n = parse(1);
+    // The table's Description column is every row's; a value has no Description (descriptionApplies).
     expect(n.getProperties().map((p: Any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Description']);
+    expect([n.toRow()._descriptionApplies, n.toRow().Description]).toEqual([false, '']);
     const layout = n.getPILayout();
     expect(layout.length).toBe(1);
     expect(layout[0].group).toBe('General');
-    expect(layout[0].items.map((p: Any) => p.key)).toEqual([
-      'Name',
-      'Value',
-      'DataType',
-      'Kind',
-      'Class',
-      'Description',
-    ]);
+    expect(layout[0].items.map((p: Any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class']);
   });
 });
 

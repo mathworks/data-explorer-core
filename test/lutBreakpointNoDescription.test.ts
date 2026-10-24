@@ -149,9 +149,10 @@ for (const c of CLASSES) {
           const { session, source } = open(withDescription(format, c.entry, c.className, 'kept'));
           const node = entryIn(source, c.entry);
 
+          // The class has no Description, so the row shows none (BaseNode.descriptionApplies); the
+          // key the file holds is shown, read-only, among the Property Inspector's other keys.
           const row = node.toRow()!;
-          expect(row.Description).toBe('kept');
-          expect(row._descriptionEditable).toBe(false);
+          expect([row.Description, row._descriptionEditable, row._descriptionApplies]).toEqual(['', false, false]);
           const pi = node.toPIObject()!;
           expect((pi.objects[0] as Record<string, unknown>)['Other.Description']).toBe('kept');
           const other = (pi.propertySheet.properties as any[]).find((p) => p.name === 'Other.Description');

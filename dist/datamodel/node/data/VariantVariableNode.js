@@ -10,6 +10,8 @@ export default class VariantVariableNode extends SimulinkObjectNode {
     get className() { return CLASS_NAME; }
     get displayValue() { return PropSpecification.format(this.Specification); }
     getProperties() { return [PropName, PropSpecification, PropDataType]; }
+    // MATLAB's Simulink.VariantVariable has no Description: isprop is false (BaseNode.descriptionApplies).
+    get descriptionApplies() { return false; }
     // PI layout: schema-driven "General" group (classes/variantVariable.json).
     // UNGATED: the Specification is the variable's whole content. What is special here is the
     // BINARY path below, not this list.

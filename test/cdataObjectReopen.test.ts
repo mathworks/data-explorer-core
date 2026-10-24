@@ -146,6 +146,9 @@ describe('reopened, it is read-only, as it is in the binary dictionary: only its
               expect(result, `${label} ${prop}`).toBe(true);
             } else if (ruled(node, path)) {
               expect(result, `${label} ${prop}`).toMatchObject({ error: true });
+            } else if (prop === 'Description' && !node.descriptionApplies) {
+              // A value with no Description says so first (DataNode._noDescriptionRefusal).
+              expect(result, `${label} ${prop}`).toMatchObject({ error: true, reason: expect.stringMatching(/ has no Description\.$/) });
             } else {
               expect(result, `${label} ${prop}`).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
             }

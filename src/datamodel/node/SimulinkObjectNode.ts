@@ -94,7 +94,8 @@ export default class SimulinkObjectNode extends DataNode {
   }
 
   setProperty(propName: string, stringValue: string): true | SetPropertyResult {
-    return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    // A Description the class has none of first, as every setter answers it (DataNode._noDescriptionRefusal).
+    return this._noDescriptionRefusal(propName, stringValue) ?? this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
   }
 
   /**

@@ -130,6 +130,9 @@ describe('under a hex value, every node is read-only, whatever its class, but an
               }
             } else if (ruled(node)) {
               expect(result, what).toMatchObject({ error: true });
+            } else if (prop === 'Description' && !node.descriptionApplies) {
+              // A value with no Description says so first (DataNode._noDescriptionRefusal).
+              expect(result, what).toMatchObject({ error: true, reason: expect.stringMatching(/ has no Description\.$/) });
             } else {
               expect(result, what).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
             }

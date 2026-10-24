@@ -90,8 +90,14 @@ describe('common "General" identity group — schema-driven classes', () => {
     });
   });
 
-  it('CustomObject keeps Description in General', () => {
+  it('CustomObject keeps Description in General where its file holds one, and has none otherwise', () => {
+    // A class MATLAB has no definition of: what the file holds says (CustomObjectNode.descriptionApplies).
     expect(firstGroup(CustomObjectNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
+    });
+    const held = CustomObjectNode.parse({ _array_class: 'CustomObject', _dimensions: [1, 1], _elements: [{ _properties: { Description: 'd' } }] }, 'h', null);
+    expect(firstGroup(held)).toEqual({
       name: 'General',
       items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
     });
@@ -111,13 +117,14 @@ describe('common "General" identity group — schema-driven classes', () => {
 
 describe('common "General" identity group — override-driven classes', () => {
   it('Struct / MatlabVariable (dynamic className) open with General', () => {
+    // With no Description field: a struct and a plain value have none (descriptionApplies).
     expect(firstGroup(StructNode.createDefault('s', null))).toEqual({
       name: 'General',
-      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
     });
     expect(firstGroup(MatlabVariableNode.createDefault('m', null))).toEqual({
       name: 'General',
-      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
     });
   });
 
