@@ -78,9 +78,9 @@
 
 import { zlibSync } from 'fflate';
 import { inflateZlib } from './Inflate.js';
-import { parseMat, functionHandleOf, opaqueElementOf } from './MatParser.js';
+import { decodeMatStream, parseMat, functionHandleOf, opaqueElementOf } from './MatParser.js';
 import type { MatRecord, MatVariable, ParsedMat } from './MatParser.js';
-import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatVariable, withObjectMembers } from './MatWriter.js';
+import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatStream, encodeMatVariable, withObjectMembers } from './MatWriter.js';
 import { checkMatElement, violationsAddedBySplice } from './MatFileCheck.js';
 import type { MatCheckOptions, MatSplicedRecord, MatViolationCode } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
@@ -507,6 +507,29 @@ export function freshRefusal(node: BaseNode, record: MatRecord | null): MatWrite
     const what = was ?? classPhrase(String((node as DataNode).className || 'object'));
     return refusal(name, 'it is ' + what + ', which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved');
   }
+  const unfit = valueRefusal(name, value);
+  if (unfit) {
+    return unfit;
+  }
+  // And one stored in a form MATLAB does not load as it is (storedRefusal). Last, so that a
+  // refusal that says more of the same damage (a container read short, a value not decoded) is
+  // the one given.
+  const stored = record ? storedRefusal(record) : null;
+  if (stored) {
+    return refusal(name, 'it is stored in a form MATLAB does not load as it is (' + stored + '), so there is no value of it a save '
+      + 'can be held to: it is written only as it was read, or renamed');
+  }
+  return null;
+}
+
+/**
+ * What freshRefusal asks of the value a node holds, whatever holds it: one holding what this writer
+ * cannot write at any depth (unwritableIn), one with no form at all (_heldNone, _refuseNoSize), or
+ * one holding a container read short (shortIn). Asked of a MAT-file's variable written fresh
+ * (freshRefusal) and of a text dictionary's MAT stream (streamWriteRefusal), so that the two are one
+ * rule. `name` names it in the refusal.
+ */
+function valueRefusal(name: string, value: MatlabVariableNode): MatWriteError | null {
   const unwritable = unwritableIn(value);
   if (unwritable) {
     return refusal(name, unwritable.why ?? unwritable.path + ' is ' + unwritable.what + ', which this package cannot write into a MAT-file');
@@ -526,15 +549,40 @@ export function freshRefusal(node: BaseNode, record: MatRecord | null): MatWrite
   if (short) {
     return refusal(name, short.path + ' is ' + short.what + ', and a save would write the ones it does not hold as empty');
   }
-  // And one stored in a form MATLAB does not load as it is (storedRefusal). Last, so that a
-  // refusal that says more of the same damage (a container read short, a value not decoded) is
-  // the one given.
-  const stored = record ? storedRefusal(record) : null;
-  if (stored) {
-    return refusal(name, 'it is stored in a form MATLAB does not load as it is (' + stored + '), so there is no value of it a save '
-      + 'can be held to: it is written only as it was read, or renamed');
-  }
   return null;
+}
+
+/**
+ * The refusal of writing `node`'s value as the MAT stream a text dictionary holds for it (its
+ * cdata), or null where the stream written reads back as the value: the rule a variable a MAT-file
+ * writes fresh is held to (freshWriteRefusal), of the value alone, which a stream holds with no
+ * name. What freshRefusal asks of the value (valueRefusal), then the stream written
+ * (MatWriter.encodeMatStream) read back whole (MatParser.decodeMatStream) and held to the value
+ * (differs). Asked of a value a text dictionary read from a stream, of what it holds and of what an
+ * edit makes it (MatlabVariableNode._streamLocked, _refuseStreamWrite), so that what such a value
+ * takes as an edit is what its save writes as typed.
+ */
+export function streamWriteRefusal(node: BaseNode): MatWriteError | null {
+  const value = valueNodeOf(node);
+  if (!value) {
+    return refusal(node.name, 'it is ' + classPhrase(String((node as DataNode).className || 'object')) + ', which no MAT stream this package writes holds');
+  }
+  const unfit = valueRefusal(node.name, value);
+  if (unfit) {
+    return unfit;
+  }
+  let bytes: Uint8Array;
+  try {
+    bytes = encodeMatStream(value._var);
+  } catch (e) {
+    if (e instanceof MatWriteError) {
+      return e;
+    }
+    throw e;
+  }
+  const got = decodeMatStream(bytes, { whole: true });
+  const difference = got.ok ? differs(value._var, got.variable, node.name) : 'it does not read back as a value (' + got.reason + ')';
+  return difference ? refusal(node.name, 'its MAT stream would not read back as it was written (' + difference + ')') : null;
 }
 
 /**

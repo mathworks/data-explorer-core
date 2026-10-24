@@ -228,9 +228,9 @@ describe('the dictionaries hold a value of every integer class in every position
       const root = ingest(createSession(), build(), { filename: file });
       for (const { cls, at, name } of ENTRIES) {
         const node = holder(root, name, at);
-        // Bar a text dictionary's complex value, a MAT stream, which is shown and not edited
-        // (the C-012 ruling, 2026-10-15).
-        expect(node.valueEditable, name).toBe(!(format === 'text' && at === 'Complex'));
+        // A text dictionary's complex value too, a MAT stream holding a plain value, which takes
+        // edits (the C-012 ruling, revised 2026-10-24).
+        expect(node.valueEditable, name).toBe(true);
         if (at === 'Complex') {
           expect([node.parent.className, node.parent._elementType, node.displayValue], name).toEqual([cls, 'complex', '1+2i']);
         } else {
@@ -263,12 +263,6 @@ describe('a number typed into a value of an integer class is MATLAB\'s conversio
                 ? complexText(matlabInt(re, range.lo, range.hi), matlabInt(im, range.lo, range.hi))
                 : matlabInt(re, range.lo, range.hi);
             session.setActive(root, node);
-            if (format === 'text' && at === 'Complex') {
-              // A MAT stream, which is shown and not edited (the C-012 ruling, 2026-10-15).
-              expect(session.editProperty(node.id, 'Value', text), `${name} = ${text}`).toMatchObject({ error: true });
-              want.set(name, node.displayValue);
-              continue;
-            }
             expect(session.editProperty(node.id, 'Value', text), `${name} = ${text}`).toBe(true);
             expect(node.displayValue, `${name} = ${text}`).toBe(shows);
             want.set(name, shows);
@@ -465,11 +459,6 @@ describe('a negative zero typed into a value of an integer class is 0', () => {
           const node = holder(root, name, at);
           const text = at === 'Complex' ? typed + typed + 'i' : typed;
           session.setActive(root, node);
-          if (format === 'text' && at === 'Complex') {
-            // A MAT stream, which is shown and not edited (the C-012 ruling, 2026-10-15).
-            expect(session.editProperty(node.id, 'Value', text), `${name} = ${text}`).toMatchObject({ error: true });
-            continue;
-          }
           expect(session.editProperty(node.id, 'Value', text), `${name} = ${text}`).toBe(true);
           expect(node.displayValue, `${name} = ${text}`).toBe(at === 'Complex' ? '0+0i' : '0');
         }
@@ -483,7 +472,7 @@ describe('a negative zero typed into a value of an integer class is 0', () => {
         }
         const reopened = saveAndReopen(session, root);
         for (const { at, name } of ENTRIES) {
-          const shows = format === 'text' && at === 'Complex' ? '1+2i' : at === 'Complex' ? '0+0i' : '0';
+          const shows = at === 'Complex' ? '0+0i' : '0';
           expect(holder(reopened, name, at).displayValue, `${name} = ${typed}, reopened`).toBe(shows);
         }
       }

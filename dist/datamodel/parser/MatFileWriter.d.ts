@@ -69,6 +69,17 @@ export declare function renameWhy(record: MatRecord): string | null;
  */
 export declare function freshRefusal(node: BaseNode, record: MatRecord | null): MatWriteError | null;
 /**
+ * The refusal of writing `node`'s value as the MAT stream a text dictionary holds for it (its
+ * cdata), or null where the stream written reads back as the value: the rule a variable a MAT-file
+ * writes fresh is held to (freshWriteRefusal), of the value alone, which a stream holds with no
+ * name. What freshRefusal asks of the value (valueRefusal), then the stream written
+ * (MatWriter.encodeMatStream) read back whole (MatParser.decodeMatStream) and held to the value
+ * (differs). Asked of a value a text dictionary read from a stream, of what it holds and of what an
+ * edit makes it (MatlabVariableNode._streamLocked, _refuseStreamWrite), so that what such a value
+ * takes as an edit is what its save writes as typed.
+ */
+export declare function streamWriteRefusal(node: BaseNode): MatWriteError | null;
+/**
  * The refusal a save throws for writing `node`, a variable added since the read, fresh, or null where
  * it writes it: freshRefusal's; then what only its bytes say, MatWriter's budget and every other
  * refusal of MatWriter's, by writing the element the save writes for it (freshElement); and then the

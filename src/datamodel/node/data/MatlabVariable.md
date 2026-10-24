@@ -245,17 +245,30 @@ per-entry harvest a hex value's decode failure goes through
 Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
 `artifacts/text/cases.sldd`).
 
-A value read from a text dictionary's MAT stream is display-only, at and under it. That is
-the maintainer's ruling on C-012 (2026-10-15): a value parsed from XML or JSON is edited,
-and one read from a MAT stream in a text dictionary is only shown. `parseCdata` marks the
-node it builds (`_readFromStream`), and `_streamHolder` finds that node from any row under
-it. There `valueEditable` is false, `setProperty('Value')` refuses
-(`_refuseStreamEdit`), and `canAddChild` and `canRemoveChild` are false. A
-`Simulink.Parameter` whose Value is such a stream refuses a Value edit the same way. The
-node holding the stream can still be renamed and its entry deleted, because neither writes
-the stream again. A stream in no file, in a binary dictionary it was pasted into, or read
-out of a `.mat` or a model workspace is unaffected. Pinned in
-`test/cdataDisplayOnly.test.ts`.
+A value read from a text dictionary's MAT stream takes edits where it is a plain value: a
+number, a logical or a char, real or complex, of any size, as the same value read from a
+MAT-file or a binary dictionary does. That is the maintainer's ruling on C-012 as revised on
+2026-10-24; the first ruling (2026-10-15) made every such value display-only. `parseCdata`
+marks the node it builds (`_readFromStream`) and keeps the stream (`_streamRead`).
+`_streamLocked` judges the value as read, once: a plain value whose stream this package
+writes as it reads back (`MatFileWriter.streamWriteRefusal`, the rule a MAT-file's save
+writes a variable fresh by) takes edits. Every other one (a string, a sparse array, a cell,
+a struct, a function handle, an object, a value not decoded) is display-only, at and under
+it: `_streamHolder` finds it from any row under it, `valueEditable` is false,
+`setProperty('Value')` refuses (`_refuseStreamEdit`), and `canAddChild` and
+`canRemoveChild` are false. A `Simulink.Parameter` whose Value is such a stream refuses a
+Value edit the same way. An edit of a plain one is held to the same rule as it is made,
+typed whole (`_refuseStreamWrite`; `ParameterNode._refuseValueForStream` for a Parameter's
+Value) or at an element (`_setStreamElement`): one whose stream would not read back as
+typed is refused, naming it, and changes nothing. Add and Remove of an element are offered
+only where the value they leave passes the same rule, and is still a plain value
+(`_streamChildRefusal`, asked by `canAddChild`, `canRemoveChild` and `execRemoveChild`): an
+empty that Add would give a field is a struct, and is not offered one. An unedited one is saved as its own
+bytes, and so is one an edit set back to the value it was read as (`_streamReadAgain`). The
+node holding a locked stream can still be renamed and its entry deleted, because neither
+writes the stream again. A stream in no file, in a binary dictionary it was pasted into, or
+read out of a `.mat` or a model workspace is unaffected. Pinned in
+`test/cdataDisplayOnly.test.ts` and `test/textStreamEdits.test.ts`.
 
 ### A binary dictionary's hex values are the same stream, read-only
 A compressed-binary dictionary writes a value XML cannot spell — a sparse array or a

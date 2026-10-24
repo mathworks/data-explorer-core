@@ -34,6 +34,13 @@ export default class MatlabVariableNode extends DataNode {
     _collapsedClass: string | null;
     _elementType: string | null;
     _readFromStream?: true;
+    _streamLockVerdict?: boolean;
+    _streamRead?: Record<string, unknown>;
+    _streamChildVerdicts?: Partial<Record<'add' | 'remove', {
+        rows: BaseNode[];
+        count: number;
+        reason: string | null;
+    }>>;
     _cutByCeiling?: number;
     _emptyStructFields?: string[];
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
@@ -179,15 +186,16 @@ export default class MatlabVariableNode extends DataNode {
     _restorerFor(propName: string): (() => void) | null;
     /**
      * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
-     * text dictionary, or null.
+     * text dictionary and is shown and not edited there (_streamLocked), or null.
      *
-     * The maintainer's ruling on C-012 (2026-10-15): editing is for a value parsed from a
-     * dictionary's XML or JSON. A value a text dictionary holds as a MAT stream is shown and not
-     * edited. MATLAB keeps a stream there only for a value its JSON cannot spell: every rank >= 3
-     * value, every complex one and a sparse array. Edited, such a value has to be
+     * The maintainer's ruling on C-012 (2026-10-15) made every value a text dictionary holds as a
+     * MAT stream display-only. MATLAB keeps a stream there only for a value its JSON cannot spell:
+     * every rank >= 3 value, every complex one and a sparse array. Edited, such a value has to be
      * written as a new stream, and MatWriter cannot write every value one can hold: an N-D cell
      * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
-     * the char 'ab'. Unedited, it is written as the stream it was read from.
+     * the char 'ab'. Unedited, it is written as the stream it was read from. Revised on 2026-10-24,
+     * the ruling keeps display-only the stream holding no plain value, and one this package does
+     * not write as it reads back (_streamLocked).
      *
      * So at and under such a node the value takes no editor (valueEditable), the setter refuses
      * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
@@ -202,7 +210,49 @@ export default class MatlabVariableNode extends DataNode {
      * So a stream pasted into a binary dictionary is as editable there as it was.
      */
     _streamHolder(): MatlabVariableNode | null;
-    /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
+    _isTextDictionaryStream(): boolean;
+    /**
+     * Whether this value, read from a text dictionary's MAT stream, is shown and not edited: the
+     * maintainer's ruling on C-012, as revised on 2026-10-24 ("the mat file complex number is always
+     * enabled"). Edited is a plain value, a number, a logical or a char, real or complex, of any size,
+     * whose stream this package writes as it reads back: the rule a MAT-file's save writes a
+     * variable fresh by (MatFileWriter.streamWriteRefusal). MATLAB keeps a complex value there as a
+     * stream, as it keeps every rank >= 3 one, and so locked, a value MATLAB wrote could not be
+     * edited where the same value in a MAT-file or a binary dictionary could. Shown and not edited
+     * is everything else: a stream holding a string, a sparse array, a cell or a struct, a function
+     * handle or a value not decoded (_createUndecodableCdata), and one holding an object, which is
+     * built otherwise (_parseCdataObjects). Asked of the value as read, once: an edit of it is held
+     * to the same rule as it is made (_refuseStreamWrite).
+     */
+    _streamLocked(): boolean;
+    _isPlainValue(): boolean;
+    /**
+     * The refusal of a Value edit of a value read from a text dictionary's MAT stream that takes
+     * edits (_streamLocked) where what the edit makes is held as a stream there and that stream would
+     * not read back as it (MatFileWriter.streamWriteRefusal), or null. Judged of a node made of the
+     * text alone (_valueMadeOf), as _refuseUnwritableValue judges a MAT-file's, so that a refused edit
+     * changes nothing. A value the text dictionary spells in its JSON (a real scalar, a row of
+     * numbers, a string) is held as that, and asks nothing.
+     */
+    _refuseStreamWrite(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _heldStreamRefusal(): MatWriteError | null;
+    /**
+     * Why an Add (`op` 'add') or a Remove ('remove') of an element is not made of this value, read
+     * from a text dictionary's MAT stream that takes edits (_streamLocked), or null: the value it would
+     * leave is no plain value (Add gives an empty a field, which makes it a struct), or is held as a
+     * stream there that would not read back as it (MatFileWriter.streamWriteRefusal). So the editor
+     * offers only what the save writes (canAddChild, canRemoveChild). Judged on a copy of the value,
+     * as an element's edit is (_setStreamElement): for a Remove, of `child`, or of the last element
+     * where the gate asks of none, as _shapeAfterChildEdit judges one. The gates are asked for each
+     * row the table draws, so that answer is held for the rows the value has (_streamChildVerdicts),
+     * and dropped by any edit (_markModified).
+     */
+    _streamChildRefusal(op: 'add' | 'remove', child?: BaseNode): string | null;
+    _streamEditReason(e: MatWriteError): string;
+    /**
+     * The refusal of a Value edit at or under a value read from a MAT stream that is shown and not
+     * edited, or null (_streamHolder).
+     */
     _refuseStreamEdit(stringValue: string): SetPropertyResult | null;
     /**
      * The refusal of `parsed`, typed in as this node's value, by a source that could not write
@@ -219,6 +269,7 @@ export default class MatlabVariableNode extends DataNode {
      * judges a Value typed in as a MAT-file does.
      */
     _refuseUnwritableValue(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _valueMadeOf(parsed: ParsedValue): MatlabVariableNode;
     /**
      * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
      * node above this one that is not a struct, so that a field of a struct, at any depth and in
@@ -260,6 +311,24 @@ export default class MatlabVariableNode extends DataNode {
     /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
     _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
+    /**
+     * _setConstrainedValue, of an element of a value a text dictionary read from a MAT stream that
+     * takes edits (_streamLocked), held first to the rule that judged it: the edit made on a copy of
+     * the value, and the stream that copy is written as read back (MatFileWriter.streamWriteRefusal),
+     * so that an edit that would not be written as typed is refused and changes nothing. An element
+     * keeps its array's class and complexity (_setConstrainedValue), so this is the budget's and the
+     * encoder's to refuse.
+     */
+    _setStreamElement(stringValue: string): true | SetPropertyResult;
+    /**
+     * The MAT stream this value was read from (_streamRead), where an edit set it back to that value:
+     * an undo of an element's edit, which sets the element's shown text back, or of an Add or a
+     * Remove, or the value typed again. Written as those bytes, as an unedited one is (an undo of the
+     * whole value puts `_rawInput` back, _restorerFor); written fresh, a NaN MATLAB stored with its
+     * sign set went out as the one MatWriter writes, the same value in other bytes. The stream is
+     * decoded again, as the variable the node was built of shares its values with it.
+     */
+    _streamReadAgain(): Record<string, unknown> | null;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
     _markModified(edit?: 'value' | 'name'): void;
     _editMarks(): () => void;
@@ -701,12 +770,12 @@ export default class MatlabVariableNode extends DataNode {
      * A text dictionary's MAT stream that does not decode (`reason`), shown as the char of its
      * six-bit text and written back as it was read, by replaying `_rawInput`.
      *
-     * It is still a MAT stream, so it is display-only, as every value read from one is
-     * (_readFromStream, the C-012 ruling) but an allow-listed property of an object a stream that
-     * decodes holds (mcosStreamEdit), of which this has none: an edit would have saved what was
-     * typed in place of the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
-     * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
-     * the entry). It used to be shown with no warning, and it took edits.
+     * It is still a MAT stream, so it is display-only, as every value read from one that holds no
+     * plain value is (_streamLocked, the C-012 ruling) but an allow-listed property of an object a
+     * stream that decodes holds (mcosStreamEdit), of which this has none: an edit would have saved
+     * what was typed in place of the stream. And it says so, for the dictionary's warnings, as a
+     * binary dictionary's hex of the same bytes does (EncodedValue.recordDecodeFailure, which
+     * SlddNode.parse collects for the entry). It used to be shown with no warning, and it took edits.
      */
     static _createUndecodableCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null, reason: string): MatlabVariableNode;
     /**
