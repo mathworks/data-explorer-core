@@ -1842,6 +1842,102 @@ export function editHandleCoderInfo(cell, edits) {
         throw e;
     }
 }
+/**
+ * Every property object 1 of a 'handle' opaque saves, and its class: the whole object, as every
+ * property is saved there (above). Each as R2027a's MCOS decode reads the same object's
+ * (McosParser): text as text, a logical or a real numeric scalar as itself, an object it holds as
+ * `{_object_class, _properties}` of that object's own. So a copy of the object it is a property of
+ * carries all of it: a CoderInfo read for its StorageClass, Identifier and Alignment alone went into
+ * a dictionary without its CSCPackageName, and MATLAB R2027a loaded it warning that the package of
+ * its custom storage classes had changed from 'Simulink' to ''. Or why not: an opaque that does not
+ * read, or a property saved in a form not read here.
+ */
+export function handleObjectOf(cell) {
+    try {
+        const read = readHandleOpaque(cell);
+        if (!read.ok) {
+            return read;
+        }
+        const h = read.opaque;
+        const b = h.blob;
+        const classOfObject = (id) => {
+            const cls = b.objects[id] && b.classes[b.objects[id].classIndex];
+            if (!cls) {
+                fail('malformed', `the 'handle' opaque names object ${id}, which it does not hold`);
+            }
+            return (cls.namespace ? b.strings[cls.namespace] + '.' : '') + b.strings[cls.name];
+        };
+        const objectOf = (id, held) => {
+            if (held.has(id)) {
+                fail('unsupported', `object ${id} of the 'handle' opaque holds itself`);
+            }
+            const within = new Set(held).add(id);
+            const out = {};
+            for (const t of b.objects[id].pvList ? b.pvLists[b.objects[id].pvList] ?? [] : []) {
+                const name = b.strings[t.name];
+                if (t.flag === McosValueKind.string) {
+                    out[name] = b.strings[t.value];
+                }
+                else if (t.flag === McosValueKind.integer) {
+                    out[name] = t.value;
+                }
+                else if (t.flag === McosValueKind.object) {
+                    out[name] = { _object_class: classOfObject(t.value), _properties: objectOf(t.value, within) };
+                }
+                else {
+                    const value = h.values[t.value];
+                    const ref = value ? readDescriptor(value) : null;
+                    if (ref && ref.ids.length === 1 && ref.dims.every((d) => d === 1)) {
+                        out[name] = { _object_class: classOfObject(ref.ids[0]), _properties: objectOf(ref.ids[0], within) };
+                        continue;
+                    }
+                    const plain = value ? handleValueOf(value) : undefined;
+                    if (plain === undefined) {
+                        fail('unsupported', `the ${classOfObject(id)} saves ${name} as other than text, a logical, a number or one object`);
+                    }
+                    out[name] = plain;
+                }
+            }
+            return out;
+        };
+        return { ok: true, className: classOfObject(1), properties: objectOf(1, new Set()) };
+    }
+    catch (e) {
+        if (e instanceof Refused) {
+            return e.refusal;
+        }
+        return { ok: false, reason: 'malformed', message: `the 'handle' opaque does not read (${e instanceof Error ? e.message : String(e)})` };
+    }
+}
+// A value cell of a 'handle' opaque as R2027a's decode reads the same property: a char row (or an
+// empty char) as its text, a logical scalar as true or false, a real numeric scalar as its number;
+// undefined for any other.
+function handleValueOf(cell) {
+    const view = new DataView(cell.buffer, cell.byteOffset, cell.byteLength);
+    const layer = layerAt(view, 0, cell.length);
+    if (!layer) {
+        return undefined;
+    }
+    const cls = classOf(view, layer);
+    const flags = view.getUint8(layer.subs[0].data + 1);
+    if (cls === MX_CHAR) {
+        const dims = dimsIn(view, layer.subs[1]);
+        return dims && dims.length === 2 && (dims[0] === 1 || dims[0] * dims[1] === 0) ? charText(cell) ?? undefined : undefined;
+    }
+    // The complex flag (0x08): no real scalar.
+    if (flags & 0x08) {
+        return undefined;
+    }
+    const n = scalarOf(cell);
+    if (n === null) {
+        return undefined;
+    }
+    // The logical flag (0x02), on a uint8.
+    if (flags & 0x02) {
+        return cls === MX_UINT8 && (n === 0 || n === 1) ? n === 1 : undefined;
+    }
+    return n;
+}
 /** The finder of object 1's triples by setting, refusing an opaque whose object 1 is not a CoderInfo. */
 function coderInfoTriple(h) {
     const b = h.blob;

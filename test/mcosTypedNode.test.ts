@@ -178,6 +178,21 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect((node as ParameterNode).Value).toBe(7);
   });
 
+  // A Parameter's Value held as a char row is shown as the string MATLAB loads it as
+  // (mcosShown.withParameterValueShown), on a bag of the node's own: the decoded bag is the
+  // decode's, which its caller reads again where the typed view fails, and a bag the rule adds
+  // nothing to (no CoderInfo here) was the decoded one, wrapped in place.
+  it("shows a char row Value as a string without changing the decoded bag", () => {
+    const decoded: Record<string, unknown> = { Value: 'abc', Description: 'd' };
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'p', null, decoded)!;
+    expect(node).toBeInstanceOf(ParameterNode);
+    expect(node.displayValue).toBe('"abc"');
+    expect(decoded).toEqual({ Value: 'abc', Description: 'd' });
+    const element: Record<string, unknown> = { Value: 'xyz' };
+    buildTypedNodeFromMcos('Simulink.Parameter', 'q', null, null, [element], [1, 1]);
+    expect(element).toEqual({ Value: 'xyz' });
+  });
+
   // Defect 9. The adapter used to keep only `[dimensions[0], dimensions[1]]`, so a
   // 2x3x2 object array (MATLAB: `size(obj2x3x2)` is `[2 3 2]`, twelve elements)
   // announced itself as a 2x3 and then handed those two extents to the subscript

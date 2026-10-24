@@ -13,6 +13,8 @@
 //     columns (Dimensions, Complexity, Storage Class, …). Column GROUPING is NOT
 //     here — it is a global table concern owned by host/rowBuilder.COLUMN_GROUPS.
 import { getSchema, getSchemaClasses, getLayout, hydrate, isTypedScalar, sourceLeaf, writeSourcePath } from '../schema/index.js';
+import { formatMatlabNum } from '../parser/XmlUtils.js';
+import { shownOfSaved, shownPropertiesOf } from './mcosShown.js';
 import PropName from '../prop/PropName.js';
 import PropValue from '../prop/PropValue.js';
 import PropDataType from '../prop/PropDataType.js';
@@ -74,15 +76,18 @@ const ATOM_BY_KEY = {
 // every other surface in the product uses for the same value (a table cell for a
 // 1x2 double, and PropDimensions for a bus element's Dimensions). A comma-joined
 // `[1, 1]` gave `Simulink.Parameter.Dimensions` a second spelling in the Property
-// Inspector that matched neither. Absent values render ''; everything else String().
-function formatSchemaValue(value) {
+// Inspector that matched neither. Absent values render ''; a number, alone or in a row, as MATLAB
+// spells it (formatMatlabNum: Inf, -Inf, NaN), as every other surface of this package does: String()
+// spelled a Signal's SampleTime of Inf "Infinity", a text the editor of it then did not take back;
+// everything else String(), as formatMatlabNum spells anything not a number.
+export function formatSchemaValue(value) {
     if (value === undefined || value === null) {
         return '';
     }
     if (Array.isArray(value)) {
-        return '[' + value.join(' ') + ']';
+        return '[' + value.map((v) => formatMatlabNum(v)).join(' ') + ']';
     }
-    return String(value);
+    return formatMatlabNum(value);
 }
 // Adapt one ResolvedProp to a PropClass. `column` controls the surface:
 //   null  → PI-only (toRow skips column===null)
@@ -103,10 +108,7 @@ function toPropClass(prop, column, editorOverride) {
         // for 'CoderInfo.StorageClass'). Lets the PI "Other" catch-all exclude the
         // whole bag this prop already surfaces.
         sourceKeys: [prop.sourcePath.split('.')[0]],
-        readValue: (node) => {
-            const props = node.serial?._properties;
-            return formatSchemaValue(hydrate(props, prop));
-        },
+        readValue: (node) => formatSchemaValue(hydrate(shownOf(node), prop)),
         format: (value) => formatSchemaValue(value),
     };
     if (prop.options) {
@@ -181,7 +183,8 @@ export function schemaColumns(className) {
 // into the node's serial._properties bag along the prop's sourcePath (including
 // nested CoderInfo). Returns:
 //   null  — `key` is not a writable schema property (caller falls back to its own
-//           setProperty logic); this covers unknown keys and read-only 'label' props.
+//           setProperty logic); this covers unknown keys and read-only 'label' props
+//           but those shown of what MATLAB saves under another name (shownOnlyRefusal).
 //   true  — the value was validated and written; caller need do nothing more.
 //   SetPropertyResult — validation failed; caller surfaces the refusal.
 // The caller (DataNode.setProperty) owns _markModified via the returned true.
@@ -193,7 +196,8 @@ export function trySetSchemaProperty(node, key, stringValue) {
     const resolved = getSchema(className);
     const prop = resolved?.find((p) => p.key === key && p.projected === true);
     if (!prop || prop.editor === 'label') {
-        return null;
+        const shownOnly = resolved?.find((p) => p.key === key && p.editor === 'label');
+        return shownOnly ? shownOnlyRefusal(node, className, shownOnly, stringValue) : null;
     }
     // The writable projected props are the enumerated 'select's (Storage Class) and
     // Alignment, a 'text' with a rule of its own. A prop of some other editor would
@@ -202,7 +206,7 @@ export function trySetSchemaProperty(node, key, stringValue) {
     // Number.isInteger accepts 3, which MATLAB refuses as an Alignment).
     const opaque = heldOpaqueRefusal(node, prop);
     if (opaque) {
-        return { error: true, reason: opaque, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(propertiesOf(node), prop)) };
+        return { error: true, reason: opaque, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(shownOf(node), prop)) };
     }
     if (isAlignment(prop)) {
         return setAlignment(node, prop, stringValue);
@@ -217,7 +221,7 @@ export function trySetSchemaProperty(node, key, stringValue) {
         // And by the node's source, which writes some of the options and not others (a MAT-file's
         // object takes no custom storage class: DataNode._refuseSourceValue).
         const refuseSource = node._refuseSourceValue;
-        const sourceRefusal = refuseSource?.call(node, key, stringValue, stringValue, formatSchemaValue(hydrate(propertiesOf(node), prop)));
+        const sourceRefusal = refuseSource?.call(node, key, stringValue, stringValue, formatSchemaValue(hydrate(shownOf(node), prop)));
         if (sourceRefusal) {
             return sourceRefusal;
         }
@@ -255,8 +259,40 @@ function heldOpaqueRefusal(node, prop) {
         ? 'Cannot set ' + prop.label + ": its CoderInfo is held as MATLAB's own handle data, which this editor shows but writes only into a MAT-file."
         : null;
 }
+// The node's own property bag, which an edit writes (writeSourcePath, writeAlignment).
 function propertiesOf(node) {
     return node.serial?._properties;
+}
+// The bag a row of `node` reads, as MATLAB shows it (mcosShown.shownPropertiesOf): a NumericType's
+// Signedness, FractionLength and Slope and a CoderInfo's Identifier of what it saves them as, in a
+// dictionary as in a MAT-file. Display only: an edit writes the node's own bag (propertiesOf).
+function shownOf(node) {
+    return shownPropertiesOf(String(node.className ?? ''), propertiesOf(node));
+}
+// Why an edit of `prop`, a row shown read-only, is refused where what it shows is saved under another
+// name (shownOfSaved): a NumericType's Signedness, FractionLength and Slope, a Parameter's or a
+// Signal's Identifier. Such an edit was taken and wrote nothing the file holds (DataNode.setProperty's
+// last resort), and one of the shown key alone would leave the saved key MATLAB loads saying
+// otherwise. A MAT-file's object offers an editor of each that writes the saved keys (matObjectEdit),
+// which its source makes before this is asked (BaseNode.sourceSetOffered). Null for any other row
+// shown read-only, as before.
+function shownOnlyRefusal(node, className, prop, stringValue) {
+    const shown = shownOfSaved(className, prop.sourcePath);
+    if (!shown) {
+        return null;
+    }
+    // The entry, by DataNode.owningEntryOf's walk, which this module cannot import: DataNode imports
+    // it, and the cycle is one test/moduleBoundaries.test.ts forbids.
+    let entry = node;
+    while (entry && !entry.isEntry) {
+        entry = entry.parent;
+    }
+    return {
+        error: true,
+        reason: 'Cannot edit "' + (entry ?? node).name + '": ' + node.matlabPath + '.' + shown.property + ' is read-only here, shown of the ' + shown.saved + ' MATLAB saves.',
+        invalidValue: stringValue,
+        validValue: formatSchemaValue(hydrate(shownOf(node), prop)),
+    };
 }
 // ---- Alignment (CoderInfo.Alignment on a Simulink.Parameter or Simulink.Signal) ----
 //
@@ -316,7 +352,7 @@ function isAlignmentBoundary(n) {
     return n === -1 || (n >= 1 && n <= ALIGNMENT_MAX && (n & (n - 1)) === 0);
 }
 function setAlignment(node, prop, stringValue) {
-    const shown = formatSchemaValue(hydrate(propertiesOf(node), prop));
+    const shown = formatSchemaValue(hydrate(shownOf(node), prop));
     const refuse = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: shown });
     const x = alignmentNumber(stringValue);
     if (x === null) {

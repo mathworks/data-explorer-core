@@ -21,6 +21,7 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
+import { sourceJudgesValues } from '../src/datamodel/node/BaseNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -98,8 +99,12 @@ function opened(file: string, bytes: ArrayBuffer) {
 // What is typed: a number, a char, a logical, a row, an integer, a complex number, a string, a cell.
 const TYPED = ['7', "'zz'", 'true', '[1 2]', 'int8(5)', '1+2i', '"s"', '{1, "x"}'];
 
-// A string typed into a Parameter's Value, which the sweep holds to the expected failure below.
-const knownBug = (node: any, typed: string) => typed === '"s"' && node.className === 'Simulink.Parameter';
+// A char typed into a Parameter's Value where the binary dictionary holds the Parameter in an
+// encoded value: there it is the string MATLAB loads of the char row the save writes into the
+// object's cell (ParameterNode, measured against MATLAB R2027a), and in the text twin's JSON the char
+// it writes, the divergence DESIGN.md records (test/parameterNode.test.ts). Each is still held to
+// what its own file opened again shows.
+const charIntoEncodedParameter = (node: any, typed: string) => /^'.*'$/.test(typed) && node.className === 'Simulink.Parameter' && sourceJudgesValues(node);
 
 describe('a text and a binary dictionary of the same values take the same edits of them', () => {
   it('every edit both offer: taken by both or neither, shown the same, and reopened as shown', { timeout: 180_000 }, () => {
@@ -127,11 +132,9 @@ describe('a text and a binary dictionary of the same values take the same edits 
             continue;
           }
           taken++;
-          expect(bn.displayValue, label).toBe(tn.displayValue);
+          expect(bn.displayValue, label).toBe(charIntoEncodedParameter(bn, typed) ? tn.displayValue.replace(/^'(.*)'$/, '"$1"') : tn.displayValue);
           expect(nodeAt(text.reopened(), path)?.displayValue, label + ' (text, reopened)').toBe(tn.displayValue);
-          if (!knownBug(bn, typed)) {
-            expect(nodeAt(binary.reopened(), path)?.displayValue, label + ' (binary, reopened)').toBe(bn.displayValue);
-          }
+          expect(nodeAt(binary.reopened(), path)?.displayValue, label + ' (binary, reopened)').toBe(bn.displayValue);
         }
       }
     }
@@ -158,12 +161,12 @@ describe("a string typed into a Simulink.Parameter's Value", () => {
   }
 
   /** The same of a MAT-file, through the session as a host opens one. */
-  function matStringValue(file: string, find: (root: any) => any): Typed {
+  function matStringValue(file: string, find: (root: any) => any, typed = '"s"'): Typed {
     const session = createSession();
     const root: any = session.addMatSource('f.mat', fileBytes(file));
     const node = find(root);
     session.setActive(root, node);
-    const taken = session.editProperty(node.id, 'Value', '"s"');
+    const taken = session.editProperty(node.id, 'Value', typed);
     const saved = (session.serializeSource('f.mat') as { bytes: Uint8Array }).bytes;
     const again: any = createSession().addMatSource('g.mat', arrayBufferOf(saved));
     return { className: node.className, taken, shown: node.displayValue, reopened: nodeAt(again, pathOf(node))?.displayValue };
@@ -207,19 +210,20 @@ describe("a string typed into a Simulink.Parameter's Value", () => {
     expect([result("a text dictionary's struct value").reopened, result("a text dictionary's cell value").reopened]).toEqual(['"s"', '"s"']);
   });
 
-  // BUG: held in a binary dictionary's hex value (mcosStreamEdit), the edit is taken and the tree
-  // shows the string "s"; the save writes the Value cell as the char row 's', and the file opened
-  // again shows the char 's'. The string reaches the cell as its char: mcosObjectEdit's
-  // valueVariable hands over the Value node's MatlabVariableNode._var, which for a string is the
-  // char its elements join to, and the rules (McosEditRules valueClassRefusal) take "a char row,
-  // which MATLAB loads as a string scalar". The same edit of the same entry of the text twin
-  // (above) reopens as "s". One edit, two answers; and a plain MAT-file variable's string is
-  // refused rather than written so (MatFileWriter.unwritableAt).
-  //
-  // BUG: the same in a MAT-file, where the edit is written into the subsystem by the same rules
-  // (MatNode._objectSubsystemEdit): shown "s", reopened 's', at the top level and in a struct.
+  // Held in a binary dictionary's hex value (mcosStreamEdit) or in a MAT-file's objects, the save
+  // writes the Value cell as the char row 's' (McosEditRules: "a char row, which MATLAB loads as a
+  // string scalar"), and the file opened again shows the string "s" MATLAB loads of it (measured
+  // against MATLAB R2027a: class string; mcosShown.withParameterValueShown), as the text twin's does.
+  // A char typed there is the string MATLAB loads of it, before the save and after.
+  it('in a MAT-file, a char typed is the string MATLAB loads of the char row its save writes', () => {
+    for (const [file, find] of [[join(TEST_ROOT, 'fixtures/mcos/Param.mat'), (root: any) => root.children[0]], [join(TEST_ROOT, 'fixtures/mcos/nested_objects.mat'), inStructOf]] as const) {
+      const r = matStringValue(file, find, "'zz'");
+      expect([r.taken, r.shown, r.reopened], file).toEqual([true, '"zz"', '"zz"']);
+    }
+  });
+
   for (const venue of ["a binary dictionary's hex struct value", "a binary dictionary's hex cell value", 'a MAT-file variable', "a MAT-file struct's field"]) {
-    it.fails(`in ${venue}, is reopened as the string the tree shows`, () => {
+    it(`in ${venue}, is reopened as the string the tree shows`, () => {
       expect(result(venue).reopened).toBe('"s"');
     });
   }

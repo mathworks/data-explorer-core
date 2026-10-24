@@ -1,7 +1,7 @@
 {
-  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "version": "27.1.0.3417384 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-18",
+  "date": "2026-10-23",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
@@ -238,6 +238,22 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_shown_saved_shown_saved_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 5,
+      "notSelfEqual": [
+        "design|ntAuto"
+      ]
+    },
+    {
+      "file": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 11,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_sparse_hexobj_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -317,13 +333,6 @@
         "lastwarn SLDD:sldd:ReferencedDictionaryNotFound: Unable to find data dictionary 'common.sldd' referenced by 'orig_parity_binary_params.sldd'."
       ],
       "entries": 40,
-      "notSelfEqual": []
-    },
-    {
-      "file": "orig_sldd_stream_objects_stream_objects_binary.sldd",
-      "opened": true,
-      "warnings": [],
-      "entries": 11,
       "notSelfEqual": []
     }
   ],
@@ -7253,6 +7262,282 @@
           "checked": 0,
           "same": 0,
           "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_1.sldd",
+      "section": "design",
+      "entry": "ntAuto",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ntAutoM9",
+      "refused": "",
+      "save": {
+        "chunk": "f2c010a2111c1d7bd31ebcdb7c21ce81cf5d8be8c69c973557a7307b456c92d9",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": true,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_2.sldd",
+      "section": "design",
+      "entry": "ntAuto",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "e82ee55310eec2e46d8cc8726993f9418468ee273a205400eb54094a0702142f",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": true,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_3.sldd",
+      "section": "design",
+      "entry": "pId",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pIdM9",
+      "refused": "",
+      "save": {
+        "chunk": "fc25c30894e7676454a550f9cd9c63287709772b155fcc5bd6d22f4767d2c4b6",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 1,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_4.sldd",
+      "section": "design",
+      "entry": "pId",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "6c38d354d98ba06d6dccf3bbfc0f8fe3c4babeb5ade6e651031885ce352cfefd",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 1,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_5.sldd",
+      "section": "design",
+      "entry": "sId",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sIdM9",
+      "refused": "",
+      "save": {
+        "chunk": "ffe595a9ec4c9033f2298d0b1c35a17be80370b713d9a733b1461f776fe9e727",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 1,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/shown-saved/shown_saved_binary.sldd",
+      "variant": "",
+      "original": "orig_shown_saved_shown_saved_binary.sldd",
+      "file": "m9_shown_saved_shown_saved_binary_6.sldd",
+      "section": "design",
+      "entry": "sId",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "65c1bc12285313ea4987d3f595c25b2c64d8f86f65545e5f8b60bbcb38842bc3",
+        "parts": "b779d3af0c26e88e2783ad7581f539228f139a9ad54b36c65a0172851f5d6847"
+      },
+      "merged": false,
+      "untouched": [
+        4,
+        4
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 4,
+          "same": 4,
+          "bySignature": 1,
           "differ": []
         },
         "error": ""

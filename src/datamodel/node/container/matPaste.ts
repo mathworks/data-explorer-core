@@ -49,7 +49,6 @@ import { superclassOf } from '../registeredSubclasses.js';
 import { elementCount } from '../../display/DisplayConvention.js';
 import { MAT_SHOWN_SAVED_KEYS, matCarriedKeysOf } from '../data/matObjectEdit.js';
 import { getSchema } from '../../schema/index.js';
-import { withNumericTypeShown } from '../data/mcosShown.js';
 import type MatNode from './MatNode.js';
 
 /**
@@ -262,9 +261,6 @@ function makeOne(mat: MatNode, payload: unknown): { node: BaseNode; undo: () => 
     throw e;
   }
   const kind = classOf(p.value);
-  if (kind.kind === 'object') {
-    shownAsMatlabShowsIt(source, kind.className);
-  }
   if (kind.kind === 'plain') {
     const built = plainVariableIn(mat, source, unique);
     if (typeof built === 'string') {
@@ -512,43 +508,6 @@ function madeClassOf(kind: PasteKind): string | null {
       return kind.className;
     default:
       return null;
-  }
-}
-
-// `source`, a copied object, showing what MATLAB shows of what it saves under other names, as a
-// MAT-file's node of one does and a dictionary's does not (mcosShown): a NumericType's Signedness,
-// FractionLength and Slope of the SignednessBool, FixedExponent and SlopeAdjustmentFactor it saves
-// (withNumericTypeShown; a hand-written Signedness is its own), and a CoderInfo's Identifier of the
-// Alias it is saved as. Its rows showed nothing of them, which was taken for nothing stated: a binary
-// point scaling of 8 was pasted as one of 0, and an identifier was refused as a property no editor
-// writes. On a bag of its own, since the copy's is what the host handed over.
-function shownAsMatlabShowsIt(source: DataNode, className: string): void {
-  const bag = source.serial?._properties as Record<string, unknown> | undefined;
-  if (!bag) {
-    return;
-  }
-  if (className === 'Simulink.NumericType') {
-    const shown = withNumericTypeShown({
-      ...bag,
-      FixedExponent: leafOf(bag.FixedExponent),
-      SlopeAdjustmentFactor: leafOf(bag.SlopeAdjustmentFactor),
-      SignednessBool: leafOf(bag.SignednessBool),
-    });
-    if (!('Signed' in shown) && typeof bag.Signedness === 'string') {
-      shown.Signed = bag.Signedness;
-    }
-    source.serial._properties = shown;
-    return;
-  }
-  const coder = objectBagOf(bag.CoderInfo);
-  if ((className === 'Simulink.Parameter' || className === 'Simulink.Signal') && coder && typeof coder.Alias === 'string' && !('Identifier' in coder)) {
-    const ci = bag.CoderInfo as Record<string, unknown>;
-    const props = { ...coder, Identifier: coder.Alias };
-    const elements = ci._elements as Record<string, unknown>[] | undefined;
-    source.serial._properties = {
-      ...bag,
-      CoderInfo: ci._properties ? { ...ci, _properties: props } : { ...ci, _elements: [{ ...(elements?.[0] ?? {}), _properties: props }] },
-    };
   }
 }
 

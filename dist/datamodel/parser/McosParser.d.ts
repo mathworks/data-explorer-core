@@ -81,6 +81,31 @@ export declare function mcosMetaTableOf(anonRawBytes: Uint8Array): MetaTable | n
  * Exported for its unit tests; resolveValue is the one caller.
  */
 export declare function complexPropertyValue(cell: MatVariable): Record<string, unknown> | undefined;
+/**
+ * The key a value read out of a 'handle' opaque is marked with where it is not read whole (a
+ * CoderInfo saving a property in a form not read, a LoggingInfo saving any): why, in one clause. A
+ * copy of what holds it carries less than the file, and a dictionary would load the class's
+ * defaults for the rest, so a copy into one is refused (DataModel.copyRefusal). A key of the bag
+ * rather than a side table, as the bag is copied (mcosShown.shownPropertiesOf) and a copy is its
+ * serialize(); it reaches no file: a MAT-file writes the opaque, and no dictionary takes it.
+ */
+export declare const HANDLE_UNREAD_KEY = "_handleUnread";
+/**
+ * `value`, handed to a dictionary (a paste: SectionNode.parseEntry), without the mark this reader
+ * gives what it read out of a 'handle' opaque (`_handleOpaque`): there it is a value of the
+ * dictionary's own, which its editors write and its writers spell, and the mark made a pasted
+ * entry's StorageClass refuse every edit, and went into a text dictionary's JSON as a key MATLAB
+ * has no property of. A copy where anything changed, the same value where nothing did. And where
+ * a value under it was not read whole (HANDLE_UNREAD_KEY), the first such, by its path from
+ * `value` and why: the dictionary would hold the class's defaults for what it does not.
+ */
+export declare function withoutHandleMarks(value: unknown): {
+    value: unknown;
+    unread: {
+        at: string;
+        why: string;
+    } | null;
+};
 /** The slots of `bag`, a cell resolveValue built, that it could not read; undefined for any other value. */
 export declare function unreadCellSlots(bag: unknown): ReadonlyMap<number, MatVariable | null> | undefined;
 export interface OpaqueVarRef {

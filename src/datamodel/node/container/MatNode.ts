@@ -82,6 +82,7 @@ import type DataNode from '../DataNode.js';
 import { propertyChoices } from '../../parser/McosPropertyRules.js';
 import { sourceLeaf, writeSourcePath } from '../../schema/index.js';
 import { basenameOf } from '../../fileKinds.js';
+import { formatSchemaValue } from '../schemaBridge.js';
 import { admittedTypesOf, pasteInto, pasteRefusalOf, type PasteMade, type PasteRefused } from './matPaste.js';
 
 // What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
@@ -744,7 +745,9 @@ export default class MatNode extends ContainerNode {
     if (!editor || !bag) {
       return null;
     }
-    const shown = offeredText(matBagEditorShown(node, editor));
+    // The bag's value as the offered editor shows it, for a refusal's valid value: as the row shows
+    // it (schemaBridge.formatSchemaValue), an infinity as MATLAB spells it, and not "Infinity".
+    const shown = formatSchemaValue(matBagEditorShown(node, editor));
     const parsed = offeredValue(text, editor.kind);
     if (typeof parsed === 'string') {
       return { error: true, reason: cannotEdit(entry.name, node.matlabPath + '.' + editor.property + ' ' + parsed), invalidValue: text, validValue: shown };
@@ -1778,14 +1781,6 @@ function offeredValue(text: string, kind: MatBagEditor['kind']): { value: unknow
       return xs.length === 0 || xs.some((x) => x === null) ? 'must be a number or a row of numbers' : { value: xs.length === 1 ? xs[0] : xs };
     }
   }
-}
-
-// A bag's value as an offered editor shows it, for a refusal's valid value.
-function offeredText(v: unknown): string {
-  if (Array.isArray(v)) {
-    return '[' + v.join(' ') + ']';
-  }
-  return v === undefined || v === null ? '' : String(v);
 }
 
 // The properties of MATLAB's default Simulink.BusElement, as this package reads one from a file

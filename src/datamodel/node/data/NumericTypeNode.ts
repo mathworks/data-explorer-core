@@ -5,7 +5,7 @@ import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
-import { numericTypeSaved } from './mcosShown.js';
+import { numericTypeSaved } from '../mcosShown.js';
 const CLASS_NAME = 'Simulink.NumericType';
 export default class NumericTypeNode extends SimulinkObjectNode {
     Description: string;

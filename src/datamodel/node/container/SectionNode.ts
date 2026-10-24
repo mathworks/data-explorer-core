@@ -11,7 +11,8 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { newEntryName, uniqueName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
-import { MatBudgetError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
+import { MatBudgetError, MatWriteError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
+import { withoutHandleMarks } from '../../parser/McosParser.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import {
   classificationOf as _classificationOf,
@@ -521,6 +522,22 @@ export default class SectionNode extends ContainerNode {
           }
         }
         rawEntry = { ...rawEntry, metadata };
+      }
+    }
+    // A value read out of a MAT-file's 'handle' opaque, as a dictionary holds it: without the
+    // reader's mark (McosParser.withoutHandleMarks), and refused, naming it, where the reader did
+    // not read it whole, as the dictionary would hold the class's defaults for the rest and MATLAB
+    // load another value than the file's.
+    if (rawEntry.value !== undefined && !options?.asRead) {
+      const { value, unread } = withoutHandleMarks(rawEntry.value);
+      if (unread) {
+        throw new MatWriteError(
+          'Cannot write "' + String(rawEntry.name ?? '') + '": its ' + (unread.at || 'value') + " is MATLAB's own handle data, which was not read whole (" + unread.why
+            + '), and a dictionary would hold the rest as its defaults. Nothing was written.',
+        );
+      }
+      if (value !== rawEntry.value) {
+        rawEntry = { ...rawEntry, value };
       }
     }
     // Before textDictionaryForm, which asks the record, as SlddNode.parse records each entry

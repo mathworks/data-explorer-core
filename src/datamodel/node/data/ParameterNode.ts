@@ -16,7 +16,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { collapseExact, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
@@ -477,6 +477,17 @@ export default class ParameterNode extends DataNode {
             return inlineRefusal;
         }
         if (propName === 'Value') {
+            // Where the source writes the Value into the object's cell (sourceJudgesValues: a MAT-file,
+            // a binary dictionary's encoded value), text typed as a char is the string scalar MATLAB
+            // loads of it: the save writes a char row, and measured against MATLAB R2027a, a Parameter
+            // whose Value cell holds the char row 'ab' loads with Value "ab", class string, as its
+            // setter makes of any text (mcosShown.withParameterValueShown reads it so). Held as the
+            // char, the edit showed 'ab' and the file opened again "ab". Elsewhere the char is kept,
+            // as a dictionary's JSON and XML write it (the divergence DESIGN.md records, pinned by
+            // test/parameterNode.test.ts).
+            if (sourceJudgesValues(this)) {
+                stringValue = asStringScalar(stringValue);
+            }
             const streamRefusal = this._refuseStreamValue(stringValue);
             if (streamRefusal) {
                 return streamRefusal;
@@ -792,4 +803,12 @@ export default class ParameterNode extends DataNode {
         }
         return node;
     }
+}
+
+// `text`, a Value typed in, with a char literal (`'ab'`, `['ab'; 'cd']`) spelled as the string scalar
+// MATLAB's Parameter Value setter makes of it, of the char's column-major text (`"ab"`, `"acbd"`), as
+// `p.Value = ['ab'; 'cd']` makes "acbd"; any other text as it is.
+function asStringScalar(text: string): string {
+    const parsed = MatlabValueParser.parse(text);
+    return parsed && parsed.type === 'char' && typeof parsed.value === 'string' ? formatMatlabString(parsed.value) : text;
 }
