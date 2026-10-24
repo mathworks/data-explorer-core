@@ -8,8 +8,10 @@
 // show what they showed before the save.
 //
 // What a value offers differs between the two formats where the format says so (a text
-// dictionary holds a complex value as the MAT stream it was read as, which is shown and not
-// edited; MATLAB's JSON keeps no size of an empty), and is not asked here.
+// dictionary holds a sparse array, and a cell or a struct its JSON cannot spell, as the MAT stream
+// it was read as, which is shown and not edited; MATLAB's JSON keeps no size of an empty), and is
+// not asked here. A complex value it holds so takes edits, as the binary twin's does (the C-012
+// ruling, revised 2026-10-24).
 //
 // Then the one edit the sweep finds the formats disagree on, recorded as an expected failure: a
 // string typed into a Simulink.Parameter's Value where the Parameter is held in a MAT stream (a
@@ -106,6 +108,14 @@ const TYPED = ['7', "'zz'", 'true', '[1 2]', 'int8(5)', '1+2i', '"s"', '{1, "x"}
 // what its own file opened again shows.
 const charIntoEncodedParameter = (node: any, typed: string) => /^'.*'$/.test(typed) && node.className === 'Simulink.Parameter' && sourceJudgesValues(node);
 
+// What an edited row shows once its file is saved and opened again: what it showed. But for a real
+// number typed into an element of a complex array, which is that number with an imaginary part of 0:
+// the row shows the number, and the file opened again the complex number, in both formats alike.
+const reopenedAs = (node: any): string[] => {
+  const shown = String(node.displayValue);
+  return node.parent?._kind === 'array' && node.parent._isComplexValue?.() && !/i$/.test(shown) ? [shown, shown + '+0i'] : [shown];
+};
+
 describe('a text and a binary dictionary of the same values take the same edits of them', () => {
   it('every edit both offer: taken by both or neither, shown the same, and reopened as shown', { timeout: 180_000 }, () => {
     let both = 0;
@@ -133,8 +143,8 @@ describe('a text and a binary dictionary of the same values take the same edits 
           }
           taken++;
           expect(bn.displayValue, label).toBe(charIntoEncodedParameter(bn, typed) ? tn.displayValue.replace(/^'(.*)'$/, '"$1"') : tn.displayValue);
-          expect(nodeAt(text.reopened(), path)?.displayValue, label + ' (text, reopened)').toBe(tn.displayValue);
-          expect(nodeAt(binary.reopened(), path)?.displayValue, label + ' (binary, reopened)').toBe(bn.displayValue);
+          expect(reopenedAs(tn), label + ' (text, reopened)').toContain(nodeAt(text.reopened(), path)?.displayValue);
+          expect(reopenedAs(bn), label + ' (binary, reopened)').toContain(nodeAt(binary.reopened(), path)?.displayValue);
         }
       }
     }

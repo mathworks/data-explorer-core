@@ -13,11 +13,10 @@
 // `Class="int16">1` (an int16 one), and undo rebuilt the survivor's row as a real element.
 //
 // The vectors are a binary dictionary's own (test/fixtures/mcos/complex_binary.sldd,
-// MATLAB-written), because that is where one can lose an element: a text dictionary holds
-// every complex value as a MAT stream, which is shown and not edited (the C-012 ruling), a
-// pasted one included. So the text format is reached as a host reaches it: the entry's
+// MATLAB-written), and the text format is reached as a host reaches it too: the entry's
 // serialize() put into a text dictionary (complex.sldd) and saved there, its stream read by
-// the MAT reader itself rather than by the node layer.
+// the MAT reader itself rather than by the node layer. A text dictionary's own complex vector,
+// a MAT stream, is cut the same way.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -135,13 +134,41 @@ const arrayShape = (v: any) => ({
   rows: v.children.map((c: any) => [c._scalarType, c._scalarValue]),
 });
 
-describe('a text dictionary\'s own complex vector gives up no element', () => {
-  it('it is a MAT stream, shown and not edited (C-012), so removal reaches only a binary dictionary\'s', () => {
-    const txt: any = ingest(createSession(), fixture('complex.sldd'), { filename: 'complex.sldd' });
-    const v = txt.getSection('design').children.find((e: any) => e.name === 'pInt16Row')._valueNode;
-    expect([v._kind, v._scalarType, v._elementType]).toEqual(['array', 'int16', 'complex']);
-    expect(v.canRemoveChild()).toBe(false);
-  });
+describe('a text dictionary\'s own complex vector gives up an element, as a binary dictionary\'s does', () => {
+  // A MAT stream holding a plain value, which takes edits (the C-012 ruling, revised 2026-10-24).
+  for (const { name, cls } of [
+    { name: 'pRow', cls: 'double' },
+    { name: 'pInt16Row', cls: 'int16' },
+  ]) {
+    it(`${name}: cut to one element, is a complex ${cls} scalar, reopens as one, and undoes back to the stream it was read from`, () => {
+      const session = createSession();
+      const txt: any = ingest(session, fixture('complex.sldd'), { filename: 'complex.sldd' });
+      const save = () => {
+        const text: string = session.serializeSource(txt.name).text;
+        const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+        const reopened = ingest(createSession(), arrayBuffer(new TextEncoder().encode(text)), { filename: 'complex.sldd' }).getSection('design');
+        return { written: entries.find((x) => x.name === name).value, reopened: reopened.children.find((e: any) => e.name === name) };
+      };
+      const v = txt.getSection('design').children.find((e: any) => e.name === name)._valueNode;
+      const asRead = arrayShape(v);
+      expect(asRead).toMatchObject({ kind: 'array', type: cls, elementType: 'complex', dims: [1, 3] });
+      const writtenAsRead = save().written;
+      expect(v.canRemoveChild()).toBe(true);
+
+      const cut3 = v.execRemoveChild(v.children[2]);
+      const cut2 = v.execRemoveChild(v.children[1]);
+      expect([v._kind, v._scalarType, v._scalarValue, v._complexClass()]).toEqual(['scalar', 'complex', '1+2i', cls]);
+      const saved = save();
+      expect(streamsIn(saved.written)).toEqual(scalarWritten(TEXT, cls, ''));
+      const back = saved.reopened._valueNode;
+      expect([back._kind, back._scalarType, back._complexClass(), back.displayValue, back.valueEditable]).toEqual(['scalar', 'complex', cls, '1+2i', true]);
+
+      cut2.undo();
+      cut3.undo();
+      expect(arrayShape(v)).toEqual(asRead);
+      expect(save().written).toEqual(writtenAsRead);
+    });
+  }
 
   it('its own complex scalars are streams of the form these tests expect of one', () => {
     const entries: any[] = JSON.parse(new TextDecoder().decode(new Uint8Array(fixture('complex.sldd')))).__MW_TEXT_PARTS__[

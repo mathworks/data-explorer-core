@@ -1,9 +1,13 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// A value a text dictionary holds as a MAT stream (`{"_type": "cdata"}`) is shown and not
-// edited: the maintainer's ruling of 2026-10-15 on C-012. "If the entry is created from
-// parsing xml or json string, then allow editing. If it is from the mat stream in the json
-// sldd, do not allow editing, only present the data."
+// A value a text dictionary holds as a MAT stream (`{"_type": "cdata"}`) that is no plain value
+// is shown and not edited: the maintainer's ruling of 2026-10-15 on C-012. "If the entry is
+// created from parsing xml or json string, then allow editing. If it is from the mat stream in
+// the json sldd, do not allow editing, only present the data." Revised on 2026-10-24: a plain
+// value, a number, a logical or a char, real or complex, of any size, takes edits, judged by the
+// rule a MAT-file's save writes a variable fresh by (MatFileWriter.streamWriteRefusal); a stream
+// holding a cell, a struct, a string, a sparse array, a function handle or a value not decoded is
+// still shown and not edited (test/textStreamEdits.test.ts holds the rule over every stream).
 //
 // MATLAB's own text dictionary keeps a stream for a value its JSON cannot spell: every rank
 // >= 3 value, every complex one, a sparse array. Only a stream holding an MCOS object was
@@ -11,10 +15,10 @@
 // save down MatWriter's refusal: typing "str" into an element of nd_text.sldd's 2x2x2 cell C
 // gave "no MAT class for string", and `["a" "b"]` went out as the char 'ab' without a word.
 //
-// Now the node read from the stream and every row under it say valueEditable false, the
-// setter refuses what the cell refuses, and no row is added or removed under it. The entry
-// itself can still be renamed and deleted: neither writes the stream again. A value parsed
-// from the JSON beside it, or from a binary dictionary's XML, is as editable as it was.
+// Such a node and every row under it say valueEditable false, the setter refuses what the cell
+// refuses, and no row is added or removed under it. The entry itself can still be renamed and
+// deleted: neither writes the stream again. A value parsed from the JSON beside it, or from a
+// binary dictionary's XML, is as editable as it was.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -54,10 +58,10 @@ function expectDisplayOnly(node: any, holderPath: string): void {
   }
 }
 
-describe('a text dictionary value read from a MAT stream is display-only', () => {
+describe('a text dictionary value read from a MAT stream that is no plain value is display-only', () => {
   // nd_text.sldd: MATLAB-written, A a 2x3x2 double, C a 2x2x2 cell, s a 2x3x2 struct, each a
   // stream; Kp a 2x3 double literal beside them.
-  for (const name of ['A', 'C', 's']) {
+  for (const name of ['C', 's']) {
     it(`nd_text.sldd ${name}, and every row under it`, () => {
       const { source } = open('nd_text.sldd');
       const entry = entryOf(source, name);
@@ -107,50 +111,54 @@ describe('a text dictionary value read from a MAT stream is display-only', () =>
     expect(entryOf(source, 'A')).toBeUndefined();
   });
 
-  // nd_nested.sldd: a stream inside a JSON cell, a JSON struct, two JSON structs and a
-  // Parameter's Value. Only the stream is display-only; what holds it is JSON.
-  it('nd_nested.sldd: a stream in a cell, a struct and a Parameter is display-only; what holds it is not', () => {
-    const { source } = open('nd_nested.sldd');
-    const inCell = entryOf(source, 'ndInCell');
-    expectDisplayOnly(inCell.children[1], 'ndInCell{2}');
-    expect(inCell.children[0].valueEditable).toBe(true);
-    expect(inCell.children[0].setProperty('Value', '2')).toBe(true);
-    expect(inCell.canRemoveChild()).toBe(true);
+  it('sparse_text.sldd: a sparse array, and its rows', () => {
+    const { source } = open('sparse/sparse_text.sldd');
+    expectDisplayOnly(entryOf(source, 'spTall'), 'spTall');
+  });
+});
 
-    const inStruct = entryOf(source, 'ndInStruct');
-    expectDisplayOnly(at(inStruct, 'deep'), 'ndInStruct.deep');
-    expect(at(inStruct, 'deep').nameEditable).toBe(true);
-    expect(at(inStruct, 'flat').setProperty('Value', '8')).toBe(true);
-
-    expectDisplayOnly(at(entryOf(source, 'ndTwoLevel'), 'inner/deep'), 'ndTwoLevel.inner.deep');
+describe('one holding a plain value takes edits, as a MAT-file\'s and a binary dictionary\'s does', () => {
+  it('nd_text.sldd A: a 2x3x2 double, at its elements', () => {
+    const { source } = open('nd_text.sldd');
+    const a = entryOf(source, 'A');
+    expect(a.children[0].valueEditable).toBe(true);
+    expect(a.children[0].setProperty('Value', '9')).toBe(true);
+    expect(a.children[0].displayValue).toBe('9');
   });
 
-  it('nd_nested.sldd ndParam: the Value is display-only, the Parameter\'s other properties are not', () => {
+  // nd_nested.sldd: a stream inside a JSON cell, a JSON struct, two JSON structs and a
+  // Parameter's Value, each an N-D double.
+  it('nd_nested.sldd: a stream in a cell, a struct and a Parameter, and what holds it', () => {
     const { source } = open('nd_nested.sldd');
+    const inCell = entryOf(source, 'ndInCell');
+    expect(inCell.children[1].children[0].setProperty('Value', '9')).toBe(true);
+    expect(inCell.children[0].setProperty('Value', '2')).toBe(true);
+    expect(inCell.canRemoveChild()).toBe(true);
+    const inStruct = entryOf(source, 'ndInStruct');
+    expect(at(inStruct, 'deep').children[0].setProperty('Value', '9')).toBe(true);
+    expect(at(inStruct, 'flat').setProperty('Value', '8')).toBe(true);
+    expect(at(entryOf(source, 'ndTwoLevel'), 'inner/deep').children[0].setProperty('Value', '9')).toBe(true);
     const param = entryOf(source, 'ndParam');
-    expect(param.valueEditable).toBe(false);
-    expect(param.setProperty('Value', '5')).toMatchObject(refused('ndParam.Value'));
-    expectDisplayOnly(at(param, 'Value'), 'ndParam.Value');
+    expect(at(param, 'Value').children[0].setProperty('Value', '9')).toBe(true);
     expect(param.setProperty('Description', 'gain')).toBe(true);
   });
 
   // mcos/complex.sldd: MATLAB writes every complex value of a text dictionary as a stream,
-  // a scalar one as well, which displays whole and so offered an editor.
+  // a scalar one as well.
   it('mcos/complex.sldd: a complex scalar, a complex Parameter Value and a complex row', () => {
     const { source } = open('mcos/complex.sldd');
-    expectDisplayOnly(entryOf(source, 'z'), 'z');
-    expectDisplayOnly(entryOf(source, 'zRow'), 'zRow');
+    expect(entryOf(source, 'z').setProperty('Value', '5-6i')).toBe(true);
+    expect(entryOf(source, 'zRow').children[0].setProperty('Value', '5-6i')).toBe(true);
     const p = entryOf(source, 'pScalar');
-    expect(p.valueEditable).toBe(false);
-    expect(p.setProperty('Value', '1+1i')).toMatchObject(refused('pScalar.Value'));
-    const row = entryOf(source, 'pRow');
-    expect(row.valueEditable).toBe(false);
-    expectDisplayOnly(at(row, 'Value'), 'pRow.Value');
+    expect(p.valueEditable).toBe(true);
+    expect(p.setProperty('Value', '1+1i')).toBe(true);
+    expect(at(entryOf(source, 'pRow'), 'Value').children[0].setProperty('Value', '5-6i')).toBe(true);
   });
 
-  it('char_text.sldd: an N-D char is display-only, a char matrix written as JSON is not', () => {
+  it('char_text.sldd: an N-D char, shown as a summary and so with no editor, as a binary dictionary shows it; a char matrix written as JSON', () => {
     const { source } = open('char_text.sldd');
-    expectDisplayOnly(entryOf(source, 'ndChar'), 'ndChar');
+    const nd = entryOf(source, 'ndChar');
+    expect([nd.valueEditable, nd._streamHolder()]).toEqual([false, null]);
     expect(entryOf(source, 'charMat').valueEditable).toBe(true);
     expect(entryOf(source, 'charMat').setProperty('Value', "['xy'; 'zw']")).toBe(true);
   });
