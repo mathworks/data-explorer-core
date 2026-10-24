@@ -14,7 +14,7 @@
 //     here — it is a global table concern owned by host/rowBuilder.COLUMN_GROUPS.
 import { getSchema, getSchemaClasses, getLayout, hydrate, isTypedScalar, sourceLeaf, writeSourcePath } from '../schema/index.js';
 import { formatMatlabNum } from '../parser/XmlUtils.js';
-import { shownOfSaved, shownPropertiesOf } from './mcosShown.js';
+import { shownOfSaved, shownPropertiesOf, withDefaultsShown } from './mcosShown.js';
 import PropName from '../prop/PropName.js';
 import PropValue from '../prop/PropValue.js';
 import PropDataType from '../prop/PropDataType.js';
@@ -265,9 +265,11 @@ function propertiesOf(node) {
 }
 // The bag a row of `node` reads, as MATLAB shows it (mcosShown.shownPropertiesOf): a NumericType's
 // Signedness, FractionLength and Slope and a CoderInfo's Identifier of what it saves them as, in a
-// dictionary as in a MAT-file. Display only: an edit writes the node's own bag (propertiesOf).
+// dictionary as in a MAT-file, and what MATLAB reads of a NumericType's property the bag does not
+// hold (mcosShown.withDefaultsShown). Display only: an edit writes the node's own bag (propertiesOf).
 function shownOf(node) {
-    return shownPropertiesOf(String(node.className ?? ''), propertiesOf(node));
+    const className = String(node.className ?? '');
+    return shownPropertiesOf(className, withDefaultsShown(className, propertiesOf(node)));
 }
 // Why an edit of `prop`, a row shown read-only, is refused where what it shows is saved under another
 // name (shownOfSaved): a NumericType's Signedness, FractionLength and Slope, a Parameter's or a

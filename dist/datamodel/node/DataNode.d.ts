@@ -142,6 +142,11 @@ export default class DataNode extends BaseNode {
     get disabled(): boolean;
     _propFor(propName: string): PropClass | undefined;
     _resolveProperty(propName: string): string;
+    _piPropFor(key: string): PropClass | undefined;
+    _rowShown(prop: PropClass): {
+        editable: boolean;
+        text: string;
+    };
     /**
      * Is `stringValue` the text `propName` shows, on a property this node takes an edit of? Then
      * setting it is no edit, and every setProperty asks this first, the overrides included: it

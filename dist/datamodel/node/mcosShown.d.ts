@@ -32,6 +32,25 @@ export declare function withNumericTypeShown(bag: Record<string, unknown>): Reco
  */
 export declare function withParameterValueShown(bag: Record<string, unknown>): Record<string, unknown>;
 /**
+ * What MATLAB R2027a holds of a Simulink.NumericType made with nothing set, in MATLAB's own
+ * alphabetical key order: what a new one is (NumericTypeNode.createDefault), and what MATLAB reads
+ * of a property a dictionary's NumericType does not hold (withDefaultsShown).
+ */
+export declare const NUMERIC_TYPE_DEFAULTS: Readonly<Record<string, unknown>>;
+/**
+ * `bag`, a `className` object's, with what MATLAB reads of each property it does not hold, for a
+ * row to read: a NumericType's default (NUMERIC_TYPE_DEFAULTS), and the FixedExponent of a
+ * FractionLength and the SignednessBool of a Signedness it states, as MATLAB's setter makes each.
+ * A binary dictionary System Composer wrote holds its NumericType's DataTypeMode and IsAlias alone
+ * (arch_binary.sldd), and its rows showed nothing for the rest; measured against MATLAB R2027a, it
+ * reads as one with nothing set does, and a hand-written one stating Signedness, WordLength 16 and
+ * FractionLength 3 (typeLink.sldd) as FixedExponent -3, Slope 0.125. No default is taken of what
+ * the bag states otherwise: a FixedExponent or a SlopeAdjustmentFactor where it states a Slope.
+ * Display only: a copy, `bag` itself never changed, and answered as it is where nothing is added;
+ * for any other class, `bag`.
+ */
+export declare function withDefaultsShown(className: string, bag: Record<string, unknown> | undefined): Record<string, unknown> | undefined;
+/**
  * The property bag of a `className` object as MATLAB shows it, for a row to read: what it saves under
  * other names shown as the property it is, of any file, a dictionary's as a MAT-file's. A
  * NumericType's Signedness, FractionLength and Slope (withNumericTypeShown), and a Parameter's or a
@@ -44,6 +63,20 @@ export declare function withParameterValueShown(bag: Record<string, unknown>): R
  * nothing is to be added, so that what a writer writes of it stays the file's.
  */
 export declare function shownPropertiesOf(className: string, bag: Record<string, unknown> | undefined): Record<string, unknown> | undefined;
+/**
+ * `value`, handed to a dictionary (a paste: SectionNode.parseEntry), without what MATLAB shows of
+ * each object in it that it saves under other names (shownPropertiesOf), where the object's bag
+ * also holds the saved keys it is shown of and the two say the same: a NumericType's Signed,
+ * FractionLength and Slope beside its SignednessBool, FixedExponent and SlopeAdjustmentFactor, a
+ * Parameter's or a Signal's CoderInfo Identifier beside its Alias. A MAT-file's object holds both
+ * (mcosTypedNode), and its copy carried both into the dictionary's file, `Signed` a key MATLAB has
+ * no property of; MATLAB saves the saved ones alone, and a dictionary's rows show the rest of them
+ * as the MAT-file's did. A shown key saying otherwise is no copy's, and is kept: what MATLAB would
+ * load of the two is not measured. And, for a binary dictionary (`binary`), a CoderInfo in the
+ * order MATLAB writes one there (savedOnly). A copy where anything changed, the same value where
+ * nothing did.
+ */
+export declare function withoutShownOfSaved(value: unknown, binary?: boolean): unknown;
 /**
  * Of a property a `className` object's row shows at `path` (a schema sourcePath), the property
  * MATLAB shows and what it saves it as, where it saves it under another name (shownPropertiesOf):
