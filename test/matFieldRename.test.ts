@@ -272,7 +272,8 @@ describe('every field rename a MAT-file of the test tree offers', () => {
     return acc;
   }
 
-  it('is saved, and read back under its new name: none is taken and then refused', () => {
+  // Every field rename of the test tree, saved and read back: 1.2 s alone, up to 4.2 s in a full run.
+  it('is saved, and read back under its new name: none is taken and then refused', { timeout: 30_000 }, () => {
     let offered = 0;
     const wrong: string[] = [];
     for (const file of mats(TEST)) {

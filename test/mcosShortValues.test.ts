@@ -261,7 +261,8 @@ describe('no false positive', () => {
     expect(opened(out.bytes, 'paramArray.mat')).toEqual([elementsSaid('arr(3).Value', 3, 1)]);
   });
 
-  it('every MATLAB-written .mat and .slx gives none of these warnings', () => {
+  // Every MATLAB-written file of the test tree, opened: 0.7 s alone, up to 3.2 s in a full run.
+  it('every MATLAB-written .mat and .slx gives none of these warnings', { timeout: 30_000 }, () => {
     const said: [string, ParseWarning[]][] = [];
     for (const file of files) {
       const short = opened(new Uint8Array(readFileSync(file)), file.split('/').pop()!);

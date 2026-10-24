@@ -165,7 +165,8 @@ describe('what the R2023b templates bring, as the codec reads it', () => {
     expect(createSubsystem().blob.fileHeader).toEqual({ perArray: [] });
   });
 
-  it('every subsystem the test tree holds has a stream of class systems, MCOS first, and a value cell of each kind reads', () => {
+  // Every subsystem of the test tree, read whole: 0.3 s alone, up to 3.0 s in a full run.
+  it('every subsystem the test tree holds has a stream of class systems, MCOS first, and a value cell of each kind reads', { timeout: 30_000 }, () => {
     const seen = new Set<string>();
     let cells = 0;
     for (const f of fixtureSubsystems()) {
