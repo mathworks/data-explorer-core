@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { defaultBus, createEventBus } from './EventBus.js';
-import { createUndoManager } from './UndoManager.js';
+import DefaultUndoManager, { createUndoManager } from './UndoManager.js';
 import SlddNode from '../datamodel/node/container/SlddNode.js';
 import ModelNode from '../datamodel/node/container/ModelNode.js';
 import MatNode from '../datamodel/node/container/MatNode.js';
@@ -91,7 +91,9 @@ function splitLinkTarget(target: string): { name: string | null; source: string 
 
 export function createSession(opts: CreateSessionOptions = {}) {
   const bus = opts.bus ?? createEventBus();
-  const UndoManager = createUndoManager(bus);
+  // On the default bus, the module's own UndoManager, which listens there already: a second one
+  // cleared its histories beside it, and each announced it, so every removal was heard twice.
+  const UndoManager = bus === defaultBus ? DefaultUndoManager : createUndoManager(bus);
   const { publish, subscribe } = bus;
 
   const allNode: IAllNode = {
@@ -178,6 +180,15 @@ function registerSource(
     deindexSource(previous);
   }
   dataSources.set(srcId, sourceNode);
+  // And whatever else the session holds of the outgoing tree goes with it, before the new one is
+  // announced, as removeDataSource lets go of a removed one: a selection or preview into it, which
+  // getActiveSlddNode would follow up to the replaced root, so that an edit or an undo went to a
+  // document no longer open; and the srcId's undo history, every step of which is of its nodes.
+  // Not for the same tree registered again, which is still the document its history is of.
+  if (previous && previous !== sourceNode) {
+    releaseSelection(previous as unknown as INode);
+    UndoManager.clear(srcId);
+  }
   // Two nodes of this tree under one id is a file holding two entries (or two fields,
   // two elements) with one name, and it is said here, at open, because from now on the
   // session refuses to edit or delete either of them by id (resolveId). Looked for only
@@ -527,25 +538,45 @@ function indexSubtree(root: INode): void {
  * them immediately after.
  */
 function unindexSubtree(root: INode, detach?: () => void): void {
-  const flat = root.flatten();
-  const ids: string[] = [];
-  for (let i = 0; i < flat.length; i++) {
-    ids.push(flat[i].id);
-  }
+  const held = heldSubtree(root);
   try {
     detach?.();
   } finally {
-    for (let i = 0; i < ids.length; i++) {
-      nodeIndex.delete(ids[i]);
-    }
-    // A twin of a leaving node lost its id with it, and is still in the tree. By
-    // identity, not by attachment, since with no callback the subtree is still attached.
-    reindexLeftBehind(ids, new Set<INode>(flat));
+    unindexHeld(held);
     // Every node here is leaving the tree, so the whole subtree is what the selection
     // must stop pointing at — see releaseSubtreeSelection, and mutateSubtree's
     // before-minus-after form of the same rule.
-    releaseSubtreeSelection(flat);
+    releaseSubtreeSelection(held.nodes);
   }
+}
+
+interface HeldSubtree {
+  nodes: INode[];
+  ids: string[];
+}
+
+// The nodes of `root`'s subtree and the ids they answer in the tree now, read before a removal
+// detaches them: an id is a path, so a detached node answers a shorter one, and deleting that
+// left the real entry behind (unindexSubtree's ordering, for the session's own removals too).
+function heldSubtree(root: INode): HeldSubtree {
+  const nodes = root.flatten();
+  const ids: string[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    ids.push(nodes[i].id);
+  }
+  return { nodes, ids };
+}
+
+// Take a subtree that has left the tree out of the index, by the ids heldSubtree read of it while
+// it was in it. A twin of a leaving node lost its id with it, and is still in the tree: put back.
+// By identity, not by attachment, since unindexSubtree called with no callback runs this while the
+// subtree is still attached. The selection is the caller's: unindexSubtree releases it, and each
+// of the session's removals moves it by its policy (selectAfterRemoval), once the index is right.
+function unindexHeld(held: HeldSubtree): void {
+  for (let i = 0; i < held.ids.length; i++) {
+    nodeIndex.delete(held.ids[i]);
+  }
+  reindexLeftBehind(held.ids, new Set<INode>(held.nodes));
 }
 
 function beginBatch(): void {
@@ -814,8 +845,10 @@ function removeAll(): void {
   dataSources.clear();
   nodeIndex.clear();
   sharedIds.clear();
-  publish('datamodel/cleared');
+  // Released before the clear is announced, as removeDataSource releases before announcing a
+  // removal: a subscriber asks what is selected now.
   releaseSelection(null);
+  publish('datamodel/cleared');
 }
 
 function getDataSource(srcId: string): ISourceNode | null {
@@ -1900,7 +1933,9 @@ function editProperty(
   // A rename's redo puts the name it made back as its undo puts the one it replaced.
   const redoRename = isName ? propertyRestorer(node, propertyName, true) : null;
 
-  const slddNode = getActiveSlddNode();
+  // Filed under the document the node is in, which is the one it changed: the context may be on
+  // another (setActive(a, node of b)), where undo would replay an edit it never made.
+  const slddNode = editableOwnerOf(node);
   const kind = propertyName === 'Name' ? 'rename' : 'property';
   if (slddNode) {
     const cmd = {
@@ -1954,7 +1989,8 @@ function recordRetype(node: INode, replacement: INode, swap: { undo: () => void;
     publish('node/added', { node: to, sectionKey: parent.name });
     publish('node/edited', { source, nodeId: to.id, kind: 'property' });
   };
-  const slddNode = getActiveSlddNode();
+  // Under the document the swap was made in (editProperty's rule): `node` is out of it now.
+  const slddNode = editableOwnerOf(replacement);
   if (slddNode) {
     UndoManager.pushExecuted(slddNode.name, {
       execute() {
@@ -2014,22 +2050,25 @@ function addEntry(sectionKey: string, className: string, entryName?: string): IN
   const srcId = slddNode.name;
   const node = result.node;
   const sectionRef = section;
+  // The whole subtree (un)indexed, its ids read while it is in the tree (heldSubtree), before the
+  // selection moves and the change is announced.
   UndoManager.pushExecuted(srcId, {
     execute() {
       result.redo();
-      indexNode(node);
+      indexSubtree(node);
       setActiveEntry(node);
       publish('node/added', { node, sectionKey: sectionRef.name });
     },
     undo() {
+      const held = heldSubtree(node);
       result.undo();
-      nodeIndex.delete(node.id);
+      unindexHeld(held);
       setActiveEntry(null);
       publish('node/deleted', { node, section: sectionRef });
     },
   });
 
-  indexNode(node);
+  indexSubtree(node);
   publish('node/added', { node, sectionKey: section.name });
   setActiveEntry(node);
   return node;
@@ -2092,7 +2131,7 @@ function addChildOfNode(node: INode, scope: ISourceNode | null, policy: Selectio
     UndoManager.pushExecuted(scope.name, {
       execute() {
         const redone = withTwins(node, () => result.redo());
-        indexNode(child);
+        indexSubtree(child);
         if (policy === 'follow') {
           setActiveEntry(child);
         }
@@ -2102,17 +2141,17 @@ function addChildOfNode(node: INode, scope: ISourceNode | null, policy: Selectio
       undo() {
         // Undoing an add is a removal, so the subtree has to be read while it is
         // still attached — hence before result.undo() rather than after.
-        const removed = policy === 'follow' ? [] : child.flatten();
+        const held = heldSubtree(child);
         const undone = withTwins(node, () => result.undo());
-        nodeIndex.delete(child.id);
-        selectAfterRemoval(policy, removed, node);
+        unindexHeld(held);
+        selectAfterRemoval(policy, held.nodes, node);
         publish('node/children-changed', { parent: node });
         publishMirrored(undone.mirrored);
       },
     });
   }
 
-  indexNode(child);
+  indexSubtree(child);
   publish('node/children-changed', { parent: node });
   publishMirrored(added.mirrored);
   return child;
@@ -2128,35 +2167,35 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
     if (!section || !section.execRemoveEntry) {
       return false;
     }
-    const nodeId = node.id;
-    const removed = policy === 'follow' ? [] : node.flatten();
+    // The whole subtree, by the ids it answers in the tree (heldSubtree): what is under the
+    // node leaves the index with it, and comes back with it.
+    const held = heldSubtree(node);
     const result = section.execRemoveEntry(node);
     if (!result) {
       return false;
     }
     UndoManager.pushExecuted(scope.name, {
       execute() {
-        const currentId = node.id;
-        const redoRemoved = policy === 'follow' ? [] : node.flatten();
+        const redoHeld = heldSubtree(node);
         result.redo();
-        nodeIndex.delete(currentId);
-        selectAfterRemoval(policy, redoRemoved, null);
+        unindexHeld(redoHeld);
+        selectAfterRemoval(policy, redoHeld.nodes, null);
         publish('node/deleted', { node, section });
       },
       undo() {
         result.undo();
-        indexNode(node);
+        indexSubtree(node);
         if (policy === 'follow') {
           setActiveEntry(node);
         }
         publish('node/added', { node, sectionKey: section.name });
       },
     });
-    nodeIndex.delete(nodeId);
+    unindexHeld(held);
     // Release before announcing, for the same reason removeDataSource does: a
     // subscriber to 'node/deleted' legitimately asks what is selected now, and
     // answering with the node just removed is the hazard, not a detail.
-    selectAfterRemoval(policy, removed, null);
+    selectAfterRemoval(policy, held.nodes, null);
     publish('node/deleted', { node, section });
     return true;
   }
@@ -2165,8 +2204,7 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
   if (!parent || !parent.execRemoveChild) {
     return false;
   }
-  const nodeId = node.id;
-  const removed = policy === 'follow' ? [] : node.flatten();
+  const held = heldSubtree(node);
   // And made in every node its source keeps in step with `parent` (withTwins).
   const removal = withTwins(parent, () => parent.execRemoveChild!(node));
   const rawResult = removal.result;
@@ -2176,17 +2214,16 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
   const result = rawResult as { undo: () => void; redo: () => void };
   UndoManager.pushExecuted(scope.name, {
     execute() {
-      const currentId = node.id;
-      const redoRemoved = policy === 'follow' ? [] : node.flatten();
+      const redoHeld = heldSubtree(node);
       const redone = withTwins(parent, () => result.redo());
-      nodeIndex.delete(currentId);
-      selectAfterRemoval(policy, redoRemoved, parent);
+      unindexHeld(redoHeld);
+      selectAfterRemoval(policy, redoHeld.nodes, parent);
       publish('node/children-changed', { parent });
       publishMirrored(redone.mirrored);
     },
     undo() {
       const undone = withTwins(parent, () => result.undo());
-      indexNode(node);
+      indexSubtree(node);
       if (policy === 'follow') {
         setActiveEntry(node);
       }
@@ -2194,8 +2231,8 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
       publishMirrored(undone.mirrored);
     },
   });
-  nodeIndex.delete(nodeId);
-  selectAfterRemoval(policy, removed, parent);
+  unindexHeld(held);
+  selectAfterRemoval(policy, held.nodes, parent);
   publish('node/children-changed', { parent });
   publishMirrored(removal.mirrored);
   return true;
@@ -2207,36 +2244,42 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
 function deleteEntryBatch(nodes: INode[], scope: ISourceNode, policy: SelectionPolicy): boolean {
   const undoInfo: {
     node: INode;
-    nodeId: string;
+    held: HeldSubtree;
     section: IContainerNode;
     result: { undo: () => void; redo: () => void };
   }[] = [];
-  const removed: INode[] = [];
-  for (const node of nodes) {
-    if (!node.isEntry) continue;
-    const section = node.parent as IContainerNode;
-    if (!section || !section.execRemoveEntry) continue;
-    const nodeId = node.id;
-    const subtree = policy === 'follow' ? [] : node.flatten();
-    const result = section.execRemoveEntry(node);
-    if (result) {
-      undoInfo.push({ node, nodeId, section, result });
-      removed.push(...subtree);
+  // A removal that throws part-way takes back the ones made before it, last first, and lets the
+  // throw through: they were left removed with no step to undo them by, and nothing said so.
+  try {
+    for (const node of nodes) {
+      if (!node.isEntry) continue;
+      const section = node.parent as IContainerNode;
+      if (!section || !section.execRemoveEntry) continue;
+      const held = heldSubtree(node);
+      const result = section.execRemoveEntry(node);
+      if (result) {
+        undoInfo.push({ node, held, section, result });
+      }
     }
+  } catch (e) {
+    for (let i = undoInfo.length - 1; i >= 0; i--) {
+      undoInfo[i].result.undo();
+    }
+    throw e;
   }
   if (undoInfo.length === 0) {
     return false;
   }
+  // Every entry's subtree out of the index, or back in, before the selection moves and the
+  // removal is announced (heldSubtree, deleteOneNode).
   UndoManager.pushExecuted(scope.name, {
     execute() {
       const redoRemoved: INode[] = [];
       for (const info of undoInfo) {
-        const currentId = info.node.id;
-        if (policy !== 'follow') {
-          redoRemoved.push(...info.node.flatten());
-        }
+        const redoHeld = heldSubtree(info.node);
         info.result.redo();
-        nodeIndex.delete(currentId);
+        unindexHeld(redoHeld);
+        redoRemoved.push(...redoHeld.nodes);
       }
       selectAfterRemoval(policy, redoRemoved, null);
       publish('node/deleted', { node: undoInfo[0].node, section: undoInfo[0].section });
@@ -2244,7 +2287,7 @@ function deleteEntryBatch(nodes: INode[], scope: ISourceNode, policy: SelectionP
     undo() {
       for (let i = undoInfo.length - 1; i >= 0; i--) {
         undoInfo[i].result.undo();
-        indexNode(undoInfo[i].node);
+        indexSubtree(undoInfo[i].node);
       }
       if (policy === 'follow') {
         setActiveEntry(undoInfo.map((info) => info.node));
@@ -2252,8 +2295,10 @@ function deleteEntryBatch(nodes: INode[], scope: ISourceNode, policy: SelectionP
       publish('node/added', { node: undoInfo[0].node, sectionKey: undoInfo[0].section.name });
     },
   });
+  const removed: INode[] = [];
   for (const info of undoInfo) {
-    nodeIndex.delete(info.nodeId);
+    unindexHeld(info.held);
+    removed.push(...info.held.nodes);
   }
   selectAfterRemoval(policy, removed, null);
   publish('node/deleted', { node: undoInfo[0].node, section: undoInfo[0].section });
@@ -2265,10 +2310,10 @@ function addChild(): INode | null {
   if (!node) {
     return null;
   }
-  // The undo scope comes from the CONTEXT here, not from the target: the two can
-  // differ (a host may hold context on one document and an entry in another), and
-  // which one the selection-driven form uses is established behaviour.
-  return addChildOfNode(node, getActiveSlddNode(), 'follow');
+  // The undo scope is the target's document, as addChildTo's: the context may be on another
+  // (a host may hold context on one document and an entry in another), and a step filed under
+  // it was undone there, in a document the add never changed.
+  return addChildOfNode(node, editableOwnerOf(node), 'follow');
 }
 
 // The explicit form of addChild, for a caller with no selection to mutate through.
@@ -2288,7 +2333,9 @@ function deleteNode(): boolean {
     return false;
   }
 
-  const slddNode = getActiveSlddNode();
+  // The document the selected nodes are in, and not the context's, as deleteNodesById scopes its
+  // batch: none for nodes of two documents.
+  const slddNode = editableOwnerOfAll(nodes);
   if (!slddNode) {
     return false;
   }
@@ -2338,19 +2385,9 @@ function deleteNodesById(nodeIds: string[]): boolean {
   if (nodes.length === 0) {
     return false;
   }
-  const scope = editableOwnerOf(nodes[0]);
+  const scope = editableOwnerOfAll(nodes);
   if (!scope) {
     return false;
-  }
-  // An undo command belongs to exactly one document's stack, so a batch spanning two
-  // files could only be filed under one of them: undo there would half-restore two
-  // files, and the other would be left holding a change with no step to undo it.
-  // Refuse rather than record that, and let the caller loop per source — which is
-  // what it wants anyway, one undoable step per document.
-  for (const node of nodes) {
-    if (editableOwnerOf(node) !== scope) {
-      return false;
-    }
   }
   if (nodes.length === 1) {
     return deleteOneNode(nodes[0], scope, 'keep');
@@ -2414,6 +2451,16 @@ function editableOwnerOf(node: INode | IAllNode | null): ISourceNode | null {
     return null;
   }
   return (root as IContainerNode).dirty !== undefined ? (root as ISourceNode) : null;
+}
+
+// The editable source every node of `nodes` belongs to, or null for none, or for two. An undo
+// command belongs to exactly one document's stack, so a batch spanning two files could only be
+// filed under one of them: undo there would half-restore two files, and the other would be left
+// holding a change with no step to undo it. Refused rather than recorded so, and the caller loops
+// per source, which is what it wants anyway: one undoable step per document.
+function editableOwnerOfAll(nodes: readonly INode[]): ISourceNode | null {
+  const scope = nodes.length > 0 ? editableOwnerOf(nodes[0]) : null;
+  return scope && nodes.every((node) => editableOwnerOf(node) === scope) ? scope : null;
 }
 
 // The editable source owning the context node.

@@ -416,12 +416,19 @@ describe('deleteNode', () => {
     expect(s.deleteNode()).toBe(false);
   });
 
-  it('returns false without an active source', () => {
+  it('without a context, deletes the entry and files its undo under the entry\'s own document', () => {
     const s = createSession();
     const src = s.addDataSource('n.sldd', loadFixture('numeric_json.sldd')) as any;
-    // Entry selected but no context, so there is no source to record undo against.
-    s.setActiveEntry(firstEntry(src));
-    expect(s.deleteNode()).toBe(false);
+    // Entry selected but no context: the undo step goes to the document the entry is in, which
+    // is the one the delete changes (sessionUndoScope.test.ts), and not to the context's.
+    const entry = firstEntry(src);
+    s.setActiveEntry(entry);
+    expect(s.deleteNode()).toBe(true);
+    expect(entry.parent).toBeNull();
+    s.setActiveContext(src);
+    expect(s.canUndo()).toBe(true);
+    s.undo();
+    expect(s.findNodeById(entry.id)).toBe(entry);
   });
 
   it('refuses to delete a section, which is structure rather than data', () => {

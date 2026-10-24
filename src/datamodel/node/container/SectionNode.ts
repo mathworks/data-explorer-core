@@ -331,9 +331,14 @@ export default class SectionNode extends ContainerNode {
   // parent knows which those are. Nested children (bus elements, struct fields) have no
   // such parent, which is what keeps an element that happens to share a definition's
   // name from moving the catalog under the entry that really carries it.
+  //
+  // Only for an entry of the namespace the catalog names (_namesCatalog): an Other Data entry
+  // sharing a definition's name renamed the definition, which a save wrote into the catalog.
   _entryRenamed(oldName: string, newName: string): void {
     const dictionary = this.parent as unknown as { systemComposer?: SystemComposerCatalog | null } | null;
-    _renameInCatalog(dictionary?.systemComposer, oldName, newName);
+    if (this._namesCatalog()) {
+      _renameInCatalog(dictionary?.systemComposer, oldName, newName);
+    }
     // And the namespace's name counts (_namespaceHolds).
     this._entriesMoved(oldName, newName);
   }
@@ -385,13 +390,17 @@ export default class SectionNode extends ContainerNode {
       return null;
     }
     const index = this.children.indexOf(node);
+    // Its undo and redo change what a save writes as the add does, and mark the dictionary dirty
+    // as it does: a dictionary saved after the add and then undone said it held nothing to save.
     return {
       node,
       undo: () => {
         this.removeChild(node);
+        this._markSourceDirty();
       },
       redo: () => {
         this.addChild(node, index);
+        this._markSourceDirty();
       },
     };
   }
@@ -406,9 +415,11 @@ export default class SectionNode extends ContainerNode {
     return {
       undo: () => {
         this.addChild(node, index);
+        this._markSourceDirty();
       },
       redo: () => {
         this.removeChild(node);
+        this._markSourceDirty();
       },
     };
   }
@@ -475,9 +486,11 @@ export default class SectionNode extends ContainerNode {
     // itself (regenerateEntryXml). The keys go in MATLAB's order, and what metadata names is
     // kept, a binary reader's _rawLastMod and lastModifiedBy as a lastmod and a modifiedby. The
     // metadata handed in is not changed. Metadata that is absent is left absent: with no uuid
-    // there is no entry MATLAB would open either way.
+    // there is no entry MATLAB would open either way. And a re-read of the dictionary's own text
+    // (asRead) is stamped with nothing, as the file's read stamps nothing: it showed a Last
+    // Modified of now for an entry the file holds none for, which a read of the file shows blank.
     const given = rawEntry.metadata;
-    if (given !== undefined && given !== null && typeof given === 'object' && !Array.isArray(given)) {
+    if (!options?.asRead && given !== undefined && given !== null && typeof given === 'object' && !Array.isArray(given)) {
       const md = given as Record<string, unknown>;
       const unnamed = (v: unknown) => v === undefined || v === null || v === '';
       const stamp: Record<string, unknown> = {};
@@ -541,6 +554,14 @@ export default class SectionNode extends ContainerNode {
     return node;
   }
 
+  // Whether the System Composer catalog names this section's entries: those of the Design
+  // namespace, Design and Architectural Data, where every architectural entry is. The catalog is
+  // keyed by name, and a name is unique only within a namespace: Other Data and Configurations are
+  // each their own, and an entry of either sharing a definition's name is not that definition.
+  _namesCatalog(): boolean {
+    return SECTION_NAMESPACE[this.name] === NS_DESIGN;
+  }
+
   // parseEntry for an entry of the file being read, as the file holds it (SlddNode.parse).
   _readEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
     const entryName = (rawEntry.name as string) || '';
@@ -562,7 +583,8 @@ export default class SectionNode extends ContainerNode {
     // Classify entries via the systemcomposer catalog. The classification token
     // (e.g. 'DataInterface', 'StructType') drives the entry's user-facing Kind
     // and also distinguishes a StructType from a DataInterface (both Simulink.Bus).
-    const classification = _classificationOf(systemComposer, entryName);
+    // Only the entries of the namespace it names (_namesCatalog).
+    const classification = this._namesCatalog() ? _classificationOf(systemComposer, entryName) : null;
     if (classification) {
       dataNode.classification = classification;
       if (classification === 'StructType') {

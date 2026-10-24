@@ -196,3 +196,48 @@ describe('UndoManager — data-source lifecycle wiring', () => {
     expect(um.canUndo('a')).toBe(true);
   });
 });
+
+// A step that throws as it is undone or redone stays where it was, to be tried again, and the
+// change is announced all the same: what ran of it before the throw may have changed the tree. The
+// step was popped before it ran, so a throw lost it from both stacks, and nothing was published.
+describe('UndoManager — a step that throws', () => {
+  /** A command whose undo, or redo, throws the first time it runs. */
+  function failingOnce(log: string[], fails: 'undo' | 'execute') {
+    let failed = false;
+    const run = (what: string) => {
+      log.push(what);
+      if (what === fails && !failed) {
+        failed = true;
+        throw new Error(what + ' failed');
+      }
+    };
+    return { execute: () => run('execute'), undo: () => run('undo') };
+  }
+
+  it('stays on the undo stack when its undo throws, and is undone on the next try', () => {
+    const bus = createEventBus();
+    const um = createUndoManager(bus);
+    const log: string[] = [];
+    const seen: string[] = [];
+    um.pushExecuted('a', failingOnce(log, 'undo'));
+    bus.subscribe('undo/changed', (p) => { seen.push(p.srcId); });
+    expect(() => um.undo('a')).toThrow('undo failed');
+    expect([um.canUndo('a'), um.canRedo('a'), seen]).toEqual([true, false, ['a']]);
+    um.undo('a');
+    expect([um.canUndo('a'), um.canRedo('a'), log]).toEqual([false, true, ['undo', 'undo']]);
+  });
+
+  it('stays on the redo stack when its redo throws, and is redone on the next try', () => {
+    const bus = createEventBus();
+    const um = createUndoManager(bus);
+    const log: string[] = [];
+    const seen: string[] = [];
+    um.pushExecuted('a', failingOnce(log, 'execute'));
+    um.undo('a');
+    bus.subscribe('undo/changed', (p) => { seen.push(p.srcId); });
+    expect(() => um.redo('a')).toThrow('execute failed');
+    expect([um.canUndo('a'), um.canRedo('a'), seen]).toEqual([false, true, ['a']]);
+    um.redo('a');
+    expect([um.canUndo('a'), um.canRedo('a'), log]).toEqual([true, false, ['undo', 'execute', 'execute']]);
+  });
+});
