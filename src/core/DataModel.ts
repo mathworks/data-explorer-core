@@ -1994,12 +1994,17 @@ function editProperty(
 // The swap a source made of `node` for `replacement` (editProperty, sourceRetype), announced as the
 // delete of the one and the add of the other, which it is, with `replacement` selected; and
 // recorded, so that one undo puts `node` back where it was, selected, and the redo the swap again.
+// A member of a cell or a struct swapped is a change of its container's rows, as an Add's is.
 function recordRetype(node: INode, replacement: INode, swap: { undo: () => void; redo: () => void }): true {
   const swapped = (from: INode, to: INode, source: 'pi' | 'undo') => {
-    const parent = to.parent as IContainerNode;
     setActiveEntry(to);
-    publish('node/deleted', { node: from, section: parent });
-    publish('node/added', { node: to, sectionKey: parent.name });
+    if (to.isEntry) {
+      const parent = to.parent as IContainerNode;
+      publish('node/deleted', { node: from, section: parent });
+      publish('node/added', { node: to, sectionKey: parent.name });
+    } else {
+      publish('node/children-changed', { parent: to.parent! });
+    }
     publish('node/edited', { source, nodeId: to.id, kind: 'property' });
   };
   // Under the document the swap was made in (editProperty's rule): `node` is out of it now.

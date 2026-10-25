@@ -316,7 +316,7 @@ function variableOf(node: BaseNode, name: string, path: string): MatVariable | {
   }
   if (!(node instanceof MatlabVariableNode)) {
     const cls = String(node.className || 'object');
-    return { why: heldAt(path) + classPhrase(cls) + ' object, and a value pasted into a MAT-file holds no object but at its top: this package writes no new object inside a struct or a cell' };
+    return { why: heldAt(path) + classPhrase(cls) + ' object, and a value pasted into a MAT-file holds no object but at its top: a paste writes no new object inside a struct or a cell' };
   }
   if (node._isOpaque) {
     return { why: heldAt(path) + classPhrase(node._opaqueClassName || 'object') + ' object, which this package cannot write as a new variable of a MAT-file' };
@@ -332,8 +332,8 @@ function variableOf(node: BaseNode, name: string, path: string): MatVariable | {
     // one that reaches here is held in another form, a binary dictionary's MAT stream.
     const top = heldAt(path) === 'it is ';
     return {
-      why: heldAt(path) + 'a string, which a MAT-file holds only as an object, and this package '
-        + (top ? 'makes a new one only of the text a dictionary spells a string in' : 'writes no new object inside a struct or a cell'),
+      why: heldAt(path) + 'a string, which a MAT-file holds only as an object, and '
+        + (top ? 'this package makes a new one only of the text a dictionary spells a string in' : 'a paste writes no new object inside a struct or a cell'),
     };
   }
   if (node._kind === 'cell') {

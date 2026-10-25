@@ -676,7 +676,7 @@ export default class MatNode extends ContainerNode {
         if (state === undefined) {
             // An object created since the file was read is in the subsystem it was merged into.
             const entry = this._entryOf(object) ?? object;
-            const objects = this._creation?.created.has(entry) ? { records: this._creation.records } : this._mcosSubsystem();
+            const objects = this._creation?.created.has(entry) || this._creation?.created.has(object) ? { records: this._creation.records } : this._mcosSubsystem();
             state = typeof objects === 'string' ? objects : matObjectStateOf(objects.records, object);
             this._objectStates.set(object, state);
         }
@@ -1163,10 +1163,18 @@ export default class MatNode extends ContainerNode {
         const props = defaultBusElementProperties();
         return props ? structuredClone(props) : undefined;
     }
-    /** The class-17 element a save writes for `node`, a variable created in this file as an object (_createObject), or null for any other. */
-    _createdElement(node) {
+    /**
+     * The class-17 element a save writes for `node`, an object created in this file (_createObject),
+     * named `name`: a variable's own, or '' for one a cell or a struct holds (_retype); or null for any
+     * other node.
+     */
+    _createdElement(node, name = node.name) {
         const obj = this._creation?.created.has(node) ? this._liveCreation().objects.get(node) : undefined;
-        return obj ? newObjectVariable(node.name, obj) : null;
+        return obj ? newObjectVariable(name, obj) : null;
+    }
+    /** Whether `node` is or holds an object created in this file that is in the tree now (_liveCreations). */
+    _holdsCreation(node) {
+        return this._liveCreations().some((made) => isAtOrUnder(made, node));
     }
     /**
      * The subsystem a save writes the objects created since the read into, which are in the tree now
@@ -1218,7 +1226,7 @@ export default class MatNode extends ContainerNode {
                 session,
                 objects,
                 remap: (node, state) => {
-                    const to = ids.get(this._entryOf(node) ?? node);
+                    const to = ids.get(node) ?? ids.get(this._entryOf(node) ?? node);
                     if (!to) {
                         return state;
                     }
@@ -1236,9 +1244,9 @@ export default class MatNode extends ContainerNode {
         this._rebuilt = { from: c.records, live, made };
         return made;
     }
-    /** The variables created as objects that are in the tree now. */
+    /** The objects created in this file that are in the tree now: variables, and members of a cell or a struct (_retype). */
     _liveCreations() {
-        return [...(this._creation?.created.keys() ?? [])].filter((n) => n.parent === this);
+        return [...(this._creation?.created.keys() ?? [])].filter((n) => this._entryOf(n) !== null);
     }
     // Not a name any variable of the file holds (_nameTaken).
     _uniqueName(baseName) {
@@ -1270,20 +1278,30 @@ export default class MatNode extends ContainerNode {
         };
     }
     /**
-     * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
-     * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
-     * that variable; or null, where `node`'s own setter makes the edit. A save writes a string only as
-     * an object of the subsystem, which only its creation makes, and a plain value only fresh, so
-     * neither becomes the other in place; and in MATLAB `x = "abc"` makes `x` a string whatever it
-     * was, and `x = 5` a double. So a string typed over a variable that is not one makes it the
-     * variable an Add of a string makes (_createObject), and anything else typed over a string the
-     * plain variable an Add makes, each of its name and in its place, holding the text; and a save
-     * writes it where the variable it replaced was (_replacementOf). A variable whose Value takes no
+     * The variable put in place of `node`, a variable of this file or a member of a cell or a struct
+     * of one, for its whole Value typed over as `text` (BaseNode.sourceRetype), and what undoes and
+     * redoes the swap; the refusal of the text by that variable; or null, where `node`'s own setter
+     * makes the edit. A save writes a string only as an object of the subsystem, which only its
+     * creation makes, and a plain value only fresh, so neither becomes the other in place; and in
+     * MATLAB `x = "abc"` makes `x` a string whatever it was, and `x = 5` a double, as `s.a = "abc"`
+     * and `c{2} = 5` do a field and a cell element. So a string typed over a value that is not one
+     * makes it the variable an Add of a string makes (_createObject), and anything else typed over a
+     * string the plain variable an Add makes, each of its name and in its place, holding the text.
+     * A save writes a variable so made where the variable it replaced was (_replacementOf), and a
+     * member in the cell or the struct that holds it, written fresh, as the element MATLAB writes for
+     * an object there, naming it (_createdElement): the file's subsystem with the new object merged
+     * in, or a new one where the file holds none. A string a member no longer holds is left in the
+     * subsystem, which MATLAB loads with no word (as a variable's is). A value whose Value takes no
      * edit (valueEditable: a struct, a function handle, a summary) is not one, nor is one holding any
-     * other object, whose Value row is the object's.
+     * other object, whose Value row is the object's, nor a member at or under an object
+     * (_memberHolder).
      */
     _retype(entry, node, key, text) {
-        if (key !== 'Value' || node !== entry || node.parent !== this || !(node instanceof MatlabVariableNode) || !node.valueEditable) {
+        if (key !== 'Value' || !(node instanceof MatlabVariableNode) || !node.valueEditable || this._entryOf(node) !== entry) {
+            return null;
+        }
+        const holder = node === entry ? this : this._memberHolder(entry, node);
+        if (!holder) {
             return null;
         }
         const object = objectNodeAt(entry, node);
@@ -1298,17 +1316,25 @@ export default class MatNode extends ContainerNode {
         // What puts the file's creations back as they are, for a string's creation the edit does not
         // keep: one left among them is one more a save takes for deleted (_liveCreation).
         const uncreate = this._creationRestorer();
-        const made = typed === 'string' ? this._createObject('string', node.name) : MatlabVariableNode.createDefault(node.name, this);
+        const made = typed === 'string' ? this._createObject('string', node.name) : MatlabVariableNode.createDefault(node.name, holder);
         if (!made) {
             uncreate();
             return null;
         }
+        // A member keeps the subscript its row shows (a struct array's element field, say), and the
+        // container that holds it is written fresh: marked as an edit of it marks it, and those marks put
+        // back as they were by the undo, so that the file is saved as it was read.
+        const container = holder instanceof MatlabVariableNode ? holder : null;
         const swap = (from, to) => {
-            const at = this.children.indexOf(from);
-            this.removeChild(from);
-            this.addChild(to, at);
+            const at = holder.children.indexOf(from);
+            holder.removeChild(from);
+            holder.addChild(to, at);
+            if (container && from._subscript) {
+                to._subscript = from._subscript;
+            }
             this.dirty = true;
         };
+        const unmark = container?._editMarks();
         // In its place first, as the edit of its Value judges it there; and put back, the file as it
         // was, where it refuses the text or its setter throws: `node` in its place, the file as dirty as
         // it was, and nothing created for `made`.
@@ -1316,11 +1342,13 @@ export default class MatNode extends ContainerNode {
         let set;
         swap(node, made);
         try {
+            container?._markModified();
             set = made.setProperty('Value', text);
         }
         finally {
             if (set !== true) {
                 swap(made, node);
+                unmark?.();
                 this.dirty = dirty;
                 uncreate();
             }
@@ -1328,8 +1356,43 @@ export default class MatNode extends ContainerNode {
         if (set !== true) {
             return set;
         }
-        this._replaced.set(node, made);
-        return { node: made, undo: () => swap(made, node), redo: () => swap(node, made) };
+        // A variable is written where the one it replaced was (_replacementOf); a member's marks, put
+        // back by the undo, are the edit's again after the redo.
+        if (!container) {
+            this._replaced.set(node, made);
+        }
+        const remark = container ? made._editMarks() : undefined;
+        return {
+            node: made,
+            undo: () => {
+                swap(made, node);
+                unmark?.();
+            },
+            redo: () => {
+                swap(node, made);
+                remark?.();
+            },
+        };
+    }
+    /**
+     * The cell or the struct that holds `node`, a member of `entry` at any depth, where a save writes
+     * it fresh with a member of another kind in `node`'s place (_retype): a plain container, and each
+     * one above it to the entry, none of them an object or in one (objectNodeAt,
+     * MatlabVariableNode._objectMemberOf), as the fields of a struct a save renames are
+     * (_renamesFieldsOf). A struct array's element row holds its fields, and is held by the array.
+     * Null for any other node.
+     */
+    _memberHolder(entry, node) {
+        const holder = node.parent;
+        if (!(holder instanceof MatlabVariableNode) || !(holder._kind === 'cell' || holder._holdsFields()) || holder._cutByCeiling || objectNodeAt(entry, holder)) {
+            return null;
+        }
+        for (let n = holder; n; n = n === entry ? null : n.parent) {
+            if (!(n instanceof MatlabVariableNode) || MatlabVariableNode._objectMemberOf(n)) {
+                return null;
+            }
+        }
+        return holder;
     }
     /**
      * What puts this file's creations (_creation) back as they stand now, for an object created
