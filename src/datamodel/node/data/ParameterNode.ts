@@ -16,7 +16,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser, { collapseExact, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
@@ -612,8 +612,11 @@ export default class ParameterNode extends DataNode {
                 this._followValueShape();
                 return true;
             }
+            // A complex scalar, and a complex array (`[1+i 2i]`), as the bag a binary dictionary's
+            // reader gives each (complexBag), which the Value node is built of as one read from
+            // a file is: its Dimensions and Complexity follow it (_followValueShape).
             if (parsed.type === 'complex') {
-                this._adoptValueNode({ _type: 'cdata', _value: parsed.value }, true);
+                this._adoptValueNode(complexBag(parsed), true);
                 this.Value = parsed.value;
                 this._markModified();
                 this._followValueShape();

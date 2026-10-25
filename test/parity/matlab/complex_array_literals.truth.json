@@ -1,0 +1,1518 @@
+{
+  "release": "(R2027a)",
+  "cases": [
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "1",
+        "2"
+      ],
+      "literal": "[1+i,2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "1",
+        "2"
+      ],
+      "literal": "[1+1i 2+2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "1",
+        "2"
+      ],
+      "literal": "[1+i; 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[1 + 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[1 +2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[1+ 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "-2"
+      ],
+      "literal": "[1 - 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "-0"
+      ],
+      "im": [
+        "0",
+        "-2"
+      ],
+      "literal": "[1 -2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "-2"
+      ],
+      "literal": "[1- 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "2"
+      ],
+      "im": [
+        "1",
+        "0"
+      ],
+      "literal": "[i 2]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "-0"
+      ],
+      "im": [
+        "1",
+        "-2"
+      ],
+      "literal": "[1i, -2j]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "re": [
+        "1",
+        "0",
+        "2",
+        "4"
+      ],
+      "im": [
+        "0",
+        "3",
+        "0",
+        "0"
+      ],
+      "literal": "[1 2; 3i 4]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[1+0i 2]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "0"
+      ],
+      "literal": "[1+0i]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "1"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[0i 1]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "-0"
+      ],
+      "im": [
+        "0"
+      ],
+      "literal": "[-0i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "-0",
+        "0"
+      ],
+      "im": [
+        "0",
+        "1"
+      ],
+      "literal": "[-0i 1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "3"
+      ],
+      "literal": "[1 2+3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "3"
+      ],
+      "literal": "[1, 2+3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "3"
+      ],
+      "literal": "[1 2+ 3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[+1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "-0"
+      ],
+      "im": [
+        "-1"
+      ],
+      "literal": "[- 1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "3"
+      ],
+      "im": [
+        "-2",
+        "0"
+      ],
+      "literal": "[1 - 2i 3]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "1",
+        "0"
+      ],
+      "literal": "[i+1 2]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[i + 1]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "-3",
+        "1"
+      ],
+      "im": [
+        "2",
+        "0"
+      ],
+      "literal": "[2i-3, 1]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "4"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[1+2i+3]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "re": [
+        "1",
+        "5",
+        "3",
+        "0"
+      ],
+      "im": [
+        "2",
+        "0",
+        "4",
+        "6"
+      ],
+      "literal": "[1+2i 3+4i; 5 6i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1000",
+        "-0.5"
+      ],
+      "im": [
+        "0.25",
+        "-2"
+      ],
+      "literal": "[1e3+2.5e-1i -.5-2j]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "Inf",
+        "NaN"
+      ],
+      "im": [
+        "1",
+        "0"
+      ],
+      "literal": "[Inf+1i NaN]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "-Inf",
+        "1"
+      ],
+      "im": [
+        "-2",
+        "0"
+      ],
+      "literal": "[-Inf-2i 1]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[1 , 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[1 ,2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[1\t2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "re": [
+        "1",
+        "3"
+      ],
+      "im": [
+        "2",
+        "0"
+      ],
+      "literal": "[1+2i;3]"
+    },
+    {
+      "literal": "[1+2i;3 4]",
+      "error": "MATLAB:catenate:dimensionMismatch"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[1 2i;]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[;1 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[1+i*2]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[complex(1,2)]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "re": [
+        "1",
+        "3"
+      ],
+      "im": [
+        "-2",
+        "0"
+      ],
+      "literal": "[1+2i 3]'"
+    },
+    {
+      "literal": "[1+2I]",
+      "error": "MATLAB:m_missing_operator"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        3
+      ],
+      "re": [
+        "1",
+        "2",
+        "0"
+      ],
+      "im": [
+        "0",
+        "0",
+        "3"
+      ],
+      "literal": "[1 2 +3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "3"
+      ],
+      "literal": "[1 2 + 3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[ 1i ]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[1i,]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[,1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "0"
+      ],
+      "im": [
+        "1",
+        "2"
+      ],
+      "literal": "[1i 2i,]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "-2"
+      ],
+      "literal": "[1+-2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "-2"
+      ],
+      "literal": "[1-+2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "-2"
+      ],
+      "literal": "[1 + -2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[1 - -2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "-0",
+        "-0"
+      ],
+      "im": [
+        "-1",
+        "-2"
+      ],
+      "literal": "[-1i -2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "100"
+      ],
+      "literal": "[1e+2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "1"
+      ],
+      "literal": "[1.i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "0.5"
+      ],
+      "literal": "[.5i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "2"
+      ],
+      "im": [
+        "150",
+        "0"
+      ],
+      "literal": "[1.5e2j 2]"
+    },
+    {
+      "literal": "[0x10i]",
+      "error": "MATLAB:lang:InvalidHexNumber"
+    },
+    {
+      "literal": "[1_0i]",
+      "error": "MATLAB:m_illegal_character"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "1"
+      ],
+      "literal": "[true 1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "1"
+      ],
+      "im": [
+        "1",
+        "0"
+      ],
+      "literal": "[1i true]"
+    },
+    {
+      "literal": "['a' 1i]",
+      "error": "MATLAB:UnableToConvert"
+    },
+    {
+      "class": "int16",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "0"
+      ],
+      "im": [
+        "0",
+        "2"
+      ],
+      "literal": "[int16(1) 2i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        3,
+        1
+      ],
+      "re": [
+        "0",
+        "0",
+        "0"
+      ],
+      "im": [
+        "1",
+        "2",
+        "3"
+      ],
+      "literal": "[1i; 2i; 3i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "re": [
+        "0",
+        "0",
+        "0",
+        "0"
+      ],
+      "im": [
+        "1",
+        "3",
+        "2",
+        "4"
+      ],
+      "literal": "[1i 2i; 3i 4i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "re": [
+        "1",
+        "3",
+        "2",
+        "4"
+      ],
+      "im": [
+        "1",
+        "3",
+        "2",
+        "4"
+      ],
+      "literal": "[1+1i, 2+2i; 3+3i, 4+4i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "-0",
+        "0"
+      ],
+      "im": [
+        "0",
+        "1"
+      ],
+      "literal": "[-0-0i 1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "0",
+        "0"
+      ],
+      "im": [
+        "0",
+        "1"
+      ],
+      "literal": "[-0+0i 1i]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "0"
+      ],
+      "literal": "[0-0i]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        2,
+        1
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[1+0i; 2+0i]"
+    },
+    {
+      "literal": "[NaN+NaNi]",
+      "error": "MATLAB:UndefinedFunction"
+    },
+    {
+      "literal": "[1+Infi]",
+      "error": "MATLAB:UndefinedFunction"
+    },
+    {
+      "literal": "[1NaNi]",
+      "error": "MATLAB:m_missing_operator"
+    },
+    {
+      "literal": "[Inf-Infi NaN+1i 1NaNi -Inf+2i]",
+      "error": "MATLAB:m_missing_operator"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "Inf"
+      ],
+      "literal": "[1+Inf*1i]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "1"
+      ],
+      "im": [
+        "Inf"
+      ],
+      "literal": "[1+1i*Inf]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "0"
+      ],
+      "im": [
+        "Inf"
+      ],
+      "literal": "[Inf*1i]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "-2"
+      ],
+      "im": [
+        "0"
+      ],
+      "literal": "[- 2]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "-2"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[1, - 2]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "-1"
+      ],
+      "im": [
+        "0"
+      ],
+      "literal": "[1 - 2]"
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "-2"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[1 -2]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        1
+      ],
+      "re": [
+        "-3"
+      ],
+      "im": [
+        "2"
+      ],
+      "literal": "[2i - 3]"
+    },
+    {
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "re": [
+        "1",
+        "-5",
+        "3",
+        "7"
+      ],
+      "im": [
+        "2",
+        "6",
+        "-4",
+        "0"
+      ],
+      "literal": "[1+2i, 3-4i; -5+6i, 7]"
+    },
+    {
+      "literal": "{1+2i 3}",
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": false,
+          "size": [
+            1,
+            1
+          ],
+          "re": [
+            "1"
+          ],
+          "im": [
+            "2"
+          ]
+        },
+        {
+          "class": "double",
+          "isreal": true,
+          "size": [
+            1,
+            1
+          ],
+          "re": [
+            "3"
+          ],
+          "im": [
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{[1+2i 3]}",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": false,
+          "size": [
+            1,
+            2
+          ],
+          "re": [
+            "1",
+            "3"
+          ],
+          "im": [
+            "2",
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{1 +2i}",
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": true,
+          "size": [
+            1,
+            1
+          ],
+          "re": [
+            "1"
+          ],
+          "im": [
+            "0"
+          ]
+        },
+        {
+          "class": "double",
+          "isreal": false,
+          "size": [
+            1,
+            1
+          ],
+          "re": [
+            "0"
+          ],
+          "im": [
+            "2"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{[1 +2i]}",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": false,
+          "size": [
+            1,
+            2
+          ],
+          "re": [
+            "1",
+            "0"
+          ],
+          "im": [
+            "0",
+            "2"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{[0i 1]}",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": true,
+          "size": [
+            1,
+            2
+          ],
+          "re": [
+            "0",
+            "1"
+          ],
+          "im": [
+            "0",
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{[1+0i 2]}",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": true,
+          "size": [
+            1,
+            2
+          ],
+          "re": [
+            "1",
+            "2"
+          ],
+          "im": [
+            "0",
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "literal": "{[1+i; 2i]}",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "cell": [
+        {
+          "class": "double",
+          "isreal": false,
+          "size": [
+            2,
+            1
+          ],
+          "re": [
+            "1",
+            "0"
+          ],
+          "im": [
+            "1",
+            "2"
+          ]
+        }
+      ]
+    },
+    {
+      "class": "double",
+      "isreal": true,
+      "size": [
+        1,
+        2
+      ],
+      "re": [
+        "1",
+        "2"
+      ],
+      "im": [
+        "0",
+        "0"
+      ],
+      "literal": "[1 2]"
+    }
+  ]
+}

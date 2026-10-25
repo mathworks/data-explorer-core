@@ -1,0 +1,581 @@
+{
+  "release": "(R2027a)",
+  "cases": [
+    {
+      "file": "cx_text.sldd",
+      "entry": "scalarD",
+      "literal": "[1+i,2i]",
+      "matlab": "[1+i,2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "negD",
+      "literal": "[1+i; 2i]",
+      "matlab": "[1+i; 2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "tinyD",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "bigD",
+      "literal": "[Inf+1i NaN]",
+      "matlab": "[Inf+1i NaN]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "rowVec",
+      "literal": "[-Inf-2i 1]",
+      "matlab": "[-Inf-2i 1]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "colVec",
+      "literal": "[Inf-Infi NaN+1i 1NaNi -Inf+2i]",
+      "matlab": "complex([Inf NaN 1 -Inf], [-Inf 1 NaN 2])",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        4
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "mat2x3",
+      "literal": "[1 +2i]",
+      "matlab": "[1 +2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "eleven",
+      "literal": "[1 - 2i 3]",
+      "matlab": "[1 - 2i 3]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "exactly10",
+      "literal": "{[1+2i 3] 4}",
+      "matlab": "{[1+2i 3] 4}",
+      "control": false,
+      "class": "cell",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "s_int16",
+      "literal": "[1+2i 3-4i]",
+      "matlab": "int16([1+2i 3-4i])",
+      "control": false,
+      "class": "int16",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "long30",
+      "literal": "[1+2i 3]",
+      "matlab": "[1+2i 4]",
+      "control": true,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": false,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_text.sldd",
+      "entry": "aParam",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": "Dimensions=[2 2] Complexity=complex"
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "scalarD",
+      "literal": "[1+i,2i]",
+      "matlab": "[1+i,2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "negD",
+      "literal": "[1+i; 2i]",
+      "matlab": "[1+i; 2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "tinyD",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "bigD",
+      "literal": "[Inf+1i NaN]",
+      "matlab": "[Inf+1i NaN]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "rowVec",
+      "literal": "[-Inf-2i 1]",
+      "matlab": "[-Inf-2i 1]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "colVec",
+      "literal": "[Inf-Infi NaN+1i 1NaNi -Inf+2i]",
+      "matlab": "complex([Inf NaN 1 -Inf], [-Inf 1 NaN 2])",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        4
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "mat2x3",
+      "literal": "[1 +2i]",
+      "matlab": "[1 +2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "eleven",
+      "literal": "[1 - 2i 3]",
+      "matlab": "[1 - 2i 3]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "exactly10",
+      "literal": "{[1+2i 3] 4}",
+      "matlab": "{[1+2i 3] 4}",
+      "control": false,
+      "class": "cell",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "s_int16",
+      "literal": "[1+2i 3-4i]",
+      "matlab": "int16([1+2i 3-4i])",
+      "control": false,
+      "class": "int16",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "long30",
+      "literal": "[1+2i 3]",
+      "matlab": "[1+2i 4]",
+      "control": true,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": false,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_binary.sldd",
+      "entry": "aParam",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": "Dimensions=[2 2] Complexity=complex"
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "scalarD",
+      "literal": "[1+i,2i]",
+      "matlab": "[1+i,2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "negD",
+      "literal": "[1+i; 2i]",
+      "matlab": "[1+i; 2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        1
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "tinyD",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "bigD",
+      "literal": "[Inf+1i NaN]",
+      "matlab": "[Inf+1i NaN]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "rowVec",
+      "literal": "[-Inf-2i 1]",
+      "matlab": "[-Inf-2i 1]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "colVec",
+      "literal": "[Inf-Infi NaN+1i 1NaNi -Inf+2i]",
+      "matlab": "complex([Inf NaN 1 -Inf], [-Inf 1 NaN 2])",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        4
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "mat2x3",
+      "literal": "[1 +2i]",
+      "matlab": "[1 +2i]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "eleven",
+      "literal": "[1 - 2i 3]",
+      "matlab": "[1 - 2i 3]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "exactly10",
+      "literal": "{[1+2i 3] 4}",
+      "matlab": "{[1+2i 3] 4}",
+      "control": false,
+      "class": "cell",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "s_int16",
+      "literal": "[1+2i 3-4i]",
+      "matlab": "int16([1+2i 3-4i])",
+      "control": false,
+      "class": "int16",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_cases.mat",
+      "entry": "long30",
+      "literal": "[1+2i 3]",
+      "matlab": "[1+2i 4]",
+      "control": true,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        1,
+        2
+      ],
+      "same": false,
+      "warning": "",
+      "extra": ""
+    },
+    {
+      "file": "cx_param.mat",
+      "entry": "p0",
+      "literal": "[1+2i, 3-4i; -5+6i, 7]",
+      "matlab": "[1+2i, 3-4i; -5+6i, 7]",
+      "control": false,
+      "class": "double",
+      "isreal": false,
+      "size": [
+        2,
+        2
+      ],
+      "same": true,
+      "warning": "",
+      "extra": "Dimensions=[2 2] Complexity=complex"
+    }
+  ]
+}
