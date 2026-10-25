@@ -142,12 +142,15 @@ describe('a name MATLAB cannot load', () => {
 });
 
 describe('an object whose copy the object made cannot be', () => {
-  it("a Parameter's Value the text it is given as does not hold: an integer class, single, complex, a struct", () => {
+  it("a Parameter's Value the text it is given as does not hold: an integer class, single, a struct", () => {
     expectOneRefused(copied('test/fixtures/mcos/typed_mcos.sldd', 'pInt8'), /: pInt8\.Value is a 1x1 int8 in what was copied, and a new Simulink\.Parameter of a MAT-file is given its Value as the text it shows, which makes a 1x1 double of it\./);
     expectOneRefused(copied('test/fixtures/mcos/typed_mcos.sldd', 'pSingle'), /: pSingle\.Value is a 1x1 single in what was copied/);
     expectOneRefused(copied(MIXED, 'p1'), /: p11\.Value is a 1x1 int16 in what was copied/);
-    expectOneRefused(copied('test/fixtures/mcos/complex_binary.sldd', 'pRow'), /: pRow\.Value could not be set to "\[1\+2i 3\+4i 5\+6i\]": Invalid MATLAB expression\./);
     expectOneRefused(copied('test/fixtures/mcos/complex_binary.sldd', 'pStruct'), /: pStruct\.Value could not be set to "<1x1 struct>"/);
+    // A complex double array is text the Value takes now (complexArrayInput.test.ts), and is carried.
+    const t = target(fixture(MIXED));
+    const res: Any = t.session.pasteEntries('t.mat', [copied('test/fixtures/mcos/complex_binary.sldd', 'pRow')]);
+    expect(reopened(t.save()).children.find((c: Any) => c.name === res.nodes?.[0]?.name)?.displayValue).toBe('[1+2i 3+4i 5+6i]');
   });
 
   it('a property the editor of the file takes no such value of, named', () => {

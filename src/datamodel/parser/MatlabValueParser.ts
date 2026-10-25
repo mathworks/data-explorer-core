@@ -349,8 +349,8 @@ const IMAGINARY_FIRST = new RegExp(
     '^([+-]?)((?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)?[ij]\\s*([+-])\\s*(' + COMPLEX_LITERAL_PART + ')$',
 );
 
-// Only a cell's member is read this way (tokenizeCellElements); the top level reads a complex
-// literal real part first, as it always has (parseComplex).
+// Only a member of a cell or an array is read this way (tokenizeCellElements, tokenizeNumbers);
+// the top level reads a complex literal real part first, as it always has (parseComplex).
 function parseImaginaryFirst(str: string): ParsedValue | null {
     const m = IMAGINARY_FIRST.exec(str);
     return m ? { type: 'complex', value: formatComplexNum(complexPart(m[3], m[4]), complexPart(m[1], m[2])) } : null;
@@ -361,8 +361,9 @@ function parseImaginaryFirst(str: string): ParsedValue | null {
 // arithmetic drops an imaginary part that is all zero, and a lone `0i` is real too. The real
 // part is MATLAB's sum, so a -0 is kept as it does: `-0 + 0i` is 0, `-0 - 0i` is -0, `-0i` (the
 // minus of 0i) is -0 and `-0i + 0` is 0 (probe_cell_sign_literals.m). Only a cell's member
-// is read this way (tokenizeCellElements); the top level is what an element of a complex
-// array takes, which stays complex.
+// is read this way (tokenizeCellElements), and an array's where no member's imaginary part is
+// other than 0 (complexArray); the top level is what an element of a complex array takes,
+// which stays complex.
 function zeroImaginaryAsReal(str: string): number | null {
     const m = COMPLEX_LITERAL.exec(str);
     if (m) {
@@ -398,6 +399,10 @@ function parseArray(str: string): ParsedValue | null {
     // logical. MATLAB promotes a MIXED literal to double — `[true 1]` is a double there —
     // so one ordinary number anywhere in the value is enough to clear this.
     let allLogical = true;
+    // Each numeric member as written, for a row that holds a complex one (tokenizeNumbers), and
+    // whether any row holds one: then the whole array is complex (complexArray).
+    const members: NumericMember[][] = [];
+    let anyComplex = false;
     const charRows: string[] = [];
     for (let r = 0; r < rows.length; r++) {
         const rowStr = rows[r].trim();
@@ -436,11 +441,16 @@ function parseArray(str: string): ParsedValue | null {
                 return null;
             }
             allLogical = allLogical && scannedNums.allLogical;
+            anyComplex = anyComplex || scannedNums.members.some((m) => m.complex !== null);
+            members.push(scannedNums.members);
             matrix.push(nums!);
         }
     }
     if (matrix.length === 0) {
         return { type: 'double', value: [], dims: [0, 0] };
+    }
+    if (anyComplex) {
+        return complexArray(members, cols);
     }
 
     // Single-quoted text is a CHAR array — one value, its rows concatenated
@@ -643,27 +653,89 @@ function splitRows(inner: string): string[] {
 //
 // An element is `number | string` for the same reason a scalar is — see
 // parseMatlabNumber. [18446744073709551615 2 3] keeps its first element as text.
-function tokenizeNumbers(rowStr: string): { nums: (number | string)[]; allLogical: boolean } | null {
-    const parts = rowStr.trim().split(/[,\s]+/);
-    const nums: (number | string)[] = [];
+//
+// And a member may be a complex literal, as a scalar may (parseComplex), real part first or
+// imaginary part first (parseImaginaryFirst), in each of the forms either reads: `[1+i, 2i]`,
+// `[1+1i 2+2i]`, `[i 2]`, and the spellings this package shows a complex element in
+// (`Inf-Infi`, `1NaNi`), so that a complex array shown can be typed back. Each member was read
+// as a real number alone, so one complex member made the row, and so the array, "Invalid
+// MATLAB expression": `[1i]` among them. A member's span is MATLAB's, the rule inside brackets
+// and braces a cell's members are split by (bareSpan): a `+` or `-` with whitespace after it,
+// or none before it, joins the terms either side (`[1 + 2i]` is one member, `[1 - 2i 3]` two),
+// and one with whitespace before it and none after starts a member (`[1 +2i]` is two). Measured
+// against MATLAB R2027a. Any whitespace, a tab, separates members as a space does, as it always
+// did here. A span that is no number and no complex literal is arithmetic (`[1+2i+3]`,
+// `[1 - 2]`), a call or a name, and refused, as MATLAB's own reading of it is a value this
+// parser does not compute.
+function tokenizeNumbers(rowStr: string): { nums: (number | string)[]; members: NumericMember[]; allLogical: boolean } | null {
+    const row = rowStr.trim().replace(/\s/g, ' ');
+    const members: NumericMember[] = [];
     let allLogical = true;
-    for (let i = 0; i < parts.length; i++) {
-        if (parts[i] === '') { continue; }
+    let i = 0;
+    const len = row.length;
+    while (i < len) {
+        const gap = i;
+        while (i < len && (row.charAt(i) === ' ' || row.charAt(i) === ',')) { i++; }
+        if (i >= len) { break; }
+        // A numeric row holds no quoted or bracketed member: a row of those is text, or nothing.
+        if ('\'"[{'.includes(row.charAt(i))) { return null; }
+        // No term stands before this member: it opens the row, or a comma ends the last one.
+        const noTermBefore = members.length === 0 || row.slice(gap, i).includes(',');
+        const bare = bareSpan(row, i, noTermBefore);
+        const span = bare.span;
+        i = bare.end;
         // 1/0, never the boolean: _elements is the form the container's display, its _var
         // snapshot and the typed literal all read, and the readers store a logical array
         // that way too (parseTypedVector).
-        if (parts[i] === 'true' || parts[i] === 'false') {
-            nums.push(parts[i] === 'true' ? 1 : 0);
+        if (span === 'true' || span === 'false') {
+            members.push({ span, real: span === 'true' ? 1 : 0, complex: null });
             continue;
         }
         // Same literal rule as a scalar, so `[1 Inf]` parses and `[1 0x10]` does
         // not. `isNaN` would additionally have rejected a legitimate NaN element.
-        const n = parseMatlabNumber(parts[i]);
-        if (n === null) { return null; }
+        const n = parseMatlabNumber(span);
         allLogical = false;
-        nums.push(n);
+        if (n !== null) {
+            members.push({ span, real: n, complex: null });
+            continue;
+        }
+        const complex = parseComplex(span) ?? parseImaginaryFirst(span);
+        if (complex === null) { return null; }
+        members.push({ span, real: 0, complex: complex.value as string });
     }
-    return nums.length > 0 ? { nums, allLogical } : null;
+    return members.length > 0 ? { nums: members.map((m) => m.real), members, allLogical } : null;
+}
+
+// One member of a numeric row as written: its span, its value as a real number (0 for a
+// complex one), and a complex one's text (formatComplexNum's), or null.
+interface NumericMember {
+    span: string;
+    real: number | string;
+    complex: string | null;
+}
+
+/**
+ * The value of an array literal some member of which is complex, its rows `members`, each of
+ * `cols` members: what MATLAB R2027a makes of the same literal. A complex double array, every
+ * member the complex text it is read as (formatComplexNum's, as every reader holds an element
+ * of one), a real member x as x+0i (`[1 2i]` is [1+0i 0+2i]); or, where no member's imaginary
+ * part is other than 0, the REAL double array MATLAB's arithmetic makes of it, each member's
+ * real part as its sum is (zeroImaginaryAsReal: `[1+0i 2]` and `[0i 1]` are real, `[-0i]` the
+ * real -0). A 1x1 is the complex scalar `1i` is, as `[5]` is the 5 it holds. Row-major, as a
+ * numeric array's elements are (flatten).
+ */
+function complexArray(members: NumericMember[][], cols: number): ParsedValue {
+    const flat = flatten(members, cols, 'row') as NumericMember[];
+    const parts = flat.map((m) => (m.complex === null ? null : parseComplexNum(m.complex)));
+    // A NaN imaginary part is not 0, and makes the array complex; a -0 one is.
+    const complex = parts.some((p) => p !== null && Number(p.im) !== 0);
+    const dims = [members.length, cols];
+    if (!complex) {
+        const value = flat.map((m, k) => (m.complex === null ? m.real : (zeroImaginaryAsReal(m.span) ?? Number(parts[k]!.re))));
+        return { type: 'double', value, dims };
+    }
+    const texts = flat.map((m) => m.complex ?? formatComplexNum(Number(m.real), 0));
+    return texts.length === 1 ? { type: 'complex', value: texts[0] } : { type: 'complex', value: texts, dims };
 }
 
 // One row of a cell literal, as the raw element values a cell node is built from.
@@ -711,45 +783,10 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
             span = rowStr.slice(i, end + 1);
             i = end + 1;
         } else {
-            let end = i;
-            for (;;) {
-                while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
-                    end++;
-                }
-                // MATLAB's whitespace rule inside brackets and braces: a `+` or `-` that ends
-                // a token (`3+ 4i`), or has whitespace after it (`3 + 4i`, `1 - 2i`), is
-                // binary and joins the terms either side of it; one with whitespace before
-                // it and none after starts a member (`3 +4i` is {3, 4i}, `1 -2` is {1, -2}).
-                // Split at every space, `{3 + 4i}` was the three members 3, '+' and '0+4i'.
-                let next = end;
-                while (next < len && rowStr.charAt(next) === ' ') { next++; }
-                const last = rowStr.charAt(end - 1);
-                if ((last === '+' || last === '-') && next > end && next < len) {
-                    joined = true;
-                    end = next;
-                    continue;
-                }
-                const op = rowStr.charAt(next);
-                if ((op === '+' || op === '-') && rowStr.charAt(next + 1) === ' ') {
-                    let after = next + 1;
-                    while (after < len && rowStr.charAt(after) === ' ') { after++; }
-                    if (after < len) {
-                        joined = true;
-                        end = after;
-                        continue;
-                    }
-                }
-                break;
-            }
-            span = rowStr.slice(i, end);
-            i = end;
-            // A sign with whitespace after it and no term before it is unary, as in MATLAB:
-            // `{- 2}` is {-2} and `{1, - 2}` is {1, -2}. The join above made it the span
-            // `- 2`; without the whitespace it is the literal `-2`. The span stays `joined`,
-            // so a rest that is not one value is still refused (`{- 2 - 3}`, `{- a}`).
-            if (noTermBefore && /^[+-] /.test(span)) {
-                span = span.charAt(0) + span.slice(1).trimStart();
-            }
+            const bare = bareSpan(rowStr, i, noTermBefore);
+            span = bare.span;
+            joined = bare.joined;
+            i = bare.end;
         }
 
         // An imaginary term then a real one (`i + 1`, `2i-3`) is one complex value in MATLAB,
@@ -776,6 +813,53 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
         elements.push(real !== null ? real : cellElementRaw(parsed));
     }
     return elements.length > 0 ? elements : null;
+}
+
+// The bare member of a row of a bracketed or braced literal that starts at `i`: its span, where
+// it ends, and whether a binary sign joined it to the next term. MATLAB's whitespace rule inside
+// brackets and braces: a `+` or `-` that ends a token (`3+ 4i`), or has whitespace after it
+// (`3 + 4i`, `1 - 2i`), is binary and joins the terms either side of it; one with whitespace
+// before it and none after starts a member (`3 +4i` is {3, 4i}, `1 -2` is {1, -2}). Split at
+// every space, `{3 + 4i}` was the three members 3, '+' and '0+4i'. A cell's members
+// (tokenizeCellElements) and an array's (tokenizeNumbers) are split by this one rule.
+//
+// And a sign with whitespace after it and no term before it (`noTermBefore`) is unary, as in
+// MATLAB: `{- 2}` is {-2}, `{1, - 2}` is {1, -2} and `[- 1i]` is [-1i]. The join made it the
+// span `- 2`; without the whitespace it is the literal `-2`. The span stays `joined`, so a rest
+// that is not one value is still refused (`{- 2 - 3}`, `{- a}`).
+function bareSpan(rowStr: string, i: number, noTermBefore: boolean): { span: string; end: number; joined: boolean } {
+    const len = rowStr.length;
+    let end = i;
+    let joined = false;
+    for (;;) {
+        while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
+            end++;
+        }
+        let next = end;
+        while (next < len && rowStr.charAt(next) === ' ') { next++; }
+        const last = rowStr.charAt(end - 1);
+        if ((last === '+' || last === '-') && next > end && next < len) {
+            joined = true;
+            end = next;
+            continue;
+        }
+        const op = rowStr.charAt(next);
+        if ((op === '+' || op === '-') && rowStr.charAt(next + 1) === ' ') {
+            let after = next + 1;
+            while (after < len && rowStr.charAt(after) === ' ') { after++; }
+            if (after < len) {
+                joined = true;
+                end = after;
+                continue;
+            }
+        }
+        break;
+    }
+    const span = rowStr.slice(i, end);
+    if (noTermBefore && /^[+-] /.test(span)) {
+        return { span: span.charAt(0) + span.slice(1).trimStart(), end, joined };
+    }
+    return { span, end, joined };
 }
 
 /**
@@ -880,8 +964,33 @@ function cellElementRaw(parsed: ParsedValue): unknown {
             // stream MATLAB writes even inside a cell, a binary one's as that IsComplex
             // element. The formatted literal used to be kept as bare text, which is a CHAR,
             // and was written as one in both formats (`"1+2i"`, `<Element Class="char">`).
-            return { _type: 'cdata', _value: parsed.value };
+            // A complex ARRAY is that reader's bag of one too, its elements column-major
+            // under its dims (`{[1+2i 3]}`), as MatlabVariableNode._parseCdataText reads it.
+            return complexBag(parsed);
     }
+}
+
+/**
+ * A complex value typed in (a parsed 'complex'), as the bag a binary dictionary's reader gives
+ * one, which a node is built of as one read from a file is (MatlabVariableNode._parseCdataText),
+ * and each writer spells as MATLAB does. A scalar is its text, `{_type: 'cdata', _value: '1+2i'}`;
+ * an array (whose value is its elements, complexArray) its elements' text column-major under its
+ * dims, `{_type: 'cdata', _value: '1+2i 3+0i', _dimensions: [1, 2]}`. What a cell's member is held
+ * as (cellElementRaw), and a Simulink.Parameter's Value (ParameterNode.setProperty).
+ */
+export function complexBag(parsed: ParsedValue): { _type: 'cdata'; _value: string; _dimensions?: number[] } {
+    if (!Array.isArray(parsed.value)) {
+        return { _type: 'cdata', _value: parsed.value as string };
+    }
+    const elements = parsed.value as string[];
+    const [rows, cols] = parsed.dims!;
+    const columnMajor: string[] = [];
+    for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+            columnMajor.push(elements[r * cols + c]);
+        }
+    }
+    return { _type: 'cdata', _value: columnMajor.join(' '), _dimensions: parsed.dims!.slice() };
 }
 
 // Skip over quoted spans rather than counting brackets inside them: a bracket is
@@ -922,11 +1031,12 @@ function parsedIsScalarNumeric(parsed: ParsedValue | null): boolean {
     // array (`[true false true]`, defect 43). Testing only the type would have called a
     // three-element logical array scalar-numeric, which is the one thing this predicate
     // exists to refuse.
-    if (parsed.type === 'double' || parsed.type === 'logical') {
+    // And 'complex', a scalar or an array (`[1+i 2i]`) alike.
+    if (parsed.type === 'double' || parsed.type === 'logical' || parsed.type === 'complex') {
         if (Array.isArray(parsed.value)) { return parsed.value.length === 1; }
         return true;
     }
-    return parsed.type === 'complex';
+    return false;
 }
 
 export { parsedIsScalarNumeric };

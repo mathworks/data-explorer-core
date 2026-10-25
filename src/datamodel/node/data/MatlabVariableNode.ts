@@ -1823,10 +1823,11 @@ export default class MatlabVariableNode extends DataNode {
     // them into 4464+1i and 3+4i. Text whose parts the class already holds stays as typed.
     if (isArrayElement && parent._elementType === 'complex' && parsed?.type !== 'double') {
       const typed = stringValue.trim();
+      // A complex ARRAY (`[1i 2i]`) is no element's value, and is refused as a real array is.
       const text = parseComplexNum(typed, parent._scalarType)
         ? typed
-        : parsed?.type === 'complex'
-          ? String(parsed.value)
+        : parsed?.type === 'complex' && typeof parsed.value === 'string'
+          ? parsed.value
           : null;
       if (text !== null) {
         const scalar = isIntegerClass(parent._scalarType) ? complexForIntegerClass(text, parent._scalarType) : text;
@@ -2040,6 +2041,19 @@ export default class MatlabVariableNode extends DataNode {
         this._syncArraySerial();
         this._buildArrayChildren();
       }
+    } else if (parsed.type === 'complex' && Array.isArray(parsed.value)) {
+      // A complex array typed in whole (`[1+i 2i]`, MatlabValueParser.complexArray), held as every
+      // reader holds one (_parseCdataText): an array whose elements are complex scalars, each its
+      // text, and whose `_scalarType` is its class. The class goes on as a real array's does
+      // (classAfterEdit), and under an integer class each part is the integer MATLAB converts it
+      // to, as an element typed into one is (complexForIntegerClass).
+      this._kind = 'array';
+      this._scalarType = classAfterEdit(prevType, 'double');
+      const cls = this._scalarType;
+      this._elements = (parsed.value as string[]).map((t) => (isIntegerClass(cls) ? complexForIntegerClass(t, cls) : t));
+      this._dims = parsed.dims!;
+      this.serial = {};
+      this._buildArrayChildren('complex');
     } else if (parsed.type === 'string-array') {
       this._kind = 'string';
       this._elements = parsed.value as unknown[];

@@ -32,6 +32,19 @@ export declare function controlsAsOneChar(value: string): string;
 export declare function unquoteMatlabText(text: string): string;
 declare function parseArray(str: string): ParsedValue | null;
 declare function parseCell(str: string): ParsedValue | null;
+/**
+ * A complex value typed in (a parsed 'complex'), as the bag a binary dictionary's reader gives
+ * one, which a node is built of as one read from a file is (MatlabVariableNode._parseCdataText),
+ * and each writer spells as MATLAB does. A scalar is its text, `{_type: 'cdata', _value: '1+2i'}`;
+ * an array (whose value is its elements, complexArray) its elements' text column-major under its
+ * dims, `{_type: 'cdata', _value: '1+2i 3+0i', _dimensions: [1, 2]}`. What a cell's member is held
+ * as (cellElementRaw), and a Simulink.Parameter's Value (ParameterNode.setProperty).
+ */
+export declare function complexBag(parsed: ParsedValue): {
+    _type: 'cdata';
+    _value: string;
+    _dimensions?: number[];
+};
 declare function parsedIsScalarNumeric(parsed: ParsedValue | null): boolean;
 export { parsedIsScalarNumeric };
 declare const _default: {

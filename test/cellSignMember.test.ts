@@ -431,18 +431,23 @@ describe('a cell member that opens with a sign or its imaginary part is what MAT
     expect(MatlabValueParser.parse('0i + 1')).toBeNull();
     // LIT {[0i 1]}         -> cell [1 1] {double [1 2] [0 1]}
     // LIT {[1+0i 2]}       -> cell [1 1] {double [1 2] [1 2]}
-    // An array literal holds no complex element in this parser (parseArray), so these were
-    // refused before, and still are.
-    expect(MatlabValueParser.parse('{[0i 1]}')).toBeNull();
-    expect(MatlabValueParser.parse('{[1+0i 2]}')).toBeNull();
+    // An array literal reads a complex member now (complexArrayInput.test.ts), and one whose every
+    // imaginary part is zero is the real double MATLAB makes of it, in a cell as anywhere.
+    expect(MatlabValueParser.parse('{[0i 1]}')).toEqual({ type: 'cell', value: [[0, 1]], dims: [1, 1] });
+    expect(MatlabValueParser.parse('{[1+0i 2]}')).toEqual({ type: 'cell', value: [[1, 2]], dims: [1, 1] });
   });
 
-  it('leaves the top level and arrays as they were: refused, not read', () => {
-    // The ruling is about cell literals. These are refused before and after, so nothing is
-    // written wrong; reading them is a separate call.
-    for (const literal of ['- 2', 'i + 1', '2i - 3', '[- 2]', '[1, - 2]', '[i + 1]']) {
+  it('leaves the top level as it was: refused, not read; and reads an array as MATLAB does', () => {
+    // The ruling is about cell literals, and the top level is refused before and after, so nothing
+    // is written wrong.
+    for (const literal of ['- 2', 'i + 1', '2i - 3']) {
       expect(MatlabValueParser.parse(literal), literal).toBeNull();
     }
+    // An array's members are split by a cell's rule now (complexArrayInput.test.ts): `[- 2]` is
+    // -2, `[1, - 2]` [1 -2] and `[i + 1]` 1+1i, as MATLAB R2027a reads them.
+    expect(MatlabValueParser.parse('[- 2]')).toEqual({ type: 'double', value: [-2], dims: [1, 1] });
+    expect(MatlabValueParser.parse('[1, - 2]')).toEqual({ type: 'double', value: [1, -2], dims: [1, 2] });
+    expect(MatlabValueParser.parse('[i + 1]')).toEqual({ type: 'complex', value: '1+1i' });
   });
 });
 
