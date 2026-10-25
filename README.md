@@ -157,7 +157,7 @@ These take a rename and a delete and nothing else:
 - an object of any class but `Simulink.Parameter` and `Simulink.Signal` (a bus,
   an `mpt.Parameter`, a class of your own): none of its properties and none of
   the rows under it;
-- a string, a function handle, and a value the reader could not decode;
+- a function handle, and a value the reader could not decode;
 - a plain variable holding any of these, or a cell or struct array the reader
   read short (holding fewer elements than it declares, which a save would write
   as empty), at any depth: neither its value nor any row under it;
@@ -187,8 +187,16 @@ node of it, its undo and redo too, and the save writes it once. The first of the
 an edit is made through is the one every later edit of the object is made through
 until the file is read again; the others show it and take none of their own.
 
-A value typed in that would make a string (`"abc"`, `{1, "a"}`) is refused, and
-Add is not offered on a struct array or on an element of one. A variable stored
+A string takes its text, whole or an element at a time. A variable's whole Value, a
+struct field or a cell element, at any depth (a field of an element of a struct array
+too), typed as a string (`"abc"`, `["a" "b"]`) becomes one, as `x = "abc"` and
+`s.a = "abc"` make one in MATLAB; and a string typed as any other value becomes that
+value. The save writes the new string into the file's objects (a file with none gains
+them) and the variable or the container that holds it fresh; a string no longer held
+stays among the objects, which MATLAB loads with no warning. One undo puts the value
+back, and the file is then saved as it was read. A value typed in that holds a string
+inside it (`{1, "a"}`) is refused, and Add is not offered on a struct array or on an
+element of one. A variable stored
 after the objects, which MATLAB does not load, takes no edit, not even a rename,
 and can be deleted. A file no save of which can be written is `readOnly` and takes
 no edit, addition or delete at all: one whose records do not tile it, one opened

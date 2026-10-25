@@ -250,6 +250,11 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
       return;
     }
     plan.push(freshOf(node, null, compress));
+    // A struct or a cell added since the read holding an object created since (MatNode._retype),
+    // which the subsystem written holds.
+    if (matNode._holdsCreation(node)) {
+      ofObjects.push(node);
+    }
   };
   const addAdded = () => {
     for (const node of added) {
@@ -293,8 +298,10 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
     } else {
       plan.push(freshOf(node, record, compress));
       // A struct or a cell written fresh beside the objects it holds, which it writes as their
-      // elements as read (freshElement): an edit of one of their properties is the subsystem's.
-      if (holdsObjectEdits(node)) {
+      // elements as read (freshElement): an edit of one of their properties is the subsystem's, and
+      // so is an object it holds that was created since the read (MatNode._retype), which the
+      // subsystem written holds.
+      if (holdsObjectEdits(node) || matNode._holdsCreation(node)) {
         ofObjects.push(node);
       }
     }

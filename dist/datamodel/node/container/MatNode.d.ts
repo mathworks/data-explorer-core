@@ -1,4 +1,5 @@
 import ContainerNode from '../ContainerNode.js';
+import MatlabVariableNode from '../data/MatlabVariableNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceRetyped, SourceSetResult } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
@@ -398,8 +399,14 @@ export default class MatNode extends ContainerNode {
      * name. Undefined for any other node.
      */
     _newChildProperties(entry: BaseNode, node: BaseNode): Record<string, unknown> | undefined;
-    /** The class-17 element a save writes for `node`, a variable created in this file as an object (_createObject), or null for any other. */
-    _createdElement(node: BaseNode): Uint8Array | null;
+    /**
+     * The class-17 element a save writes for `node`, an object created in this file (_createObject),
+     * named `name`: a variable's own, or '' for one a cell or a struct holds (_retype); or null for any
+     * other node.
+     */
+    _createdElement(node: BaseNode, name?: string): Uint8Array | null;
+    /** Whether `node` is or holds an object created in this file that is in the tree now (_liveCreations). */
+    _holdsCreation(node: BaseNode): boolean;
     /**
      * The subsystem a save writes the objects created since the read into, which are in the tree now
      * (_liveCreations), and each one's object there. Where every object created is, the one they were
@@ -414,7 +421,7 @@ export default class MatNode extends ContainerNode {
         objects: Map<BaseNode, McosNewObject>;
         remap: (node: BaseNode, state: MatObjectState) => MatObjectState;
     };
-    /** The variables created as objects that are in the tree now. */
+    /** The objects created in this file that are in the tree now: variables, and members of a cell or a struct (_retype). */
     _liveCreations(): BaseNode[];
     _uniqueName(baseName: string): string;
     _nameTaken(): (name: string) => boolean;
@@ -423,19 +430,34 @@ export default class MatNode extends ContainerNode {
         redo: () => void;
     } | null;
     /**
-     * The variable put in place of `node`, a variable of this file, for its whole Value typed over as
-     * `text` (BaseNode.sourceRetype), and what undoes and redoes the swap; the refusal of the text by
-     * that variable; or null, where `node`'s own setter makes the edit. A save writes a string only as
-     * an object of the subsystem, which only its creation makes, and a plain value only fresh, so
-     * neither becomes the other in place; and in MATLAB `x = "abc"` makes `x` a string whatever it
-     * was, and `x = 5` a double. So a string typed over a variable that is not one makes it the
-     * variable an Add of a string makes (_createObject), and anything else typed over a string the
-     * plain variable an Add makes, each of its name and in its place, holding the text; and a save
-     * writes it where the variable it replaced was (_replacementOf). A variable whose Value takes no
+     * The variable put in place of `node`, a variable of this file or a member of a cell or a struct
+     * of one, for its whole Value typed over as `text` (BaseNode.sourceRetype), and what undoes and
+     * redoes the swap; the refusal of the text by that variable; or null, where `node`'s own setter
+     * makes the edit. A save writes a string only as an object of the subsystem, which only its
+     * creation makes, and a plain value only fresh, so neither becomes the other in place; and in
+     * MATLAB `x = "abc"` makes `x` a string whatever it was, and `x = 5` a double, as `s.a = "abc"`
+     * and `c{2} = 5` do a field and a cell element. So a string typed over a value that is not one
+     * makes it the variable an Add of a string makes (_createObject), and anything else typed over a
+     * string the plain variable an Add makes, each of its name and in its place, holding the text.
+     * A save writes a variable so made where the variable it replaced was (_replacementOf), and a
+     * member in the cell or the struct that holds it, written fresh, as the element MATLAB writes for
+     * an object there, naming it (_createdElement): the file's subsystem with the new object merged
+     * in, or a new one where the file holds none. A string a member no longer holds is left in the
+     * subsystem, which MATLAB loads with no word (as a variable's is). A value whose Value takes no
      * edit (valueEditable: a struct, a function handle, a summary) is not one, nor is one holding any
-     * other object, whose Value row is the object's.
+     * other object, whose Value row is the object's, nor a member at or under an object
+     * (_memberHolder).
      */
     _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /**
+     * The cell or the struct that holds `node`, a member of `entry` at any depth, where a save writes
+     * it fresh with a member of another kind in `node`'s place (_retype): a plain container, and each
+     * one above it to the entry, none of them an object or in one (objectNodeAt,
+     * MatlabVariableNode._objectMemberOf), as the fields of a struct a save renames are
+     * (_renamesFieldsOf). A struct array's element row holds its fields, and is held by the array.
+     * Null for any other node.
+     */
+    _memberHolder(entry: BaseNode, node: BaseNode): MatlabVariableNode | null;
     /**
      * What puts this file's creations (_creation) back as they stand now, for an object created
      * (_createObject) for an edit that is then not made (_retype): none of it among them, nor the file

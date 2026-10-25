@@ -277,6 +277,14 @@ export interface SourceRetyped {
  */
 export declare function sourceRetype(node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
 /**
+ * The class-17 element a save writes for `node`, an object its source created since the read
+ * (MatNode._createObject) that a cell or a struct holds, as that member names it, by its id in the
+ * subsystem the save writes; or null, which every other node and source answers. Asked by the
+ * writer of the container (MatlabVariableNode._objectMemberOf): the variable the object's node was
+ * made of names it by the id it was merged with alone.
+ */
+export declare function sourceCreatedMember(node: BaseNode): Uint8Array | null;
+/**
  * Which rows of a node's Property Inspector its source offers in its groups, which of its rows are
  * of no property the node has, and which saved keys a row shows already (sourceInspectorRows).
  */

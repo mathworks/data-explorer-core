@@ -265,6 +265,21 @@ export function sourceRetype(node, key, text) {
     return typeof retype === 'function' ? retype.call(source, entry, node, key, text) : null;
 }
 /**
+ * The class-17 element a save writes for `node`, an object its source created since the read
+ * (MatNode._createObject) that a cell or a struct holds, as that member names it, by its id in the
+ * subsystem the save writes; or null, which every other node and source answers. Asked by the
+ * writer of the container (MatlabVariableNode._objectMemberOf): the variable the object's node was
+ * made of names it by the id it was merged with alone.
+ */
+export function sourceCreatedMember(node) {
+    const { entry, source } = sourceOf(node);
+    if (!entry || entry === node) {
+        return null;
+    }
+    const made = source?._createdElement;
+    return typeof made === 'function' ? made.call(source, node, '') : null;
+}
+/**
  * Which rows of `node`'s Property Inspector its source offers in its property groups, by key, and
  * the saved keys of the node's bag a row it shows shows already, and the rows of properties the
  * node has none of; or null where it shows every row the node lays out: what every source but a

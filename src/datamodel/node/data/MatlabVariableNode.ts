@@ -5,7 +5,8 @@ import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
-import { encodedHolderOf, inMcosStream, sourceEditRefusal, sourceEditRefused, sourceRenamesFields, streamValueRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, sourceCreatedMember, sourceEditRefusal, sourceEditRefused, sourceRenamesFields, streamValueRefusal } from '../BaseNode.js';
+import { readDescriptor } from '../../parser/McosSubsystemCodec.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -3966,6 +3967,13 @@ export default class MatlabVariableNode extends DataNode {
         return null;
       }
       variable = first.variable;
+    }
+    // An object created since the read and put in a cell or a struct (MatNode._retype): named as
+    // the save names it, by its id in the subsystem it writes.
+    const created = sourceCreatedMember(node);
+    const named = created ? readDescriptor(created) : null;
+    if (created && named) {
+      return { variable: { ...variable, mcosHandle: { dims: named.dims, ids: named.ids }, _objectElement: created }, element: created };
     }
     const element = objectElementOf(variable, node.matlabPath);
     return 'why' in element ? element : { variable, element: element.element };
