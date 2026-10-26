@@ -64,6 +64,8 @@ export declare function createSession(opts?: CreateSessionOptions): {
     addChildRefusal: (nodeId: string) => string | null;
     deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
     renameRefusal: (nodeId: string) => string | null;
+    valueEditRefusal: (nodeId: string) => string | null;
+    editText: (nodeId: string) => string | null;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
     indexSubtree: (root: INode) => void;
     unindexSubtree: (root: INode, detach?: () => void) => void;
@@ -134,6 +136,8 @@ declare const DataModel: {
     addChildRefusal: (nodeId: string) => string | null;
     deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
     renameRefusal: (nodeId: string) => string | null;
+    valueEditRefusal: (nodeId: string) => string | null;
+    editText: (nodeId: string) => string | null;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
     indexSubtree: (root: INode) => void;
     unindexSubtree: (root: INode, detach?: () => void) => void;

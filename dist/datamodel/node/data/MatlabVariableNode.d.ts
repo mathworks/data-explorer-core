@@ -177,6 +177,16 @@ export default class MatlabVariableNode extends DataNode {
      */
     _literalRoundTrips(): boolean;
     /**
+     * The text an editor of this value is seeded with where its row shows no text that is the value,
+     * only for its size (the D13 ruling): its summary past the display's budgets, `<1x500 double>`,
+     * or a cell's literal holding one, `{1, <1x20 double>}`. The value written out whole, where that
+     * text, set as its Value, makes it exactly (editText.wholeText). Null where the row's own text is
+     * the seed, and for a value no text spells or too long to edit as text.
+     */
+    _editText(): string | null;
+    _editTextWhy(): string | null;
+    _shownIsNoSeed(): boolean;
+    /**
      * Is this a complex scalar whose imaginary part is 0 (or -0), such as a file's complex(1, 0)?
      * It shows `1+0i`, and a cell literal reads that text as the real double MATLAB makes of it
      * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell

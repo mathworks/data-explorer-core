@@ -20,6 +20,8 @@ import MatlabValueParser, { collapseExact, complexBag, formatMatlabString } from
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { valuePrint } from './editText.js';
+import { keptVerdict } from '../valueGeneration.js';
 import { parameterDataTypeAfter } from '../../parser/McosPropertyRules.js';
 
 const CLASS_NAME = 'Simulink.Parameter';
@@ -148,6 +150,47 @@ export default class ParameterNode extends DataNode {
             return false;
         }
         return super.valueEditable;
+    }
+
+    // The Value written out whole where it shows a summary for its size (MatlabVariableNode._editText),
+    // where this setter makes the same Value of it. Spelled bare, an integer or single array is a
+    // double here, as MATLAB makes a Parameter's Value of the literal (D9), so it is spelled with its
+    // class, `int8([...])`, where this setter takes that. Null where it makes neither.
+    _editText(): string | null {
+        const value = this._valueNode as MatlabVariableNode | null;
+        if (!value || this._valueIsEnum()) {
+            return null;
+        }
+        const bare = value._editText();
+        if (bare === null) {
+            return null;
+        }
+        // Judged once of the Value, as the Value's own text is (valueGeneration.keptVerdict).
+        const judged = keptVerdict(this, () => {
+            const print = valuePrint(value);
+            const cls = value._typedNumericClass();
+            const makesThisValue = (text: string) => {
+                const node = this._valueMadeBy(text) as MatlabVariableNode | null;
+                return print !== null && !!node && typeof node._kind === 'string' && valuePrint(node) === print;
+            };
+            return { bare, text: (cls ? [bare, cls + '(' + bare + ')'] : [bare]).find(makesThisValue) ?? null };
+        });
+        // A verdict on another text of the Value than this one is not about it.
+        return judged.bare === bare ? judged.text : null;
+    }
+
+    // Why the Value, shown as a summary, takes no editor of its text written out whole: the Value's
+    // own reason (MatlabVariableNode._editTextWhy), or that this setter makes another value of it.
+    _editTextWhy(): string | null {
+        const value = this._valueNode as MatlabVariableNode | null;
+        if (!value) {
+            return null;
+        }
+        const why = value._editTextWhy();
+        if (why !== null || value._editText() === null || this._editText() !== null) {
+            return why;
+        }
+        return "its text, set as this Parameter's Value, would not be exactly this value: its elements are edited one at a time";
     }
 
     // An object whose properties are held beside its class is shown as read, and takes an edit of

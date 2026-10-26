@@ -23,6 +23,7 @@ import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue }
 import { setOwn } from '../../parser/ownKeys.js';
 import { objectElementOf, streamWriteRefusal, variableDifference } from '../../parser/MatFileWriter.js';
 import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
+import { isSummaryText, wholeText } from './editText.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins, withOrigin } from '../../parser/EntrySource.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
@@ -503,8 +504,9 @@ export default class MatlabVariableNode extends DataNode {
         }
         // A cell whose literal shows an element as a summary, or a complex element whose
         // imaginary part is 0 (_literalRoundTrips): the literal is not the cell's value, so it is
-        // not an editor's seed.
-        if (this._kind === 'cell' && !this._literalRoundTrips()) {
+        // not an editor's seed. But for one whose summaries are of size alone, which is edited as
+        // its text written out whole (_editText).
+        if (this._kind === 'cell' && !this._literalRoundTrips() && this._editText() === null) {
             return false;
         }
         // Then BaseNode's rule: a value that DISPLAYS as a <mxn class> summary gets no
@@ -1114,6 +1116,28 @@ export default class MatlabVariableNode extends DataNode {
         });
     }
     /**
+     * The text an editor of this value is seeded with where its row shows no text that is the value,
+     * only for its size (the D13 ruling): its summary past the display's budgets, `<1x500 double>`,
+     * or a cell's literal holding one, `{1, <1x20 double>}`. The value written out whole, where that
+     * text, set as its Value, makes it exactly (editText.wholeText). Null where the row's own text is
+     * the seed, and for a value no text spells or too long to edit as text.
+     */
+    _editText() {
+        const whole = this._shownIsNoSeed() ? wholeText(this) : null;
+        return whole && 'text' in whole ? whole.text : null;
+    }
+    // Why this row, its own text no editor's seed, takes no editor of the value written out whole
+    // (editText.wholeText), as a clause; null where it takes one, and where its own text is the seed.
+    _editTextWhy() {
+        const whole = this._shownIsNoSeed() ? wholeText(this) : null;
+        return whole && 'why' in whole ? whole.why : null;
+    }
+    // Whether this row's own text is no seed of an editor of its Value: a summary, or a cell's
+    // literal holding one (_literalRoundTrips).
+    _shownIsNoSeed() {
+        return isSummaryText(this.displayValue) || (this._kind === 'cell' && !this._literalRoundTrips());
+    }
+    /**
      * Is this a complex scalar whose imaginary part is 0 (or -0), such as a file's complex(1, 0)?
      * It shows `1+0i`, and a cell literal reads that text as the real double MATLAB makes of it
      * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell
@@ -1322,7 +1346,7 @@ export default class MatlabVariableNode extends DataNode {
             // The editor valueEditable withholds, refused here too for a caller that asks
             // directly — and so never recorded for an undo, which restores the text the cell
             // displayed: `<1x3 sparse double>` read back as three char cells.
-            if (this._kind === 'cell' && !this._literalRoundTrips()) {
+            if (this._kind === 'cell' && !this._literalRoundTrips() && this._editText() === null) {
                 return {
                     error: true,
                     reason: this._holdsZeroImaginaryElement()

@@ -89,12 +89,12 @@ describe('a Description the entry has nowhere to put', () => {
 
   it('is kept on an object whose VALUE cell is read-only', () => {
     // The bug this replaces: the table decided the Description cell from
-    // `_valueEditable`, so a Parameter holding more elements than a one-line literal
-    // carries — whose Value displays as the summary `<1x12 double>` and rightly takes no
-    // editor — could not be described either. The two questions are unrelated, and are
-    // now answered separately.
-    const p = parseParam({ Value: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] });
-    expect(p.displayValue).toBe('<1x12 double>');
+    // `_valueEditable`, so a Parameter whose Value displays as a summary and takes no
+    // editor could not be described either. The two questions are unrelated, and are
+    // now answered separately. An N-D Value, which no text spells: a `<1x12 double>` takes
+    // an editor of its text written out whole since the D13 ruling (longValuesEditable).
+    const p = parseParam({ Value: { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 3, 5]; [2, 4, 6]; [7, 9, 11]; [8, 10, 12]]' } });
+    expect(p.displayValue).toBe('<2x3x2 double>');
     expect(p.toRow()._valueEditable).toBe(false);
     expect(p.toRow()._descriptionEditable).toBe(true);
   });

@@ -11,6 +11,7 @@ import { elementOriginAt, originAttr, recordElementOrigins, taggingOrigins, with
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { mcosPlaceOf } from './mcosPlace.js';
+import { entryValuesChanged } from './valueGeneration.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import { charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -404,7 +405,8 @@ export default class DataNode extends BaseNode {
         }
         try {
             const info = this.getPropInfo(prop);
-            return info.editable && info.displayValue === stringValue;
+            // Or, of a Value shown as a summary for its size, the text its editor is seeded with (_editText).
+            return info.editable && (info.displayValue === stringValue || (prop.key === 'Value' && this._editText() === stringValue));
         }
         catch {
             // A property projection that throws leaves the edit to go ahead as it did (DataModel's
@@ -873,6 +875,8 @@ export default class DataNode extends BaseNode {
     // or is the entry's own rename.
     _markModified(edit = 'value') {
         const entry = this.owningEntry;
+        // And a verdict judged of a value under the entry is judged again (valueGeneration).
+        entryValuesChanged(this);
         let ofObject = false;
         for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
