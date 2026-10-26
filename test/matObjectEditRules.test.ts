@@ -134,7 +134,7 @@ describe('an object a node shows of what its object holds is edited as an object
     // default', which is saved, and read back, as 'SimulinkGlobal'.
     const sc = by('sig').getPropInfo(by('sig').getProperties().find((p: any) => p.key === 'storageClass'));
     expect(sc.options).toEqual(['Auto', 'SimulinkGlobal', 'ExportedGlobal', 'ImportedExtern', 'ImportedExternPointer']);
-    expect(edit(by('sig'), 'storageClass', 'Custom')).toMatchObject({ error: true, reason: 'Invalid value for Storage Class' });
+    expect(edit(by('sig'), 'storageClass', 'Custom')).toMatchObject({ error: true, reason: 'Cannot edit "sig": Invalid value for Storage Class.' });
   });
 
   it("a Bus's own Description, and its elements' Name and Min, each an object of the file", () => {
@@ -155,8 +155,8 @@ describe('an object a node shows of what its object holds is edited as an object
     const { by, edit, root } = opened(read('bset.mat'));
     const [e1, e2] = by('b').children;
     // The node's own rule says it first, as MATLAB's assignment does.
-    expect(edit(e2, 'Name', 'e1')).toMatchObject({ error: true, reason: "'e1' already names another member of b" });
-    expect(edit(e2, 'Name', '2x')).toMatchObject({ error: true, reason: expect.stringMatching(/^Invalid MATLAB name/) });
+    expect(edit(e2, 'Name', 'e1')).toMatchObject({ error: true, reason: "Cannot rename \"b.e2\": 'e1' already names another member of b." });
+    expect(edit(e2, 'Name', '2x')).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot rename "b\.e2": Invalid MATLAB name/) });
     expect(edit(e1, 'Min', '-40000')).toMatchObject({ error: true, reason: expect.stringMatching(/b\.Elements\(1\)\.Min \(-40000\) would be outside the range \[-32768, 32767\] of its DataType 'int16'/) });
     expect(root.dirty).toBe(false);
   });

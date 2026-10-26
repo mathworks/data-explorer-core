@@ -24,6 +24,10 @@ export type { SerializedSource } from './core/DataModel.js';
 // builds the payloads out of its clipboard, holds them in its own register, and switches on the
 // refusal arm of the answer to show it, none of which it can write down while the types have no name.
 export type { PastePayload, PasteResult } from './core/DataModel.js';
+// A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
+// for a host that calls a node's setProperty itself, as a dictionary's editor does.
+export { editRefusalText } from './datamodel/node/editRefusal.js';
+export type { EditedRow } from './datamodel/node/editRefusal.js';
 // What session.findNodes()/findNode() take. Public for the same reason: a host builds
 // one of these from its own search UI, holds it in a field, and passes it around —
 // none of which it can write down while the type has no name.

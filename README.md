@@ -295,7 +295,10 @@ over it instead. Nothing was added.` Each returns `null` exactly where its opera
 made, and changes nothing, so a host can ask before (to word a greyed menu item) or
 after a refusal. `renameRefusal` is about a name that takes no edit at all (an
 element's, a class property's); a name typed in that is refused for itself comes back
-from `editProperty(id, 'Name', text)` with its reason. `session.addEntryRefusal(containerId,
+from `editProperty(id, 'Name', text)` with its reason. Every refusal `editProperty` answers
+names its row so: `Cannot edit "x(2)": Invalid MATLAB expression.`, `Cannot rename "s.a": 'b'
+already names another member of s.` A host that calls a node's `setProperty` itself words the
+reason it gets the same way with `editRefusalText(node, key, reason)`. `session.addEntryRefusal(containerId,
 className?, name?)` says the same of `addEntry` into a dictionary's section (by its id,
 `x.sldd/design`) or a MAT-file (by its srcId): a class the section does not hold names
 the one that does. Called with no argument it says why the last `addEntry` into the

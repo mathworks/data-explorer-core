@@ -96,7 +96,8 @@ to 1/0 rather than leaving one boolean among the numbers.
 
 The element editor gets a logical arm to match: it accepts `true`/`false` (a row that
 displays `true` must accept `true`) and also `1`/`0`, and **refuses any other
-number** — "Logical array elements must be true or false". That closes a hole rather
+number** — "an element of the 1x3 logical array takes true or false, and the text typed, “7”,
+is a number". That closes a hole rather
 than adding a restriction: the numeric-only accept set took `7` and wrote
 `{_type:'logical', _value:'[7, 0, 1]'}`, a logical array holding 7. MATLAB answers
 `L(1) = 7` by retyping the whole ARRAY to double, which an element editor cannot
@@ -104,10 +105,13 @@ express — see the deferred note below.
 
 ### Constrained children (array elements and string elements)
 When editing a child of an array or string-array:
+Each refusal says what an element of the array takes and what was typed, quoted on one line and
+cut at 60 characters (`elementRefusal.elementRefusal`):
 - **Array element:** `setProperty('Value', ...)` rejects anything that is not a
-  scalar number. Error: **"Array elements must be scalar numbers"**
-- **String element:** rejects anything that is not a char or string value. Error:
-  **"String elements must be character or string values"**
+  scalar number: **"an element of the 1x3 double array takes one number, and the text typed,
+  “[1 2; 3 4]”, is a 2x2 array"** (`the 1x2 complex double array`, `the 2x2 sparse double array`).
+- **String element:** rejects anything that is not a char row or a string: **"an element of the
+  1x2 string array takes one string, or a char row, and the text typed, “42”, is a number"**.
 
 ### A string element is a string-KIND child, not a string-typed scalar
 Every element of a string array is built by `_makeStringElement` as a node with
@@ -480,12 +484,15 @@ Pinned in `test/sparseFixtures.test.ts` and `test/sparsePresentation.test.ts`.
 
 | Rule | Code path | Error message |
 |------|-----------|---------------|
-| Array child must be scalar number | `MatlabVariableNode._setConstrainedValue` | "Array elements must be scalar numbers" |
-| Logical array child must be true/false (or 1/0) | `MatlabVariableNode._setConstrainedValue` | "Logical array elements must be true or false" |
-| String child must be char/string | `MatlabVariableNode._setConstrainedValue` | "String elements must be character or string values" |
+| Array child must be scalar number | `MatlabVariableNode._setConstrainedValue` | "an element of the 1x3 double array takes one number, and the text typed, “…”, is …" |
+| Logical array child must be true/false (or 1/0) | `MatlabVariableNode._setConstrainedValue` | "an element of the 1x3 logical array takes true or false, and …" |
+| String child must be char/string | `MatlabVariableNode._setConstrainedValue` | "an element of the 1x2 string array takes one string, or a char row, and …" |
 | Unparseable expression | `MatlabVariableNode.setProperty` | "Invalid MATLAB expression" |
 
-Test: `test/parity/fidelity/variable.fidelity.test.ts`
+Each is a setter's own reason. The session answers it naming the row, `Cannot edit "x(2)": ...`
+(`editRefusal.editRefusalText`, which a host calling `setProperty` itself asks too).
+
+Test: `test/parity/fidelity/variable.fidelity.test.ts`, `test/editRefusalsNameRow.test.ts`
 
 ## Round-trip coverage
 

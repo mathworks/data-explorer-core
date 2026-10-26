@@ -37,6 +37,7 @@ import type BaseNode from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
 import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
+import { editRefusalText, isNameKey } from '../datamodel/node/editRefusal.js';
 import { textDictionaryJson } from '../datamodel/parser/TextDictionaryJson.js';
 import * as NodeRegistry from '../datamodel/node/NodeRegistry.js';
 
@@ -1929,19 +1930,19 @@ function editProperty(
   // (DataNode._noDescriptionRefusal): the source's refusal below would name another reason.
   const noDescription = (node as unknown as { _noDescriptionRefusal?: (key: string, text: string) => { error: boolean; reason: string; invalidValue: string; validValue: string } | null })._noDescriptionRefusal?.(propertyName, String(newValue));
   if (noDescription) {
-    return noDescription;
+    return namedRefusal(node, propertyName, noDescription);
   }
   // An edit the node's source would not write is refused before any setter is asked
   // (BaseNode.sourceEditRefusal): a MAT-file's object, say, takes a rename and nothing else.
   // Every setter asks the same rule (DataNode._refuseEncodedEdit); this is for one that does
   // not, of a class a file can hold.
   const prop = propNamed(node.getProperties(), propertyName);
-  const isName = propertyName === 'Name' || prop?.key === 'Name';
+  const isName = isNameKey(node, propertyName);
   const refused = sourceEditRefusal(node as unknown as BaseNode, isName ? 'Name' : prop?.key ?? propertyName);
   if (refused) {
     return {
       error: true,
-      reason: refused,
+      reason: editRefusalText(node, propertyName, refused),
       invalidValue: String(newValue),
       validValue: isName ? node.name : typeof priorValue === 'string' ? priorValue : node.displayValue,
     };
@@ -1950,7 +1951,7 @@ function editProperty(
   // place (BaseNode.sourceRetype): a MAT-file's variable typed a string becomes a string variable.
   const retyped = !isName && typeof newValue === 'string' ? sourceRetype(node as unknown as BaseNode, prop?.key ?? propertyName, newValue) : null;
   if (retyped) {
-    return 'node' in retyped ? recordRetype(node, retyped.node as unknown as INode, retyped) : retyped;
+    return 'node' in retyped ? recordRetype(node, retyped.node as unknown as INode, retyped) : namedRefusal(node, propertyName, retyped);
   }
   // Unless the node can put the value back itself, which the undo then has it do: the text
   // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was), and
@@ -1969,7 +1970,8 @@ function editProperty(
 
   const { result, indexed, mirrored } = editInEntry(node, () => node.setProperty!(propertyName, newValue));
   if (result !== true) {
-    return (result as { error: boolean; reason: string; invalidValue: string; validValue: string }) || false;
+    const refusal = result as { error: boolean; reason: string; invalidValue: string; validValue: string } | false;
+    return refusal ? namedRefusal(node, propertyName, refusal) : false;
   }
   // A rename's redo puts the name it made back as its undo puts the one it replaced. And where the
   // undo puts the node back as it stood (`restore`), the redo puts it back as the edit left it, its
@@ -2022,6 +2024,12 @@ function editProperty(
   publishEdited(node, indexed);
   publishMirrored(mirrored);
   return true;
+}
+
+// A refusal as editProperty answers it, naming its row (editRefusal.editRefusalText), whatever said
+// it: a setter, which says why and not where, a source's gate or a retype.
+function namedRefusal<T extends { reason: string }>(node: INode, key: string, refusal: T): T {
+  return { ...refusal, reason: editRefusalText(node, key, refusal.reason) };
 }
 
 // The swap a source made of `node` for `replacement` (editProperty, sourceRetype), announced as the

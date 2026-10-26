@@ -18,6 +18,7 @@ import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { heldAsRead, integerReader } from './integerReading.js';
 import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
 import { recordUnshapedValue, unshapedText } from './unshapedValue.js';
+import { elementRefusal } from './elementRefusal.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -1990,11 +1991,7 @@ export default class MatlabVariableNode extends DataNode {
         if (!parsed || !accepted) {
             return {
                 error: true,
-                reason: isLogicalElement
-                    ? 'Logical array elements must be true or false'
-                    : isArrayElement
-                        ? 'Array elements must be scalar numbers'
-                        : 'String elements must be character or string values',
+                reason: elementRefusal(stringValue, parsed, parent, isLogicalElement ? 'logical' : isArrayElement ? 'number' : 'string'),
                 invalidValue: stringValue,
                 validValue: this.displayValue,
             };

@@ -45,6 +45,8 @@ const FORMATS = [
 ] as const;
 
 const REASON = 'This cell holds a complex element whose imaginary part is 0, which its text sets as a real number. Edit the element instead.';
+// As the session says it, of the row at `path` (editRefusalText).
+const named = (path: string) => 'Cannot edit "' + path + '": ' + REASON;
 
 /** Each cell MATLAB wrote with a zero imaginary part in it, as it shows, and the 5 retyped in its literal. */
 const ZERO_CELLS = [
@@ -119,7 +121,7 @@ for (const { format, file } of FORMATS) {
       const { saved, reopened } = saveAndReopen(session, root, file);
       expect(rows(entryOf(reopened, name))).toEqual([member, ['double', '5']]);
       expect(firstMemberAsWritten(format, saved, name)).toEqual(asMatlabWrote(format, file, name));
-      expect(result).toEqual({ error: true, reason: REASON, invalidValue: retyped, validValue: shown });
+      expect(result).toEqual({ error: true, reason: named(name), invalidValue: retyped, validValue: shown });
       expect(rows(entry)).toEqual([member, ['double', '5']]);
     });
 
@@ -147,7 +149,7 @@ for (const { format, file } of FORMATS) {
       const inner = entry.children[0];
       expect(inner.valueEditable).toBe(false);
       session.setActive(root, inner);
-      expect(session.editProperty(inner.id, 'Value', '{1+0i, 7}')).toMatchObject({ error: true, reason: REASON });
+      expect(session.editProperty(inner.id, 'Value', '{1+0i, 7}')).toMatchObject({ error: true, reason: named('cZeroNest{1}') });
       expect(rows(inner)).toEqual([['double (complex)', '1+0i']]);
     });
 

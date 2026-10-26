@@ -226,7 +226,7 @@ for (const { format, file } of FORMATS) {
       for (const literal of ['{1 + 2}', '{a + b}']) {
         const { session, entry } = openCCplx(file);
         const result = session.editProperty(entry.id, 'Value', literal);
-        expect(result, literal).toMatchObject({ error: true, reason: 'Invalid MATLAB expression' });
+        expect(result, literal).toMatchObject({ error: true, reason: 'Cannot edit "cCplx": Invalid MATLAB expression.' });
         expect(entry.displayValue).toBe('{1+2i}');
         expect(rows(entry)).toEqual([['double (complex)', '1+2i']]);
       }
@@ -236,7 +236,7 @@ for (const { format, file } of FORMATS) {
       const bare = openCCplx(file);
       expect(bare.session.editProperty(bare.entry.id, 'Value', '{a, b}')).toMatchObject({
         error: true,
-        reason: 'a is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes',
+        reason: 'Cannot edit "cCplx": a is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes.',
       });
       expect(rows(bare.entry)).toEqual([['double (complex)', '1+2i']]);
       const names = openCCplx(file);

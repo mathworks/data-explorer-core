@@ -11,6 +11,9 @@ export { publish, subscribe } from './core/EventBus.js';
 export * as UndoManager from './core/UndoManager.js';
 // Session/bus/undo factories (milestone 2 — per-instance state).
 export { createSession } from './core/DataModel.js';
+// A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
+// for a host that calls a node's setProperty itself, as a dictionary's editor does.
+export { editRefusalText } from './datamodel/node/editRefusal.js';
 // How this package reads a block-parameter expression: the names in `2*Kp`, `[tau 1]`,
 // `cfg.mode`. Public because a host can have a resolver of its own that this package
 // cannot be, and that resolver has to read an expression the SAME way, or the same file

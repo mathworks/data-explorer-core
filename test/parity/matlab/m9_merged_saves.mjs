@@ -239,7 +239,7 @@ export function m9MergedSaves(core, fixtures) {
       for (const edit of editsOf(entry, objects.get(entry.name) ?? null, names)) {
         const { row, saved } = save(section, entry, kind, edit);
         // A Description the class does not have is no edit to ask MATLAB about.
-        if (row.refused && edit.edit === 'description' && /^Unrecognized property 'Description'/.test(row.refused)) {
+        if (row.refused && edit.edit === 'description' && /^(?:Cannot edit "[^"]*": )?Unrecognized property 'Description'/.test(row.refused)) {
           continue;
         }
         if (saved) {

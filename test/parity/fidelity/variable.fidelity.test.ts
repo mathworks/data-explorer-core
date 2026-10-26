@@ -268,7 +268,7 @@ describe('MatlabVariable constrained-child rules', () => {
     const child = node.children[0];
     const result = child.setProperty('Value', "'text'");
     expect(result).not.toBe(true);
-    expect((result as any).reason).toBe('Array elements must be scalar numbers');
+    expect((result as any).reason).toBe("an element of the 1x4 double array takes one number, and the text typed, “'text'”, is text");
   });
 
   it('string-array element rejects non-string edit', () => {
@@ -279,7 +279,7 @@ describe('MatlabVariable constrained-child rules', () => {
     const child = node.children[0];
     const result = child.setProperty('Value', '42');
     expect(result).not.toBe(true);
-    expect((result as any).reason).toBe('String elements must be character or string values');
+    expect((result as any).reason).toBe('an element of the 1x3 string array takes one string, or a char row, and the text typed, “42”, is a number');
   });
 });
 

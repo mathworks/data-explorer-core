@@ -17,7 +17,7 @@ import { copiesOf, fixture, sameBytes, target } from './tools/matPaste.js';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
-const PARAMETER_VALUE = /^Invalid value specified for parameter\. Value must be a numeric array/;
+const PARAMETER_VALUE = /^Cannot edit "[^"]*": Invalid value specified for parameter\. Value must be a numeric array/;
 
 function matsUnder(dir: string): string[] {
   const out: string[] = [];

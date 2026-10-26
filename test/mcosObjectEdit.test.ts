@@ -561,7 +561,7 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     expect(edit(object('pm'), 'Max', '-5')).toMatchObject(refusal('pm', 'pm.Min (0) would be greater than its Max (-5)' + WARNS));
     expect(edit(object('pmi'), 'Max', '40000')).toMatchObject(refusal('pmi', "pmi.Max (40000) would be outside the range [-32768, 32767] of its DataType 'int16'" + WARNS));
     // The node's own rule, which mirrors MATLAB's, says the rest first.
-    expect(edit(object('pm'), 'Min', '-Inf')).toMatchObject({ error: true, reason: 'Minimum must be a finite real double scalar value' });
+    expect(edit(object('pm'), 'Min', '-Inf')).toMatchObject({ error: true, reason: 'Cannot edit "pm": Minimum must be a finite real double scalar value.' });
     expect(root.dirty).toBe(false);
     // Min = Max is fine, and so is clearing one.
     expect([edit(object('pm'), 'Min', '10'), edit(object('pm'), 'Max', '')]).toEqual([true, true]);

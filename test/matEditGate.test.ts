@@ -467,7 +467,7 @@ describe('what each kind of variable of a .mat takes', () => {
     // A custom storage class, which the rules refuse by its value, and so the file offers no
     // choice of: refused as none of the choices it offers.
     expect(param.getPropInfo(param.getProperties().find((p: any) => p.key === 'storageClass')).options).not.toContain('Custom');
-    expect(edit(param, 'storageClass', 'Custom')).toMatchObject({ error: true, reason: 'Invalid value for Storage Class' });
+    expect(edit(param, 'storageClass', 'Custom')).toMatchObject({ error: true, reason: `Cannot edit "${param.matlabPath}": Invalid value for Storage Class.` });
     expect([param.status, root.dirty]).toEqual(['', false]);
     // What it takes is written into the object's cells, and the variable's record is as it was. Its
     // Unit, which the file holds, takes an edit too, by a host that asks for one: the table offers
@@ -551,7 +551,10 @@ describe('what each kind of variable of a .mat takes', () => {
     // A string into an element of a numeric array, which holds numbers only: refused, nothing changed.
     const element = by('cellFlat').children[2].children[0];
     const was = shownAs(element);
-    expect(edit(element, 'Value', '"a"')).toMatchObject({ error: true, reason: 'Array elements must be scalar numbers' });
+    expect(edit(element, 'Value', '"a"')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "cellFlat{3}(1)": an element of the 1x2 double array takes one number, and the text typed, “"a"”, is a string.',
+    });
     expect([shownAs(element), root.dirty, sameBytes(save(), original)]).toEqual([was, false, true]);
     // Inside a variable, a string inside a value typed in: made the objects a save writes
     // (MatNode._retype, _makeStringsIn; matCellStrings.test.ts), as a whole Value, a struct field or a
@@ -679,7 +682,7 @@ describe('what a file, or where a variable stands in it, refuses of every edit',
   it('a name another variable holds is taken: a rename into it is refused, and an addition of it given a counter', () => {
     const { root, edit } = opened(matFile([scalar('a', 1), scalar('b', 2)]));
     expect(root._namespaceHolds('a')).toBe(1);
-    expect(edit(root.children[1], 'Name', 'a')).toEqual({ error: true, reason: "'a' already exists in f.mat", invalidValue: 'a', validValue: 'b' });
+    expect(edit(root.children[1], 'Name', 'a')).toEqual({ error: true, reason: "Cannot rename \"b\": 'a' already exists in f.mat.", invalidValue: 'a', validValue: 'b' });
     // As a dictionary's Add names one (matlabName.newEntryName).
     expect(root.execAddEntry(undefined, 'a').node.name).toBe('a1');
     expect(root.children.map((c: any) => c.name)).toEqual(['a', 'b', 'a1']);
@@ -801,7 +804,7 @@ describe('the session, on a .mat', () => {
 
   it("a rename into a name the file holds names the file; a dictionary's keeps its wording", () => {
     const { by, edit } = opened(fileBytes(CASES), 'cases.mat');
-    expect(edit(by('kp'), 'Name', 'scalarD')).toEqual({ error: true, reason: "'scalarD' already exists in cases.mat", invalidValue: 'scalarD', validValue: 'kp' });
+    expect(edit(by('kp'), 'Name', 'scalarD')).toEqual({ error: true, reason: "Cannot rename \"kp\": 'scalarD' already exists in cases.mat.", invalidValue: 'scalarD', validValue: 'kp' });
     // A host's srcId that is a path names the file by its basename.
     const session = createSession();
     const root: any = session.addMatSource('/some/where/cases.mat', fileBytes(CASES));
