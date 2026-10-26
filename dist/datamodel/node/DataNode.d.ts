@@ -421,6 +421,31 @@ export default class DataNode extends BaseNode {
      */
     get _encodedReadOnly(): boolean;
     /**
+     * _encodedReadOnly in words: why a child added here or removed could not reach the file, as a
+     * clause, or null. `describe` false answers UNWORDED (BaseNode._addChildRefusal). `key` is what
+     * the source is asked of (sourceEditRefusal): 'Value', or 'Add', which a MAT-file judges of a
+     * struct (MatNode._editRefusal). The clause is about this node, or with `ofChild` about the row
+     * of a child of it (_said).
+     */
+    _childEditRefusal(describe: boolean, key?: string, ofChild?: boolean): string | null;
+    /**
+     * `predicate`, said of this node in a refusal: of the row it names itself (`it is ...`, an Add's),
+     * or with `ofChild` of the row of a child of it (`"c" is ...`, a delete's).
+     */
+    _said(predicate: string, ofChild: boolean): string;
+    /**
+     * _structuralRefusal in words: MATLAB's refusal of the value an Add (`op` 'add') or a delete
+     * ('remove') here would leave, said as the refusal of what holds it, or null.
+     */
+    _structuralRefusalWhy(op: 'add' | 'remove', describe: boolean): string | null;
+    /**
+     * Why a child is not added here, or with `ofChild` why `child` is not removed, where this
+     * object's rows are its own (a Bus's elements, an enum's values), as a clause, or null: inside a
+     * value still in its encoded stream (_childEditRefusal), or one whose properties are held beside
+     * its class (_inlineObjectBag), which the save writes back as read.
+     */
+    _ownRowsRefusal(describe: boolean, ofChild: boolean, child?: BaseNode): string | null;
+    /**
      * The refusal of an edit of `propName` at or under a value still in the encoded stream it was
      * read from, but for the holder's own name, or of one this node's source would not write
      * (BaseNode.sourceEditRefusal), in its words; null where the edit may go ahead. Asked first by

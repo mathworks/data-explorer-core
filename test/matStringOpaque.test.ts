@@ -282,12 +282,12 @@ describe('MAT string text', () => {
     expect(entryNamed('sEmptyE').elements).toEqual(['']);
     expect(entryNamed('sEmptyE').displayValue).toBe('""');
     expect(entryNamed('sMissing').elements[0]).toBe(null);
-    // A 0x0 has no elements at all, hence no child rows and the size-and-class summary
-    // MATLAB's Workspace browser shows for it (`0×0 string`), rather than the bare '[]' the
-    // literal loop would otherwise produce.
+    // A 0x0 has no elements at all, hence no child rows, and shows the text MATLAB makes it of,
+    // `strings(0,0)` (the D12 ruling, where the browser shows `0×0 string`), rather than the bare
+    // '[]' the literal loop would otherwise produce.
     expect(entryNamed('sEmptyA').elements).toEqual([]);
     expect(entryNamed('sEmptyA').children.length).toBe(0);
-    expect(entryNamed('sEmptyA').displayValue).toBe('<0x0 string>');
+    expect(entryNamed('sEmptyA').displayValue).toBe('strings(0,0)');
   });
 
   it('prints a long scalar string in full, under the char budget', () => {
@@ -376,13 +376,13 @@ describe('a decoded MCOS string takes an edit of its text, and keeps its shape',
     }
   });
 
-  it('offers no Add Child or Remove Child, even on a vector', () => {
-    // The shape gate alone would have allowed both on sRow and sCol: a 1xN string is a
-    // vector, which is exactly the case Add Child exists for on the dictionary path.
+  it('offers Add Child and Remove Child on a vector, as a dictionary does, and on nothing else', () => {
+    // A 1xN or an Nx1 string is a vector, which is the case Add Child exists for on the dictionary
+    // path; an element added or removed is an edit of its text (test/matStringArrayRows.test.ts).
     for (const name of CASES) {
       const n = entryNamed(name);
-      expect(n.canAddChild(), name).toBe(false);
-      expect(n.canRemoveChild(), name).toBe(false);
+      const vector = n._elements.length > 1 && (n._dims[0] === 1 || n._dims[1] === 1);
+      expect([n.canAddChild(), n.canRemoveChild()], name).toEqual([vector, vector]);
     }
   });
 

@@ -187,14 +187,15 @@ const FIXTURES = matFilesUnder(TEST_ROOT).filter((abs) => {
   }
 });
 
-// E2 of the 2026-10-26 edit bash, pinned as it is until it is fixed: the rename of an element of a
-// Simulink.Parameter's struct-array Value is one the gate takes and the row offers no editor of,
-// and a rename forced on it is refused in other words than the gate's. By row, the words.
+// E2 of the 2026-10-26 edit bash: the rename of an element of a Simulink.Parameter's struct-array
+// Value is one the file's gate would write, but the row offers no editor of its name, which is where
+// it stands. A rename forced on it was refused as "'Value(1)' is not a name this entry can carry";
+// it is refused, by the row, in the words the session's renameRefusal says of it.
 const E2 = new Map(
   ['r2023b', 'r2027a'].flatMap((release) =>
     ['Value(1)', 'Value(2)'].map((element): [string, string] => [
       `fixtures/edit-bash/${release}/values.mat: pStructArr.${element} Name`,
-      `'${element}' is not a name this entry can carry, so it cannot be renamed.`,
+      `Cannot rename "pStructArr.${element}": it is an element of "pStructArr.Value", named by where it stands there.`,
     ]),
   ),
 );
@@ -240,9 +241,10 @@ describe('the gate is the writer, for every object of every fixture', () => {
             }
             const label = `${shown(file)}: ${seen.matlabPath} ${key}`;
             if (E2.has(label)) {
-              const { root, edit, save } = opened(original);
+              const { session, root, edit, save } = opened(original);
               const node = at(root, path);
               expect([sourceEditRefusal(node, key), node.getPropInfo(prop).editable], label).toEqual([null, false]);
+              expect(session.renameRefusal(node.id), label).toBe(E2.get(label));
               for (const value of candidates(seen, objectSeen, key)) {
                 expect(edit(node, key, value), label + ' = ' + value).toMatchObject({ error: true, reason: E2.get(label) });
               }

@@ -41,10 +41,10 @@ export declare class BaseBusNode extends DataNode {
      */
     _xmlProperties(): Record<string, unknown>;
     serializeValue(): unknown;
-    canRemoveChild(): boolean;
+    _removeChildRefusal(child?: BaseNode, describe?: boolean): string | null;
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;
-    canAddChild(): boolean;
+    _addChildRefusal(describe?: boolean): string | null;
     addChildNode(): BaseNode | null;
     _maxElementId(): number;
     _nextElementId(): string;

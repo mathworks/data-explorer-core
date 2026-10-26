@@ -7,6 +7,7 @@ import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNod
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, SourceInspectorRows, SourceOfferedEditor, SourceRetyped, SourceSetResult } from '../BaseNode.js';
+import { refusalClause } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
@@ -1295,6 +1296,15 @@ export default class MatNode extends ContainerNode {
     return this._addRefused;
   }
 
+  /**
+   * Why execAddEntry would add no variable of `className` named `entryName` (_addRefusalOf), in
+   * words naming the file, or null where it adds one: the session's addEntryRefusal of this file.
+   */
+  entryRefusal(className?: string, entryName?: string): string | null {
+    const kind = !className || PLAIN_VARIABLE_CLASSES.has(className) ? 'plain' : className === 'MatlabStruct' ? 'struct' : 'object';
+    return this._addRefusalOf(kind, className, entryName);
+  }
+
   // Why a new variable of `className` (of `kind`) named `entryName` is refused before one is made:
   // no save of this file can be written; no class this file takes a new variable of; a subsystem no
   // object can be created in; a name that is no MATLAB name, as asked for or with its counter.
@@ -1605,7 +1615,7 @@ export default class MatNode extends ContainerNode {
   // included; refused only in a file no save of which can be written (_fileRefusal).
   execRemoveEntry(node: BaseNode): { undo: () => void; redo: () => void } | null {
     const index = this.children.indexOf(node);
-    if (index < 0 || this._fileRefusal()) {
+    if (this.removeEntryRefusal(node)) {
       return null;
     }
     this.removeChild(node);
@@ -1620,6 +1630,15 @@ export default class MatNode extends ContainerNode {
         this.dirty = true;
       },
     };
+  }
+
+  /** Why execRemoveEntry refuses `node`, as a clause, or null where it deletes it. */
+  removeEntryRefusal(node: BaseNode): string | null {
+    if (!this.children.includes(node)) {
+      return '"' + this.name + '" holds no such variable';
+    }
+    const file = this._fileRefusal();
+    return file && refusalClause(file);
   }
 
   /**

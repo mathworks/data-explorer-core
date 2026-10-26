@@ -661,7 +661,10 @@ export function copyObjectProperty(from, to, property, want = nodePropertyValue(
         return null;
     }
     const fromValue = from._valueNode ?? null;
-    const raw = fromValue ? fromValue.serializeValue() : undefined;
+    // A copy of its own: the master's value written holds the lists its node edits in place (a
+    // struct's field names), so adopted as it was, a field the master deleted next was gone from the
+    // twin's value but not its rows, and no later copy was made, the two reading alike.
+    const raw = fromValue ? structuredClone(fromValue.serializeValue()) : undefined;
     const made = fromValue ? NodeRegistry.parseValue(raw, 'Value', null) : null;
     const got = made ? valueVariable(made) : want;
     const difference = typeof want === 'string' || typeof got === 'string' ? (want === got ? null : 'it holds no value a save writes') : variableDifference(got, want, 'Value');

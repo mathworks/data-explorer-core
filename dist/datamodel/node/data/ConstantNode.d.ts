@@ -4,7 +4,7 @@ import type BaseNode from '../BaseNode.js';
 export default class ConstantNode extends MatlabVariableNode {
     get kind(): string;
     get icon(): string;
-    canAddChild(): boolean;
+    _addChildRefusal(describe?: boolean): string | null;
     get valueEditable(): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     static get defaultName(): string;

@@ -2,6 +2,7 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
+import * as NodeRegistry from '../NodeRegistry.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
@@ -32,11 +33,24 @@ export default class SectionNode extends ContainerNode {
     _namespaceCounts(): Map<string, number> | null;
     _entryRenamed(oldName: string, newName: string): void;
     addEntry(className: string, entryName?: string): DataNode | null;
+    /**
+     * Why addEntry makes no entry of `className` here, named `entryName` or the class's default name,
+     * in words naming the section, or null where it makes one: the session's addEntryRefusal.
+     */
+    entryRefusal(className: string, entryName?: string): string | null;
+    _entryPlan(className: string, entryName?: string): {
+        NodeClass: ReturnType<typeof NodeRegistry.getClass> & object;
+        name: string;
+    } | {
+        why: string;
+    };
     execAddEntry(className: string, entryName?: string): {
         node: DataNode;
         undo: () => void;
         redo: () => void;
     } | null;
+    /** Why execRemoveEntry refuses `node`, as a clause, or null where it deletes it. */
+    removeEntryRefusal(node: BaseNode): string | null;
     execRemoveEntry(node: BaseNode): {
         undo: () => void;
         redo: () => void;

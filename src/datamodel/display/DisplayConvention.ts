@@ -83,7 +83,16 @@ export const MAT_NODE_CEILING = 500_000;
 // browser draws. Measured: test/fixtures/display/browser_short.truth.json.
 export const EMPTY_NUMERIC = '[ ]';
 // A 0x0 cell, as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling): no space.
-// A cell of any other empty shape shows its size-and-class summary (MatlabVariableNode._formatCell).
+//
+// The D12 ruling of the 2026-10-26 edit bash narrows that ruling for two kinds: a cell of any other
+// empty shape and an empty string array, which the browser shows as their size and class (here a
+// `<1x0 cell>`, a `<0x3 string>` summary, which takes no editor), show the text MATLAB makes them
+// of, `cell(1,0)`, `strings(0,3)` (MatlabVariableNode._emptySpelled), which takes an edit. The
+// user's rule: a value must not become uneditable after an ordinary edit, and deleting a cell's last
+// element made a 1x0 one, which locked it and every cell holding it. Every other empty keeps the
+// browser's text, `[ ]` (EMPTY_NUMERIC) and `''`; inside a cell's text every shaped empty is spelled
+// so, where `[ ]` read back as a 0x0 double. Measured against the browser:
+// test/workspaceBrowserDisplay.test.ts, which holds the two kinds to D12.
 export const EMPTY_CELL = '{}';
 
 // A `missing` element of a string array. This IS MATLAB's spelling — `disp(["" missing])`

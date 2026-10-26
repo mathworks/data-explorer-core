@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
+import { withArticle } from '../BaseNode.js';
 // Not a static import of NodeClassMap: NodeRegistry is the deliberately
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
@@ -315,19 +316,11 @@ export default class SectionNode extends ContainerNode {
     // The allow-list and not allowsType: a class admitted only to a paste (an mpt.Parameter,
     // whose node can build a default) is never created from scratch.
     addEntry(className, entryName) {
-        const NodeClass = NodeRegistry.getClass(className);
-        if (!NodeClass || !NodeClass.createDefault) {
+        const plan = this._entryPlan(className, entryName);
+        if ('why' in plan) {
             return null;
         }
-        const allowed = this.getAllowedTypes();
-        if (allowed.length !== 0 && allowed.indexOf(className) === -1) {
-            return null;
-        }
-        const { name, invalid } = newEntryName(entryName || NodeClass.defaultName, this._nameTaken());
-        if (invalid !== null) {
-            return null;
-        }
-        const node = NodeClass.createDefault(name, this);
+        const node = plan.NodeClass.createDefault(plan.name, this);
         node.metadata = {
             uuid: generateUuid(),
             namespace: SECTION_NAMESPACE[this.name] || NS_OTHER,
@@ -339,6 +332,33 @@ export default class SectionNode extends ContainerNode {
         this.addChild(node);
         this._markSourceDirty();
         return node;
+    }
+    /**
+     * Why addEntry makes no entry of `className` here, named `entryName` or the class's default name,
+     * in words naming the section, or null where it makes one: the session's addEntryRefusal.
+     */
+    entryRefusal(className, entryName) {
+        const plan = this._entryPlan(className, entryName);
+        return 'why' in plan ? 'Cannot add ' + withArticle(className || 'entry') + ' to "' + this.label + '": ' + plan.why + '.' : null;
+    }
+    // The class an entry of `className` is made of here, and its name, or why none is made: a class
+    // this package makes no new entry of, one the section does not hold (getAllowedTypes; a section
+    // that does is named), and a name, asked for or with its counter, that is no MATLAB name.
+    _entryPlan(className, entryName) {
+        const NodeClass = NodeRegistry.getClass(className);
+        if (!NodeClass || !NodeClass.createDefault) {
+            return { why: 'this editor makes no new entry of that class' };
+        }
+        const allowed = this.getAllowedTypes();
+        if (allowed.length !== 0 && allowed.indexOf(className) === -1) {
+            const home = this.parent?.children.find((s) => s !== this && s.getAllowedTypes?.().includes(className));
+            return { why: 'the section holds no entry of that class' + (home ? ', which "' + home.label + '" does' : '') };
+        }
+        const { name, invalid } = newEntryName(entryName || NodeClass.defaultName, this._nameTaken());
+        if (invalid !== null) {
+            return { why: "'" + name + "' is not a name MATLAB can load (" + invalid + ')' };
+        }
+        return { NodeClass, name };
     }
     execAddEntry(className, entryName) {
         const node = this.addEntry(className, entryName);
@@ -359,6 +379,10 @@ export default class SectionNode extends ContainerNode {
                 this._markSourceDirty();
             },
         };
+    }
+    /** Why execRemoveEntry refuses `node`, as a clause, or null where it deletes it. */
+    removeEntryRefusal(node) {
+        return this.children.includes(node) ? null : '"' + this.name + '" holds no such entry';
     }
     execRemoveEntry(node) {
         const index = this.children.indexOf(node);

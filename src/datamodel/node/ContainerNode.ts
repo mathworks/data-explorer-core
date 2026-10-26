@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode from './BaseNode.js';
+import BaseNode, { UNWORDED } from './BaseNode.js';
 
 export interface TableColumnConfig {
   columns: string[];
@@ -27,6 +27,17 @@ export default class ContainerNode extends BaseNode {
   // answers with a refusal.
   get valueEditable(): boolean {
     return false;
+  }
+
+  // A file or a section holds entries, which an Add of an entry makes (addEntry), not a child.
+  _addChildRefusal(describe = true): string | null {
+    return describe ? 'it holds entries, and takes an entry added, not a child' : UNWORDED;
+  }
+
+  // Of a child that is no entry (an entry is deleted by its container's execRemoveEntry): a
+  // section, which every file of its kind has.
+  _removeChildRefusal(_child?: BaseNode, describe = true): string | null {
+    return describe ? 'it is a part of "' + this.name + '" that every file of its kind has' : UNWORDED;
   }
 
   flatten(): BaseNode[] {

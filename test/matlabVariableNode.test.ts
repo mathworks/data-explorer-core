@@ -652,17 +652,16 @@ describe('MatlabVariableNode — add and remove children', () => {
     expect([empty._kind, empty._scalarType, child.name]).toEqual(['scalar', 'struct', 'field']);
   });
 
-  it('offers Add but not Remove on an empty array or a fresh struct', () => {
-    // An edit to `[]` leaves nothing to remove, and the struct it becomes on the
-    // first add is a scalar — Remove has to stay disabled through both states or
-    // the command would run against a node with no removable element.
+  it('offers Add but not Remove on an empty array, and both on the struct it becomes', () => {
+    // An edit to `[]` leaves nothing to remove. The 1x1 struct it becomes on the first add
+    // gives its field up, as MATLAB's rmfield does and a dictionary's struct does.
     const empty = parse([1, 2, 3]);
     empty.setProperty('Value', '[]');
     // Typed '[]' still parses; it DISPLAYS as the convention's '[ ]'.
     expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[ ]']);
     expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
     empty.addChildNode();
-    expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
+    expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, true]);
     // A struct keeps taking fields, each with a distinct name.
     expect(empty.addChildNode().name).toBe('field1');
   });
@@ -1301,25 +1300,25 @@ describe('MatlabVariableNode — cell-array children', () => {
     expect(n.children.map((c: Any) => c.name)).toEqual(['1', '2', '3']);
   });
 
-  it('appends a numeric-zero element and undoes it', () => {
+  it('appends a numeric-zero element as a row, as c{end+1} does, and undoes it', () => {
+    // MATLAB's c{end+1} of a 1x1 cell is 1x2 (measured, R2027a); it grew a column, {1; 0}.
     const n = cellArray([1]);
     const op: Any = n.execAddChild();
     expect(n.children.length).toBe(2);
-    expect(n._dims).toEqual([2, 1]);
-    expect(n.serial._dimensions).toEqual([2, 1]);
-    expect(n.displayValue).toBe('{1; 0}');
+    expect(n._dims).toEqual([1, 2]);
+    expect(n.serial._dimensions).toEqual([1, 2]);
+    expect(n.displayValue).toBe('{1, 0}');
     op.undo();
     expect([n.children.length, n._dims]).toEqual([1, [1, 1]]);
   });
 
-  it('goes to 0x0 and {} when the last element is removed', () => {
-    // Not [1,0]: an emptied cell is 0x0 in MATLAB, and displayValue reads the
-    // child count rather than the dims, so the two must not disagree.
-    // '{}' is the convention's empty-cell spelling, and MATLAB's Workspace browser's.
+  it('goes to 1x0 when the last element is removed, as c(1) = [] leaves it', () => {
+    // MATLAB's c(1) = [] of a 1x1 cell is 1x0 (measured, R2027a); it was 0x0, `{}`, which is
+    // another value. A 1x0 cell shows the text MATLAB makes it of (the D12 ruling), which takes an edit.
     const n = cellArray([1]);
     n.removeChildNode(n.children[0]);
-    expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
-    expect(n.displayValue).toBe('{}');
+    expect([n._dims, n.children.length]).toEqual([[1, 0], 0]);
+    expect(n.displayValue).toBe('cell(1,0)');
   });
 
   it('REGRESSION: a cell holding a quote survives its own displayed form', () => {

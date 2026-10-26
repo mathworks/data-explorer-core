@@ -394,6 +394,11 @@ export default class MatNode extends ContainerNode {
      * addEntryRefusal).
      */
     addEntryRefusal(): string | null;
+    /**
+     * Why execAddEntry would add no variable of `className` named `entryName` (_addRefusalOf), in
+     * words naming the file, or null where it adds one: the session's addEntryRefusal of this file.
+     */
+    entryRefusal(className?: string, entryName?: string): string | null;
     _addRefusalOf(kind: 'plain' | 'struct' | 'object', className: string | undefined, entryName: string | undefined): string | null;
     _newEntryName(className: string | undefined, entryName: string | undefined): {
         name: string;
@@ -463,6 +468,8 @@ export default class MatNode extends ContainerNode {
         undo: () => void;
         redo: () => void;
     } | null;
+    /** Why execRemoveEntry refuses `node`, as a clause, or null where it deletes it. */
+    removeEntryRefusal(node: BaseNode): string | null;
     /**
      * The variable put in place of `node`, a variable of this file or a member of a cell or a struct
      * of one, for its whole Value typed over as `text` (BaseNode.sourceRetype), and what undoes and

@@ -358,12 +358,13 @@ export default class ParameterNode extends DataNode {
     _shapeRestorer(): () => void {
         const sp = this.serial._properties as Record<string, unknown> | undefined;
         const held = sp ? (['Dimensions', 'Complexity'] as const).filter((key) => Object.prototype.hasOwnProperty.call(sp, key)) : [];
-        const shape = held.map((key) => [key, sp![key]] as const);
+        // By value, as _ownStateRestorer holds its own: a Dimensions is an array.
+        const shape = held.map((key) => [key, structuredClone(sp![key])] as const);
         return () => {
             const now = this.serial._properties as Record<string, unknown> | undefined;
             if (now) {
                 for (const [key, value] of shape) {
-                    now[key] = value;
+                    now[key] = structuredClone(value);
                 }
             }
         };

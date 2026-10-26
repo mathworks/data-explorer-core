@@ -5,7 +5,7 @@ import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
-import { encodedHolderOf, inMcosStream, sourceCreatedMember, sourceEditRefusal, sourceEditRefused, sourceRenamesFields, streamValueRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, refusalClause, sourceCreatedMember, sourceEditRefusal, sourceEditRefused, sourceRenamesFields, streamValueRefusal, UNWORDED, withArticle } from '../BaseNode.js';
 import { readDescriptor } from '../../parser/McosSubsystemCodec.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
@@ -866,12 +866,59 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
+   * The text MATLAB makes this empty of, exactly, where `[ ]`, `''` or a summary spells no such value
+   * (the D12 ruling): `zeros(1,0)`, `zeros(0,0,'int8')`, `false(1,0)`, `char(zeros(1,0))`,
+   * `cell(1,0)`, `strings(0,3)`, at any rank (MatlabValueParser.emptyConstructor reads each back).
+   * Null for a value that is no empty, for the 0x0 double, cell and char that `[ ]`, `{}` and `''`
+   * spell, and for a complex empty, which none of these makes. A MAT-file's string is spelled so too:
+   * typed, an empty one is made as any string is (MatNode._makeStrings).
+   */
+  _emptySpelled(): string | null {
+    if (this._sparse || this._undecoded || (this._isOpaque && !this._isDecodedString()) || this._isComplexValue()) {
+      return null;
+    }
+    let cls: string;
+    if (this._kind === 'cell' && this.children.length === 0) {
+      cls = 'cell';
+    } else if (this._kind === 'string' && this._elements.length === 0) {
+      cls = 'string';
+    } else if (this._kind === 'array' && this._elements.length === 0) {
+      cls = this._scalarType;
+    } else if (this._kind === 'scalar' && this._scalarType === 'char') {
+      cls = 'char';
+    } else {
+      return null;
+    }
+    const d = effectiveDims(this._dims);
+    if (elementCount(d) !== 0) {
+      return null;
+    }
+    const zeroByZero = d.length === 2 && d[0] === 0 && d[1] === 0;
+    const size = d.join(',');
+    switch (cls) {
+      case 'cell':
+        return zeroByZero ? null : 'cell(' + size + ')';
+      case 'string':
+        return 'strings(' + size + ')';
+      case 'char':
+        return zeroByZero ? null : 'char(zeros(' + size + '))';
+      case 'logical':
+        return 'false(' + size + ')';
+      case 'double':
+        return zeroByZero ? null : 'zeros(' + size + ')';
+      default:
+        return TYPED_NUMERIC_CLASS.test(cls) ? 'zeros(' + size + ",'" + cls + "')" : null;
+    }
+  }
+
+  /**
    * Whether this, a cell's member, is of a numeric class other than double whose class its text does
    * not spell exactly (_classSpelled): shown as it was, a -0 as 0, a complex one whose imaginary part
    * is 0 as `1+0i`, and so no text its cell takes would keep it as it is (_literalRoundTrips).
    */
   _classUnspelled(): boolean {
-    return this._typedNumericClass() !== null && this._classSpelled() === null;
+    // An empty is spelled with its class otherwise, `zeros(1,0,'int8')` (_emptySpelled).
+    return this._typedNumericClass() !== null && this._emptySpelled() === null && this._classSpelled() === null;
   }
 
   // The class of this, a plain number or array of a numeric class other than double (int8..uint64,
@@ -905,16 +952,21 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
-   * The text a string's Value is typed as that makes this string, a scalar or a 2-D array, whatever
-   * its length (its displayValue is a summary past the display's budget); or why there is none: an
-   * N-D or an empty array, which no literal spells, or an element `<missing>`, which none does. What
-   * a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's stand-ins).
+   * The text a string's Value is typed as that makes this string, a scalar, a 2-D array or an empty
+   * one of any shape, whatever its length (its displayValue is a summary past the display's budget);
+   * or why there is none: an N-D array, which no literal spells, or an element `<missing>`, which
+   * none does. What a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's
+   * stand-ins).
    */
   _stringLiteral(): { text: string } | { why: string } {
     const d = effectiveDims(this._dims);
     const texts = this._stringTexts();
     if (!texts) {
       return { why: 'it is no string' };
+    }
+    // An empty one of any shape, as MATLAB makes it: `strings(0,3)` (_emptySpelled).
+    if (texts.length === 0 && elementCount(d) === 0) {
+      return { text: 'strings(' + d.join(',') + ')' };
     }
     if (d.length > 2 || texts.length === 0 || texts.length !== elementCount(d)) {
       return { why: 'it is a ' + d.join('x') + ' string array, which no text spells' };
@@ -948,6 +1000,12 @@ export default class MatlabVariableNode extends DataNode {
     return this._kind === 'string' ? this._elements : null;
   }
 
+  // Whether this is a `string` decoded out of a MAT-file's objects (or one an edit made there), placed
+  // as the object it is (_mcosString) or not (a node the ceiling rebuilt, _withCeilingTwin).
+  _isDecodedString(): boolean {
+    return this._isOpaque && this._opaqueClassName === 'string' && this._kind === 'string';
+  }
+
   /**
    * Whether this, a `string` decoded out of a MAT-file's objects (or one an edit made there), is
    * spelled exactly by the text it shows: that text read back (MatlabValueParser) is a string of
@@ -956,7 +1014,7 @@ export default class MatlabVariableNode extends DataNode {
    * elements it was judged of.
    */
   _spellsItself(): boolean {
-    if (!this._isOpaque || this._opaqueClassName !== 'string' || this._kind !== 'string') {
+    if (!this._isDecodedString()) {
       return false;
     }
     const text = this.displayValue;
@@ -1162,9 +1220,12 @@ export default class MatlabVariableNode extends DataNode {
       // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
       // size-and-class summary, `{0×3 cell}`, here `<0x3 cell>`. A cell that holds no element
       // and says it has some is what its reader could read of it, which is nothing.
+      // As the D12 ruling has it, which narrows the browser's: a cell of another empty shape shows
+      // the text MATLAB makes it of, `cell(1,0)` (_emptySpelled), which takes an edit; its summary
+      // left the cell an edit deleted the last element of, and every cell holding it, locked.
       const d = effectiveDims(this._dims);
       const zeroByZero = d.length === 2 && d[0] === 0 && d[1] === 0;
-      return elementCount(d) === 0 && !zeroByZero ? summaryForm(d, 'cell') : EMPTY_CELL;
+      return elementCount(d) === 0 && !zeroByZero ? (this._emptySpelled() ?? summaryForm(d, 'cell')) : EMPTY_CELL;
     }
     // Rank >= 3 (the rows x cols walk below showed four of a 2x2x2's eight cells
     // with nothing to say the other four existed), or past the element budget.
@@ -1235,6 +1296,13 @@ export default class MatlabVariableNode extends DataNode {
   // `asMeasured`: the element's text as the length guard measures it (_guardText).
   _cellLiteralElement(child: BaseNode, asMeasured = false, summarized = !this._spellsStrings()): string {
     if (child instanceof MatlabVariableNode) {
+      // An empty as MATLAB makes it (_emptySpelled): `[ ]` and a summary read back as another value.
+      // But a MAT-file's string in a cell that shows its strings as summaries (`summarized`), as the
+      // others there are.
+      const empty = child._isOpaque && summarized ? null : child._emptySpelled();
+      if (empty !== null) {
+        return empty;
+      }
       if (child._isOpaque && (this._matVar || mcosPlaceOf(child))) {
         if (!summarized && child._spellsItself()) {
           return asMeasured ? child._guardText() : child.displayValue;
@@ -1340,11 +1408,11 @@ export default class MatlabVariableNode extends DataNode {
     if (needsSummary(d)) {
       return summaryForm(d, 'string');
     }
-    // strings(0,0): the size-and-class summary MATLAB's Workspace browser shows for every
-    // empty string array, `0×0 string` (the 2026-10-15 display ruling), here `<0x0 string>`.
-    // A scalar "" is one element, above. Without this the loops below produce a bare '[]'.
+    // An empty string array: the text MATLAB makes it of, `strings(0,3)` (_emptySpelled), as the D12
+    // ruling has it, where the browser shows its size and class, `0×3 string`, which took no edit. A
+    // scalar "" is one element, above. Without this the loops below produce a bare '[]'.
     if (this._elements.length === 0) {
-      return summaryForm(d, 'string');
+      return this._emptySpelled() ?? summaryForm(d, 'string');
     }
     const rows = d[0];
     const cols = d[1];
@@ -2216,7 +2284,8 @@ export default class MatlabVariableNode extends DataNode {
       this.serial = {};
     } else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
       this._kind = 'array';
-      this._scalarType = classAfterEdit(prevType, 'double');
+      // The class the text spells of itself (`zeros(1,0,'int8')`), else the one the value keeps.
+      this._scalarType = (parsed as { cls?: string }).cls ?? classAfterEdit(prevType, 'double');
       this._elements = parsed.value.map((v) => valueForClass(v, this._scalarType));
       this._dims = parsed.dims!;
       this._syncArraySerial();
@@ -2441,38 +2510,43 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
-  canAddChild(): boolean {
+  _addChildRefusal(describe = true): string | null {
+    const no = (predicate: () => string): string => (describe ? 'it ' + predicate() : UNWORDED);
     // An opaque MCOS value is read-only in both directions: its bytes go back out
-    // verbatim because nothing here writes a .mat MCOS subsystem. Before a `string`
-    // decoded, no opaque node had a _kind that reached the vector case below, so this
-    // gate was never exercised — a decoded 1x3 string would have offered Add Child and
-    // then dropped the added element on save. A value still in the encoded stream it was
-    // read from is read-only the same way, for the same reason (DataNode._encodedReadOnly).
-    if (this._isOpaque || this._mcosString || this._encodedReadOnly) {
-      return false;
+    // verbatim. A MAT-file's `string` placed as the object it is (_mcosString) is not: an
+    // element added or removed is an edit of its text, which a save writes into its payload
+    // (matObjectEdit), as a dictionary's string array takes one. A value still in the
+    // encoded stream it was read from is read-only, for the same reason (DataNode._encodedReadOnly).
+    if (this._isOpaque && !this._mcosString) {
+      return no(() => this._opaqueStructureWhy());
+    }
+    const encoded = this._childEditRefusal(describe);
+    if (encoded) {
+      return encoded;
     }
     // Nor a container the node ceiling built without its rows (_cutByCeiling): the row Add
     // makes would be its only one, and its value is not in its rows but in what it was read
     // from, which is what it is copied as, so the row would go nowhere.
     if (this._cutByCeiling) {
-      return false;
+      return no(() => 'is a ' + this._shapePhrase() + ' too large to show a row for each of its elements, so none is added to it here');
     }
     // Nor at or under a value read from a MAT stream that is shown and not edited (_streamHolder).
-    if (this._streamHolder()) {
-      return false;
+    const stream = this._streamHolder();
+    if (stream) {
+      return no(() => this._streamHolderWhy(stream));
     }
     // A sparse array's rows are its non-zeros, so there is no element row to add that
     // would not be one: nothing in the tree adds a non-zero. (An empty one is no
     // exception — Add turns an empty `[]` into a struct, which a sparse array is not.)
     if (this._sparse) {
-      return false;
+      return no(() => 'is a sparse array, whose rows are its non-zeros');
     }
     // Nor a struct array with no element rows (_unexpandedStruct). Add gives a struct one
     // `field` row of its own (_addStructField), and such an array is written from the bytes
     // it was read from wherever it goes (_matStream), so the save lost that row, and the
     // edit with it, without a word.
     if (this._unexpandedStruct()) {
-      return false;
+      return no(() => 'is a ' + this._dims.join('x') + ' struct array, shown without its elements');
     }
     // Nor where what holds the value refuses the one Add would leave: in a Simulink.Parameter's
     // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2). Nor where the
@@ -2480,24 +2554,89 @@ export default class MatlabVariableNode extends DataNode {
     // (BaseNode.sourceEditRefusal, MatNode._editRefusal), a text dictionary's MAT stream
     // (_streamChildRefusal).
     if (this._kind === 'scalar' && this._scalarType === 'struct') {
-      return !this._structuralRefusal('add') && !sourceEditRefused(this, 'Add');
+      return this._structArrayRefusal(describe, false) ?? this._structuralRefusalWhy('add', describe) ?? this._childEditRefusal(describe, 'Add')
+        ?? this._streamChildWhy('add', describe);
     }
     if (this._kind === 'scalar') {
-      return false;
+      return no(() => 'is shown whole (' + this._shapePhrase() + '), with no rows of its own' + this._typeOverAdvice());
     }
-    // A 2-D (or higher) matrix cannot take an appended element and stay
-    // rectangular, so Add Child is disabled for cell/string/numeric matrices.
-    // Row and column vectors (one dimension is 1) remain addable.
-    if ((this._kind === 'array' || this._kind === 'cell' || this._kind === 'string') && this._dims[0] > 1 && this._dims[1] > 1) {
-      return false;
+    // Nor anything but a vector, at any rank: MATLAB's end+1 grows a vector along its one
+    // dimension past 1 (1x1x3 to 1x1x4), and refuses a 2x3 or a 1x2x2 (indexed_matrix_cannot_be_resized).
+    if (this._isMatrixShaped()) {
+      return no(() => 'is a ' + this._shapePhrase() + ', which MATLAB grows by no element at its end, being no vector' + this._typeOverAdvice());
     }
     // A scalar (1x1) string is a leaf value, not a string array, so it has no
     // element to add — whether it stands alone or is an element of a parent
     // string array.
-    if (this._kind === 'string' && this._dims[0] === 1 && this._dims[1] === 1) {
-      return false;
+    if (this._kind === 'string' && elementCount(this._dims) === 1) {
+      return no(() => 'is one string, not a string array' + this._typeOverAdvice());
     }
-    return !this._structuralRefusal('add') && !this._streamChildRefusal('add');
+    // Nor an empty string array: the one element Add gives it makes it one string, which has no
+    // element row, so the row it showed would not be read back (a `<0x0 string>`, `<0x3 string>`).
+    if (this._kind === 'string' && this._elements.length === 0) {
+      return no(() => 'is an empty ' + this._shapePhrase() + ', which an element added would make one string, with no element rows' + this._typeOverAdvice());
+    }
+    return this._structuralRefusalWhy('add', describe) ?? this._streamChildWhy('add', describe);
+  }
+
+  // _streamChildRefusal in words, as a clause, or UNWORDED with `describe` false; or null.
+  _streamChildWhy(op: 'add' | 'remove', describe: boolean, child?: BaseNode): string | null {
+    const refused = this._streamChildRefusal(op, child);
+    if (refused === null) {
+      return null;
+    }
+    return describe ? refusalClause(refused) : UNWORDED;
+  }
+
+  // Why this struct takes no field added or deleted (`ofChild`: of a row of it) where it is a struct
+  // array, whose rows are its elements, or an element of one, whose fields are every element's: as a
+  // dictionary's StructNode says it. Null for a struct of one element.
+  _structArrayRefusal(describe: boolean, ofChild: boolean): string | null {
+    const no = (predicate: () => string): string => (describe ? this._said(predicate(), ofChild) : UNWORDED);
+    // MATLAB refuses a field assigned to an empty struct (MATLAB:emptyDotAssignment, R2027a).
+    if (elementCount(this._dims) === 0) {
+      return no(() => 'is a ' + effectiveDims(this._dims).join('x') + " struct, which has no element to hold a field's value");
+    }
+    if (elementCount(this._dims) !== 1) {
+      return no(() => 'is a ' + effectiveDims(this._dims).join('x') + ' struct array, whose ' + (ofChild ? 'elements are not deleted one at a time' : 'elements all have the same fields'));
+    }
+    const holder = this.parent;
+    if (this._subscript && holder instanceof MatlabVariableNode && holder._scalarType === 'struct' && elementCount(holder._dims) !== 1) {
+      return no(() => 'is an element of the struct array "' + holder.matlabPath + '", whose elements all have the same fields');
+    }
+    return null;
+  }
+
+  // What an opaque value is, as the predicate of a structural refusal of it (_addChildRefusal,
+  // _removeChildRefusal).
+  _opaqueStructureWhy(): string {
+    return 'is ' + withArticle(this._opaqueClassName || this.className) + ' object, whose contents this editor shows but does not change';
+  }
+
+  // Why a row at or under `holder`, a value read from a text dictionary's MAT stream that is shown
+  // and not edited (_streamHolder), is not added or deleted, as a predicate.
+  _streamHolderWhy(holder: MatlabVariableNode): string {
+    return (holder === this ? '' : 'is part of "' + holder.matlabPath + '", which ')
+      + 'is stored as a MAT-file stream, which this editor can show but not edit';
+  }
+
+  // This value's size and class, as a refusal names it: `1x1 double`, `2x3 cell array`.
+  _shapePhrase(): string {
+    const dims = effectiveDims(this.dims).join('x');
+    if (this._kind === 'cell' || this._kind === 'string') {
+      return dims + ' ' + this._kind + ' array';
+    }
+    const cls = this._scalarType === 'complex' ? this._complexClass() : this._scalarType;
+    return dims + ' ' + (cls || this.className) + (this._kind === 'array' ? ' array' : '');
+  }
+
+  // What to do instead, where this value takes its whole text typed over it: of a child of it,
+  // with `ofChild`, typed over this value.
+  _typeOverAdvice(ofChild = false): string {
+    if (!this.valueEditable) {
+      return '';
+    }
+    return ofChild ? ': type the whole value of "' + this.matlabPath + '" instead' : ': type the whole value over it instead';
   }
 
   addChildNode(): BaseNode | null {
@@ -2576,31 +2715,72 @@ export default class MatlabVariableNode extends DataNode {
     this.addChild(child);
     this._elements.push('');
     this._updateDimsForCount(this._elements.length);
+    this._syncMcosDimensions();
     this._markModified();
     return child;
   }
 
-  canRemoveChild(): boolean {
-    // Read-only in both directions, as in canAddChild.
-    if (this._isOpaque || this._mcosString || this._encodedReadOnly || this._streamHolder()) {
-      return false;
+  // A MAT-file's `string` shows, and a save writes, the size it holds as an object
+  // (_mcosDimensions): kept at the size its elements are now, after one is added or removed.
+  _syncMcosDimensions(): void {
+    if (this._mcosString) {
+      this._mcosDimensions = this._dims.slice();
+    }
+  }
+
+  _removeChildRefusal(child?: BaseNode, describe = true): string | null {
+    const no = (predicate: () => string): string => (describe ? this._said(predicate(), true) : UNWORDED);
+    // Read-only in both directions, as in _addChildRefusal.
+    if (this._isOpaque && !this._mcosString) {
+      return no(() => this._opaqueStructureWhy());
+    }
+    const encoded = this._childEditRefusal(describe, 'Value', true);
+    if (encoded) {
+      return encoded;
+    }
+    const stream = this._streamHolder();
+    if (stream) {
+      return no(() => this._streamHolderWhy(stream));
     }
     // Nor does a sparse array give one up: removing a non-zero from a vector shortens
     // the array, and the rows left would no longer be the non-zeros of what is left.
     if (this._sparse) {
-      return false;
+      return no(() => 'is a sparse array, whose rows are its non-zeros');
     }
-    if (this._kind === 'scalar') {
-      return false;
+    // A field of a 1x1 struct, at any depth, as MATLAB's rmfield removes it; and as a dictionary's
+    // StructNode, not one of a struct array or of an element of one, whose elements all hold the
+    // same fields, nor an element of a struct array.
+    if (this._kind === 'scalar' && this._scalarType === 'struct') {
+      const array = this._structArrayRefusal(describe, true);
+      if (array) {
+        return array;
+      }
+    } else if (this._kind === 'scalar') {
+      return no(() => 'is shown whole, and its rows are not deleted one at a time');
     }
-    // Removing an element from a 2-D (or higher) matrix would break its
-    // rectangular shape, so it is disabled for numeric/cell/string matrices.
-    // Row and column vectors (one dimension is 1) remain removable.
-    if ((this._kind === 'array' || this._kind === 'cell' || this._kind === 'string') && this._dims[0] > 1 && this._dims[1] > 1) {
-      return false;
+    // Nor from anything but a vector, at any rank: MATLAB's x(k) = [] of a 2x3 or a 1x2x2 leaves a
+    // row of what is left, which no row of it shows; a vector keeps its one dimension past 1.
+    if (this._isMatrixShaped()) {
+      const left = elementCount(this._dims) - 1;
+      return no(() => 'is a ' + this._shapePhrase() + ', which an element deleted would make a 1x' + left + ' row, as MATLAB\'s x(k) = [] does' + this._typeOverAdvice(true));
     }
-    // Nor where what holds the value refuses the one the removal would leave (canAddChild).
-    return this.children.length > 0 && !this._structuralRefusal('remove') && !this._streamChildRefusal('remove');
+    // Nor from a string array of rank 3 or more: MATLAB's s(k) = [] of a 1x1x3 string leaves a 1x1x2
+    // in R2027a and a 1x2 in R2023b (measured), so a save would be one release's value and not the
+    // other's. A numeric array or a cell is shrunk alike by both.
+    if (this._kind === 'string' && effectiveDims(this._dims).length > 2) {
+      return no(() => 'is a ' + this._shapePhrase() + ', of which MATLAB R2027a\'s s(k) = [] keeps the shape and R2023b\'s leaves a row');
+    }
+    if (this.children.length === 0 || (child && !this.children.includes(child))) {
+      return no(() => 'holds no such row');
+    }
+    // Nor where what holds the value refuses the one the removal would leave (_addChildRefusal).
+    const structural = this._structuralRefusalWhy('remove', describe);
+    if (structural) {
+      return structural;
+    }
+    // Nor the removal of this very element where a text dictionary's MAT stream would not write
+    // what it leaves, as the gate judged the last one (_streamChildRefusal).
+    return this._streamChildWhy('remove', describe, child);
   }
 
   removeChildNode(child: BaseNode): void {
@@ -2618,6 +2798,7 @@ export default class MatlabVariableNode extends DataNode {
     } else if (this._kind === 'string') {
       this._elements.splice(idx, 1);
       this._updateStringAfterRemove();
+      this._syncMcosDimensions();
     }
     this._reindexPositional();
     this._markModified();
@@ -2664,11 +2845,7 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   _updateCellAfterRemove(): void {
-    if (this.children.length === 0) {
-      this._dims = [0, 0];
-    } else {
-      this._updateDimsForCount(this.children.length);
-    }
+    this._updateDimsForCount(this.children.length);
     if ((this.serial as Record<string, unknown>)._dimensions) {
       (this.serial as Record<string, unknown>)._dimensions = this._dims;
     }
@@ -2765,9 +2942,11 @@ export default class MatlabVariableNode extends DataNode {
       // _kind === 'scalar' — as the array branch above legitimately does, since
       // ITS children are scalar-kind — matched nothing here, so every undone
       // element came back as '' and the array silently lost its text.
+      // A <missing> element is null, put back as null: as '' it was a "" the undo made.
       const restored = (child as MatlabVariableNode)._scalarValue;
-      this._elements.splice(index, 0, typeof restored === 'string' ? restored : '');
+      this._elements.splice(index, 0, typeof restored === 'string' || restored === null ? restored : '');
       this._updateDimsForCount(this._elements.length);
+      this._syncMcosDimensions();
     }
     this._reindexPositional();
     this._markModified();
@@ -2780,7 +2959,23 @@ export default class MatlabVariableNode extends DataNode {
     if (this._kind === 'array' && this._elements.length === 0) {
       return this.canAddChild() ? this._addFirstStructField() : null;
     }
-    return addChildUndoable(this);
+    const dims = this._dims.slice();
+    const edit = addChildUndoable(this);
+    if (!edit || this._kind !== 'cell') {
+      return edit;
+    }
+    // A cell's undo puts back the size it had, which the removal of the element added does not
+    // give an empty one: of any size, it grew to 1x1, and a removal leaves 1x0 (_updateDimsForCount).
+    return {
+      ...edit,
+      undo: () => {
+        edit.undo();
+        this._dims = dims.slice();
+        if ((this.serial as Record<string, unknown>)._dimensions) {
+          (this.serial as Record<string, unknown>)._dimensions = this._dims;
+        }
+      },
+    };
   }
 
   // Add the first field to an empty `[]`, turning it into a 1x1 struct. Undo has to
@@ -2793,6 +2988,9 @@ export default class MatlabVariableNode extends DataNode {
   // field behind.
   private _addFirstStructField(): ChildAddEdit {
     const prevSerial = { ...this.serial };
+    // The empty it was, of its class and size: put back whole by the undo, as a save then writes it.
+    const prevType = this._scalarType;
+    const prevDims = this._dims.slice();
     const child = this._convertToStructAndAddField();
     const self = this;
     return {
@@ -2800,10 +2998,10 @@ export default class MatlabVariableNode extends DataNode {
       undo() {
         self.removeChild(child);
         self._kind = 'array';
-        self._scalarType = 'double';
+        self._scalarType = prevType;
         self._scalarValue = undefined;
         self._elements = [];
-        self._dims = [0, 0];
+        self._dims = prevDims.slice();
         self.serial = prevSerial;
         self._markModified();
       },
@@ -2817,19 +3015,35 @@ export default class MatlabVariableNode extends DataNode {
 
   execRemoveChild(child?: BaseNode): ChildUndoRedo | null {
     // Nor the removal of this very element where a text dictionary's MAT stream would not write
-    // what it leaves, as the gate judged the last one (_streamChildRefusal).
-    if (child && this._streamChildRefusal('remove', child)) {
+    // what it leaves (_removeChildRefusal, of it).
+    if (child && this._removeChildRefusal(child, false)) {
       return null;
     }
     return removeChildUndoable(this, child);
   }
 
+  // The size a vector holding `count` elements has after one is added or removed, as MATLAB's
+  // end+1 and x(k) = [] leave it (measured, R2027a): along its one dimension past 1, at any rank
+  // (a column stays one, a 1x1x3 grows to 1x1x4), while it holds more than one element; one is a
+  // 1x1, none a 1x0; and a value with no dimension past 1 (a 1x1, an empty) grows as a row. So
+  // `c{end+1}` of a 1x1 cell is 1x2 and of an empty one, of any size, 1x1.
   private _updateDimsForCount(count: number): void {
-    if (this._dims[1] === 1) {
-      this._dims = [count, 1];
-    } else {
-      this._dims = [1, count];
+    const axis = elementCount(this._dims) === 0 ? -1 : this._dims.findIndex((d) => d !== 1);
+    if (count <= 1 || axis < 0) {
+      this._dims = count === 1 ? [1, 1] : [1, count];
+      return;
     }
+    const dims = this._dims.map(() => 1);
+    dims[axis] = count;
+    this._dims = dims;
+  }
+
+  // Whether this array, cell or string array holds elements along more than one dimension (a 2x3,
+  // a 1x2x2): no vector, which MATLAB grows by no element at its end (_addChildRefusal), and of
+  // which it leaves a row where one is deleted (_removeChildRefusal).
+  _isMatrixShaped(): boolean {
+    return (this._kind === 'array' || this._kind === 'cell' || this._kind === 'string')
+      && elementCount(this._dims) > 0 && this._dims.filter((d) => d !== 1).length > 1;
   }
 
   // Re-render `serial` from the live _elements after the array's shape changed.

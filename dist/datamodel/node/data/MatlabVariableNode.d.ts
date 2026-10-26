@@ -104,6 +104,15 @@ export default class MatlabVariableNode extends DataNode {
     _classSpelled(): string | null;
     _valueKey(): string;
     /**
+     * The text MATLAB makes this empty of, exactly, where `[ ]`, `''` or a summary spells no such value
+     * (the D12 ruling): `zeros(1,0)`, `zeros(0,0,'int8')`, `false(1,0)`, `char(zeros(1,0))`,
+     * `cell(1,0)`, `strings(0,3)`, at any rank (MatlabValueParser.emptyConstructor reads each back).
+     * Null for a value that is no empty, for the 0x0 double, cell and char that `[ ]`, `{}` and `''`
+     * spell, and for a complex empty, which none of these makes. A MAT-file's string is spelled so too:
+     * typed, an empty one is made as any string is (MatNode._makeStrings).
+     */
+    _emptySpelled(): string | null;
+    /**
      * Whether this, a cell's member, is of a numeric class other than double whose class its text does
      * not spell exactly (_classSpelled): shown as it was, a -0 as 0, a complex one whose imaginary part
      * is 0 as `1+0i`, and so no text its cell takes would keep it as it is (_literalRoundTrips).
@@ -116,10 +125,11 @@ export default class MatlabVariableNode extends DataNode {
      */
     _spellsStrings(): boolean;
     /**
-     * The text a string's Value is typed as that makes this string, a scalar or a 2-D array, whatever
-     * its length (its displayValue is a summary past the display's budget); or why there is none: an
-     * N-D or an empty array, which no literal spells, or an element `<missing>`, which none does. What
-     * a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's stand-ins).
+     * The text a string's Value is typed as that makes this string, a scalar, a 2-D array or an empty
+     * one of any shape, whatever its length (its displayValue is a summary past the display's budget);
+     * or why there is none: an N-D array, which no literal spells, or an element `<missing>`, which
+     * none does. What a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's
+     * stand-ins).
      */
     _stringLiteral(): {
         text: string;
@@ -127,6 +137,7 @@ export default class MatlabVariableNode extends DataNode {
         why: string;
     };
     _stringTexts(): unknown[] | null;
+    _isDecodedString(): boolean;
     /**
      * Whether this, a `string` decoded out of a MAT-file's objects (or one an edit made there), is
      * spelled exactly by the text it shows: that text read back (MatlabValueParser) is a string of
@@ -399,7 +410,13 @@ export default class MatlabVariableNode extends DataNode {
     private _makeStringElement;
     _buildStringChildren(): void;
     _buildCellChildren(elements: unknown[], unread?: ReadonlyMap<number, MatVariable | null>): void;
-    canAddChild(): boolean;
+    _addChildRefusal(describe?: boolean): string | null;
+    _streamChildWhy(op: 'add' | 'remove', describe: boolean, child?: BaseNode): string | null;
+    _structArrayRefusal(describe: boolean, ofChild: boolean): string | null;
+    _opaqueStructureWhy(): string;
+    _streamHolderWhy(holder: MatlabVariableNode): string;
+    _shapePhrase(): string;
+    _typeOverAdvice(ofChild?: boolean): string;
     addChildNode(): BaseNode | null;
     private _becomeStruct;
     _convertToStructAndAddField(): MatlabVariableNode;
@@ -407,7 +424,8 @@ export default class MatlabVariableNode extends DataNode {
     _addArrayChild(): MatlabVariableNode;
     _addCellChild(): MatlabVariableNode;
     _addStringChild(): MatlabVariableNode;
-    canRemoveChild(): boolean;
+    _syncMcosDimensions(): void;
+    _removeChildRefusal(child?: BaseNode, describe?: boolean): string | null;
     removeChildNode(child: BaseNode): void;
     _updateArrayAfterRemove(): void;
     _updateCellAfterRemove(): void;
@@ -417,6 +435,7 @@ export default class MatlabVariableNode extends DataNode {
     private _addFirstStructField;
     execRemoveChild(child?: BaseNode): ChildUndoRedo | null;
     private _updateDimsForCount;
+    _isMatrixShaped(): boolean;
     private _syncArraySerial;
     _reindexChildren(): void;
     _reindexPositional(): void;

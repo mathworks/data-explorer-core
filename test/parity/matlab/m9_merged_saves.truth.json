@@ -383,6 +383,20 @@
       ],
       "entries": 40,
       "notSelfEqual": []
+    },
+    {
+      "file": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 11,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_nd_shapes_r2027a_nd_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 9,
+      "notSelfEqual": []
     }
   ],
   "cases": [
@@ -16939,6 +16953,420 @@
         "unedited": {
           "checked": 39,
           "same": 39,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2023b/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2023b_nd_binary_1.sldd",
+      "section": "design",
+      "entry": "c113",
+      "kind": "cell/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "c113M9",
+      "refused": "",
+      "save": {
+        "chunk": "8d190e6c35ea4e2692c24ca7c0ec1ea4725cb7a6ac3e98774dee0915f69bcc10",
+        "parts": "45336a939e17893218dc0b070bd142ebb39c87a80554f21b2328068fd7ae7cde"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2023b/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2023b_nd_binary_2.sldd",
+      "section": "design",
+      "entry": "x113",
+      "kind": "double/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "x113M9",
+      "refused": "",
+      "save": {
+        "chunk": "c6e0f987038fb4c3d1802bd1f4e6a75753862749ee386552aefa70f5b2ef0c9f",
+        "parts": "45336a939e17893218dc0b070bd142ebb39c87a80554f21b2328068fd7ae7cde"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2023b/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2023b_nd_binary_3.sldd",
+      "section": "design",
+      "entry": "s113",
+      "kind": "string",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "s113M9",
+      "refused": "",
+      "save": {
+        "chunk": "42343883d572b2784edfba29c83a95bdf4954c65ddd62e5b1eea341181c0f950",
+        "parts": "45336a939e17893218dc0b070bd142ebb39c87a80554f21b2328068fd7ae7cde"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "string",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2023b/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2023b_nd_binary_4.sldd",
+      "section": "design",
+      "entry": "st",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "stM9",
+      "refused": "",
+      "save": {
+        "chunk": "0ea0eee13aa6b7ad6ef3761f93ab7706df222dadb1c96ce87f12c4d0e0db0ec9",
+        "parts": "45336a939e17893218dc0b070bd142ebb39c87a80554f21b2328068fd7ae7cde"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2023b/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2023b_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2023b_nd_binary_5.sldd",
+      "section": "design",
+      "entry": "cc",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ccM9",
+      "refused": "",
+      "save": {
+        "chunk": "170b917567bc062c954b6bc04689d81dd277461d7b7c9950d1279be2672a3537",
+        "parts": "45336a939e17893218dc0b070bd142ebb39c87a80554f21b2328068fd7ae7cde"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2027a/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2027a_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2027a_nd_binary_1.sldd",
+      "section": "design",
+      "entry": "c113",
+      "kind": "cell/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "c113M9",
+      "refused": "",
+      "save": {
+        "chunk": "253187044fa3f1b0fbb59d76f1f78d9ed1b5a5c7963c60b88a3a1d6bed2f3308",
+        "parts": "4fe88a83ef8a7028813754ac2693ad7a341a8bf535ffd20c1eaf0d9d6e6e4de2"
+      },
+      "merged": false,
+      "untouched": [
+        8,
+        8
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 8,
+          "same": 8,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2027a/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2027a_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2027a_nd_binary_2.sldd",
+      "section": "design",
+      "entry": "cc",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ccM9",
+      "refused": "",
+      "save": {
+        "chunk": "b145f217fa80c3d700c8afe831ed9624b8dc27fa0ff2643a88630e617514fd06",
+        "parts": "4fe88a83ef8a7028813754ac2693ad7a341a8bf535ffd20c1eaf0d9d6e6e4de2"
+      },
+      "merged": false,
+      "untouched": [
+        8,
+        8
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 8,
+          "same": 8,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2027a/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2027a_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2027a_nd_binary_3.sldd",
+      "section": "design",
+      "entry": "st",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "stM9",
+      "refused": "",
+      "save": {
+        "chunk": "1bbcfad3e7e1c70fe1bb5f517f97566eb3baa0392a9cf991360d7d07100ffdcc",
+        "parts": "4fe88a83ef8a7028813754ac2693ad7a341a8bf535ffd20c1eaf0d9d6e6e4de2"
+      },
+      "merged": false,
+      "untouched": [
+        8,
+        8
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 8,
+          "same": 8,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/nd-shapes/r2027a/nd_binary.sldd",
+      "variant": "",
+      "original": "orig_nd_shapes_r2027a_nd_binary.sldd",
+      "file": "m9_nd_shapes_r2027a_nd_binary_4.sldd",
+      "section": "design",
+      "entry": "x1113",
+      "kind": "double/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "x1113M9",
+      "refused": "",
+      "save": {
+        "chunk": "2598d9341b1e04a7b8a3b2fac6caa8f2721c0544ddc4c7d652368990c2f69905",
+        "parts": "4fe88a83ef8a7028813754ac2693ad7a341a8bf535ffd20c1eaf0d9d6e6e4de2"
+      },
+      "merged": false,
+      "untouched": [
+        8,
+        8
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 8,
+          "same": 8,
           "bySignature": 0,
           "differ": []
         },

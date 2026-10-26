@@ -14,6 +14,7 @@
 import MatlabVariableNode from './MatlabVariableNode.js';
 import DataNode, { type SetPropertyResult } from '../DataNode.js';
 import type BaseNode from '../BaseNode.js';
+import { UNWORDED } from '../BaseNode.js';
 import MatlabValueParser, { parsedIsScalarNumeric } from '../../parser/MatlabValueParser.js';
 
 export default class ConstantNode extends MatlabVariableNode {
@@ -29,8 +30,8 @@ export default class ConstantNode extends MatlabVariableNode {
   }
 
   // A Constant is a scalar leaf: no children, ever.
-  canAddChild(): boolean {
-    return false;
+  _addChildRefusal(describe = true): string | null {
+    return describe ? 'it is a constant, one number with no rows of its own' + this._typeOverAdvice() : UNWORDED;
   }
 
   // A well-formed Constant is scalar-numeric and editable. Defensive: if a file on

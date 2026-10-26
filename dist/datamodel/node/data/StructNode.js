@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode, { isFieldBag, newFieldName } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
+import { UNWORDED } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
@@ -288,9 +289,22 @@ export default class StructNode extends DataNode {
     // Neither gate opens inside a value still in its encoded stream (DataNode._encodedReadOnly),
     // nor where what holds the value refuses the one the edit would leave: in a Simulink.Parameter's
     // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2).
-    canRemoveChild() {
-        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && this.children.length > 0
-            && !this._structuralRefusal('remove');
+    _removeChildRefusal(child, describe = true) {
+        const no = (predicate) => (describe ? this._said(predicate(), true) : UNWORDED);
+        const encoded = this._childEditRefusal(describe, 'Value', true);
+        if (encoded) {
+            return encoded;
+        }
+        if (!this._isScalarStruct) {
+            return no(() => 'is a ' + this._dimsText() + ' struct array, whose elements are not deleted one at a time');
+        }
+        if (this._isElementNode) {
+            return no(() => 'is an element of the struct array "' + (this.parent?.matlabPath ?? '') + '", whose elements all have the same fields');
+        }
+        if (this.children.length === 0 || (child && !this.children.includes(child))) {
+            return no(() => 'holds no such field');
+        }
+        return this._structuralRefusalWhy('remove', describe);
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);
@@ -315,8 +329,28 @@ export default class StructNode extends DataNode {
         }
         this._markModified();
     }
-    canAddChild() {
-        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && !this._structuralRefusal('add');
+    _addChildRefusal(describe = true) {
+        const no = (predicate) => (describe ? 'it ' + predicate() : UNWORDED);
+        const encoded = this._childEditRefusal(describe);
+        if (encoded) {
+            return encoded;
+        }
+        // MATLAB refuses a field assigned to an empty struct (MATLAB:emptyDotAssignment, R2027a).
+        if (this._numElements === 0) {
+            return no(() => 'is a ' + this._dimsText() + " struct, which has no element to hold a field's value");
+        }
+        if (!this._isScalarStruct) {
+            return no(() => 'is a ' + this._dimsText() + ' struct array, whose elements all have the same fields');
+        }
+        if (this._isElementNode) {
+            return no(() => 'is an element of the struct array "' + (this.parent?.matlabPath ?? '') + '", whose elements all have the same fields');
+        }
+        return this._structuralRefusalWhy('add', describe);
+    }
+    // Its size, as a refusal names it: `1x3`.
+    _dimsText() {
+        const dims = this.serial._dimensions;
+        return Array.isArray(dims) ? dims.join('x') : String(this._numElements);
     }
     // The fields it would have once Add gives it one or a field is removed (DataNode._shapeAfterChildEdit).
     _shapeAfterChildEdit(op) {

@@ -1,0 +1,190 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "c113",
+						"metadata": {
+							"uuid": "3729abf6-1462-42ad-ab84-28e3c1bcd558",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.191856",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    \\     8    (     0         %    #     $    !     P         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "c122",
+						"metadata": {
+							"uuid": "0c254f08-e0cf-4cd2-9ef9-938fcde580a8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.499766",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    , $   8    (     0         %    #     $    \"     @         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "c212",
+						"metadata": {
+							"uuid": "8296c204-dde4-4861-bcb2-7d1540634279",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.502952",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    , $   8    (     0         %    #     (    !     @         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "cc",
+						"metadata": {
+							"uuid": "00740a38-3315-45aa-981d-e8a65bc4914c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.523784",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    \\     8    (     0         %    #     $    !     P         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 \u0000\u0000\u0000"
+								},
+								7
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "s113",
+						"metadata": {
+							"uuid": "cc4fe37c-6ee3-415c-8040-858b8eb9ca91",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.232152",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": null
+					},
+					{
+						"name": "s122",
+						"metadata": {
+							"uuid": "9be9fb1a-6d5c-4c25-bf43-ae70cd38c13f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.512784",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": null
+					},
+					{
+						"name": "st",
+						"metadata": {
+							"uuid": "0c5bcb35-4e75-41da-be7c-55d9960ddb91",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.516258",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"c113": {
+										"_type": "cdata",
+										"_value": "  %)30     .    \\     8    (     0         %    #     $    !     P         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 \u0000\u0000\u0000"
+									},
+									"x113": {
+										"_type": "cdata",
+										"_value": "  %)30     .    4     8    (    !@         %    #     $    !     P         !          D    8            \\#\\         0         A \u0000"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "x1113",
+						"metadata": {
+							"uuid": "22441a81-d707-49be-a18f-5f4f02ec3424",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.493538",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    4     8    (    !@         %    $     $    !     0    ,    !          D    8            \\#\\         0         A \u0000"
+						}
+					},
+					{
+						"name": "x113",
+						"metadata": {
+							"uuid": "e7642ece-372f-4445-bd24-be8989afab4a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.221126",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    4     8    (    !@         %    #     $    !     P         !          D    8            \\#\\         0         A \u0000"
+						}
+					},
+					{
+						"name": "x122",
+						"metadata": {
+							"uuid": "69a5223e-1ee3-4f97-a059-0a560209d92c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.506071",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    6     8    (    !@         %    #     $    \"     @         !          D    @            \\#\\         0         A         $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "x212",
+						"metadata": {
+							"uuid": "4662aa7b-14e6-4e4e-8b49-d44385771308",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261026T053840.509443",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    6     8    (    !@         %    #     (    !     @         !          D    @            \\#\\         0         A         $$ \u0000\u0000"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

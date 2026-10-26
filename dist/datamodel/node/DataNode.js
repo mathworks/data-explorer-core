@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, refusalClause, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal, UNWORDED } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
@@ -238,6 +238,27 @@ let gatheringXml = 0;
 // The fields _markModified sets or drops on the nodes from an edited one up to its entry, which
 // _editMarks holds and puts back.
 const MARK_KEYS = ['_rawInput', '_encoded', '_valueEdited', '_objectEdited', '_plainEdited'];
+// A copy of `value` that no later edit of what it was taken from reaches into: an array, and a plain
+// object with the arrays it holds, copied (_ownStateRestorer); anything else, a node, a typed array,
+// a Map, as it is, which an edit replaces rather than changes.
+function heldCopy(value) {
+    if (Array.isArray(value)) {
+        return value.slice();
+    }
+    if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+        const copy = { ...value };
+        for (const key of Object.keys(copy)) {
+            if (Array.isArray(copy[key])) {
+                copy[key] = copy[key].slice();
+            }
+        }
+        return copy;
+    }
+    return value;
+}
+// Why an object whose properties are held beside its class (DataNode._inlineObjectBag) takes no
+// child added or removed, as a predicate: a save writes it back as it was read.
+const INLINE_BAG_WHY = 'is written back exactly as it was read, so no element of it is added or deleted here';
 export default class DataNode extends BaseNode {
     constructor(name, parent, serial) {
         super(name, parent);
@@ -446,7 +467,7 @@ export default class DataNode extends BaseNode {
             if (!this.nameEditable) {
                 return {
                     error: true,
-                    reason: sourceEditRefusal(this, 'Name') ?? `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
+                    reason: sourceEditRefusal(this, 'Name') ?? 'Cannot rename "' + this.matlabPath + '": ' + (this._nameRefusal() ?? 'its name is shown and not edited here') + '.',
                     invalidValue: stringValue,
                     validValue: this.displayName,
                 };
@@ -910,7 +931,12 @@ export default class DataNode extends BaseNode {
      */
     _ownStateRestorer(leaves) {
         const own = this;
-        const saved = new Map(Object.entries(own).filter(([key]) => !leaves.has(key)));
+        // By value (heldCopy), and given back by value: a later edit changes some of these in place (an
+        // element removed splices `_elements`, a cell's `serial._dimensions` is set), and held as they
+        // were, a redo of a value typed whole brought back the array a delete had spliced since: [1 2]
+        // typed, its first element deleted, undone and redone twice was [] with a row of 2, and a save
+        // of it threw.
+        const saved = new Map(Object.entries(own).filter(([key]) => !leaves.has(key)).map(([key, value]) => [key, heldCopy(value)]));
         const children = this.children.slice();
         return () => {
             // First, so that every node above drops what it was read from (it is written from its
@@ -923,7 +949,7 @@ export default class DataNode extends BaseNode {
                 }
             }
             for (const [key, value] of saved) {
-                own[key] = value;
+                own[key] = heldCopy(value);
             }
             this.children = children.slice();
             for (const child of this.children) {
@@ -1302,6 +1328,72 @@ export default class DataNode extends BaseNode {
      */
     get _encodedReadOnly() {
         return !!encodedHolderOf(this) || sourceEditRefused(this, 'Value');
+    }
+    /**
+     * _encodedReadOnly in words: why a child added here or removed could not reach the file, as a
+     * clause, or null. `describe` false answers UNWORDED (BaseNode._addChildRefusal). `key` is what
+     * the source is asked of (sourceEditRefusal): 'Value', or 'Add', which a MAT-file judges of a
+     * struct (MatNode._editRefusal). The clause is about this node, or with `ofChild` about the row
+     * of a child of it (_said).
+     */
+    _childEditRefusal(describe, key = 'Value', ofChild = false) {
+        const holder = encodedHolderOf(this);
+        if (holder) {
+            if (!describe) {
+                return UNWORDED;
+            }
+            return this._said((holder === this ? '' : 'is part of "' + holder.matlabPath + '", which ')
+                + 'is stored as an encoded MATLAB value that this editor can show but not write', ofChild);
+        }
+        const refused = sourceEditRefusal(this, key, describe);
+        if (refused === null) {
+            return null;
+        }
+        return describe ? refusalClause(refused) : UNWORDED;
+    }
+    /**
+     * `predicate`, said of this node in a refusal: of the row it names itself (`it is ...`, an Add's),
+     * or with `ofChild` of the row of a child of it (`"c" is ...`, a delete's).
+     */
+    _said(predicate, ofChild) {
+        return (ofChild ? '"' + this.matlabPath + '" ' : 'it ') + predicate;
+    }
+    /**
+     * _structuralRefusal in words: MATLAB's refusal of the value an Add (`op` 'add') or a delete
+     * ('remove') here would leave, said as the refusal of what holds it, or null.
+     */
+    _structuralRefusalWhy(op, describe) {
+        const refused = this._structuralRefusal(op);
+        if (refused === null) {
+            return null;
+        }
+        if (!describe) {
+            return UNWORDED;
+        }
+        let holder = this.parent;
+        while (holder && holder.className === 'struct') {
+            holder = holder.parent;
+        }
+        return 'MATLAB would refuse what it leaves as the Value of "' + (holder?.matlabPath ?? '') + '": ' + refused;
+    }
+    /**
+     * Why a child is not added here, or with `ofChild` why `child` is not removed, where this
+     * object's rows are its own (a Bus's elements, an enum's values), as a clause, or null: inside a
+     * value still in its encoded stream (_childEditRefusal), or one whose properties are held beside
+     * its class (_inlineObjectBag), which the save writes back as read.
+     */
+    _ownRowsRefusal(describe, ofChild, child) {
+        const encoded = this._childEditRefusal(describe, 'Value', ofChild);
+        if (encoded) {
+            return encoded;
+        }
+        if (this._inlineObjectBag()) {
+            return describe ? this._said(INLINE_BAG_WHY, ofChild) : UNWORDED;
+        }
+        if (ofChild && (this.children.length === 0 || (child && !this.children.includes(child)))) {
+            return describe ? this._said('holds no such row', true) : UNWORDED;
+        }
+        return null;
     }
     /**
      * The refusal of an edit of `propName` at or under a value still in the encoded stream it was
