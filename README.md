@@ -306,6 +306,20 @@ active MAT-file added nothing, as before. `session.isUnchangedEdit(nodeId, key, 
 whether an edit would change nothing, the text a property shows committed unchanged, as
 `editProperty` takes it, for a host that calls a node's setter itself.
 
+A value past the display's budgets shows its size and class, `<1x500 double>`, in every
+format. Where that is all that keeps its text from the cell (an array, a char, a string,
+a cell holding one, of rank 2), the row's Value still takes an editor, and the row says
+so with `_hasEditText: true`. `session.editText(nodeId)` answers the text to seed that
+editor with in place of the cell's text, as it opens: the value written out whole,
+`[0 1 2 ...]`. It is the exact text, read back as the same class, size and every element
+(a Parameter's Value as its setter takes it), and set back unchanged it is no edit. The
+row carries the flag and not the text, which can be 200,000 characters, and each value
+is judged once, until an edit, an undo or a redo may have changed it. A value no text spells (an N-D array, a struct, an object, a sparse array,
+`<missing>`), one whose text would be longer than 200,000 characters, and one whose text
+would read back as another value (a `-0`, which shows as `0`) carries none and takes no
+editor; its elements are edited one at a time. `session.valueEditRefusal(nodeId)` says why
+a row's Value takes no editor, naming the row, or `null` where it takes one.
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a

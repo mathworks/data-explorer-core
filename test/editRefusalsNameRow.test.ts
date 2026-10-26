@@ -156,5 +156,6 @@ describe('a refused edit names its row', () => {
     }
     expect(editRefusalText({ name: 'p' }, 'storageClass', 'Cannot set Storage Class (target property is absent)')).toBe('Cannot edit "p": Cannot set Storage Class (target property is absent).');
     expect(editRefusalText({ name: 'p' }, 'Value', 'Cannot add a field to "s": s is a 1x2 struct array.')).toBe('Cannot add a field to "s": s is a 1x2 struct array.');
+    expect(editRefusalText({ name: 'p' }, 'Value', 'Cannot edit the Value of "s": it is a 1x1 struct.')).toBe('Cannot edit the Value of "s": it is a 1x1 struct.');
   });
 });

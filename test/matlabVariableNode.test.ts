@@ -1589,14 +1589,14 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect(summarized.displayValue).toBe('<2x3x2 double>');
     expect(summarized.valueEditable).toBe(false);
 
-    // The element budget has the same consequence: an 11-element vector is a
-    // summary, so it loses its editor too.
+    // The element budget makes an 11-element vector a summary too, but one of its size alone:
+    // it takes an editor of its text written out whole (the D13 ruling, longValuesEditable).
     const eleven = MatlabVariableNode.parseTypedArray(
       { _type: 'double', _value: 'Matrix(1,11)\n[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]' },
       'b',
       null,
     );
-    expect([eleven.displayValue, eleven.valueEditable]).toEqual(['<1x11 double>', false]);
+    expect([eleven.displayValue, eleven.valueEditable, eleven._editText()]).toEqual(['<1x11 double>', true, '[1 2 3 4 5 6 7 8 9 10 11]']);
   });
 
   it('treats only a non-opaque numeric 1x1 as scalar-numeric', () => {
@@ -1813,7 +1813,8 @@ describe('MatlabVariableNode — the length guard measures the value, not its co
   it('still summarises a value past 1000 characters, with tabs or without', () => {
     expect(parse('x'.repeat(1001)).displayValue).toBe('<1x1001 char>');
     const long = parse(tabby + 'x'.repeat(101));
-    expect([long.displayValue, long.valueEditable]).toEqual(['<1x1001 char>', false]);
+    // Its editor is seeded with its text written out whole (the D13 ruling).
+    expect([long.displayValue, long.valueEditable, long._editText()]).toEqual(['<1x1001 char>', true, formatMatlabChar(tabby + 'x'.repeat(101))]);
     expect(parse({ _array_type: 'String', _dimensions: [1, 1], _elements: [tabby + 'x'.repeat(101)] }).displayValue).toBe(
       '<1x1 string>',
     );

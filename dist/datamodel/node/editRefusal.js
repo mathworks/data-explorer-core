@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 import { propNamed } from './BaseNode.js';
 // A refusal that names its row already: `Cannot <verb ...> "<row>"`, as `Cannot edit "s": ...`,
-// `Cannot add a field to "s": ...`, `Cannot paste "a" into "f.mat": ...`. Not MATLAB's own words
-// that start so and name no row: "Cannot set Alignment when StorageClass is 'Auto'."
-const NAMES_A_ROW = /^Cannot (?:[a-z]+ )+"[^"]+"/;
+// `Cannot add a field to "s": ...`, `Cannot edit the Value of "s": ...` (session.valueEditRefusal),
+// `Cannot paste "a" into "f.mat": ...`. Not MATLAB's own words that start so and name no row:
+// "Cannot set Alignment when StorageClass is 'Auto'."
+const NAMES_A_ROW = /^Cannot (?:[A-Za-z]+ )+"[^"]+"/;
 /**
  * A refusal of an edit of `key` at `node` as a host shows it, naming the row: `reason` itself where
  * it names one already (NAMES_A_ROW), and otherwise `Cannot edit "<row>": <reason>.`, or

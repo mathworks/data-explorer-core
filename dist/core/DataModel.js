@@ -23,6 +23,8 @@ import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
 import { propNamed, refusalClause, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside, withArticle } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
+import { entryValuesChanged } from '../datamodel/node/valueGeneration.js';
+import { objectWhy } from '../datamodel/node/data/editText.js';
 import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
 import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
 import { editRefusalText, isNameKey } from '../datamodel/node/editRefusal.js';
@@ -377,6 +379,9 @@ export function createSession(opts = {}) {
             }
             finally {
                 mirrored.push(...sourceMirrorTwins(root));
+                // What was changed may be what an undo put back, unmarked: the entries it is in are judged
+                // again, and the source where `root` is in none (valueGeneration).
+                valuesChangedIn([root, ...twins, ...mirrored]);
             }
         });
         return { result, mirrored };
@@ -390,7 +395,12 @@ export function createSession(opts = {}) {
     function withTwins(node, mutate) {
         const twins = sourceTwinsOutside(node);
         if (twins.length === 0) {
-            return { result: mutate(), mirrored: [] };
+            try {
+                return { result: mutate(), mirrored: [] };
+            }
+            finally {
+                valuesChangedIn([node]);
+            }
         }
         const mirrored = [];
         const result = reindexAround(twins, () => {
@@ -399,9 +409,17 @@ export function createSession(opts = {}) {
             }
             finally {
                 mirrored.push(...sourceMirrorTwins(node));
+                valuesChangedIn([node, ...twins, ...mirrored]);
             }
         });
         return { result, mirrored };
+    }
+    // What was judged of a value in the entries `nodes` are in, or in their sources where one is in
+    // none, is to be judged again (valueGeneration.entryValuesChanged).
+    function valuesChangedIn(nodes) {
+        for (const node of nodes) {
+            entryValuesChanged(node);
+        }
     }
     // Announce the nodes an edit was copied into (withTwins, mutateWithTwins), as the edit itself is
     // announced: the index is already up to date for each.
@@ -1640,6 +1658,26 @@ export function createSession(opts = {}) {
         }
         return fallback;
     }
+    // The text the editor of `propertyName` of `node` is seeded with where it is not the text the
+    // property shows, or null: a Value shown as a summary only for its size, written out whole
+    // (BaseNode._editText), on a row whose Value takes an editor. Set back unchanged it is no edit, as
+    // the shown text is (editProperty).
+    function editTextOf(node, propertyName) {
+        try {
+            if (propertyName !== 'Value' && propNamed(node.getProperties(), propertyName)?.key !== 'Value') {
+                return null;
+            }
+            // Where the row's Value takes an editor, as toRow says (`_valueEditable`).
+            if (!editTakesValue(node)) {
+                return null;
+            }
+            return node._editText?.() ?? null;
+        }
+        catch {
+            // As readPropertyValue: a projection that throws must not break the edit itself.
+            return null;
+        }
+    }
     // What puts `propertyName` back on `node` as it stands now, from the node itself, or null
     // where the text readPropertyValue reads is what restores it. A node offers one where that
     // text is not the value: a MATLAB value's `[ ]`, which every empty shows whatever its size
@@ -1691,7 +1729,12 @@ export function createSession(opts = {}) {
             }
         });
         if (!entry) {
-            return { result: edit(), indexed: false, mirrored: [] };
+            try {
+                return { result: edit(), indexed: false, mirrored: [] };
+            }
+            finally {
+                valuesChangedIn([node]);
+            }
         }
         if (!open) {
             const mirrored = [];
@@ -1701,6 +1744,7 @@ export function createSession(opts = {}) {
                 }
                 finally {
                     mirrored.push(...sourceMirrorTwins(entry));
+                    valuesChangedIn([entry, ...mirrored]);
                 }
             })();
             return { result, indexed: false, mirrored };
@@ -1731,7 +1775,8 @@ export function createSession(opts = {}) {
     }
     /**
      * Whether editProperty(nodeId, key, text) would change nothing, by core's own rule: the text the
-     * property shows, committed unchanged, is no edit (editProperty, DataNode._isUnchangedCommit). For a
+     * property shows, committed unchanged, is no edit, nor is the text its editor is seeded with where
+     * that is another (a row's `_editText`: editProperty, DataNode._isUnchangedCommit). For a
      * host that sets a property through the node's own setter, as a dictionary's editor does, to ask
      * first: true, and nothing is to be set, marked or recorded. False for any other text, and where
      * no node of that id with a setter is open. Changes nothing.
@@ -1741,7 +1786,7 @@ export function createSession(opts = {}) {
         if (!node || !node.setProperty || typeof text !== 'string') {
             return false;
         }
-        return text === readPropertyValue(node, key, undefined);
+        return text === readPropertyValue(node, key, undefined) || text === editTextOf(node, key);
     }
     function editProperty(nodeId, propertyName, newValue, oldValue) {
         const activeNode = getActiveNode();
@@ -1773,8 +1818,9 @@ export function createSession(opts = {}) {
         // published and no undo step is recorded, so the value keeps what it was read as
         // (`_rawInput`, and so its bytes). One text stands for many values: `[ ]` is every numeric
         // empty, whatever its size and class, as MATLAB's Workspace browser shows them, and set
-        // back from that text each became a 0x0 double (the 2026-10-15 ruling, C-040 option B).
-        if (typeof newValue === 'string' && newValue === priorValue) {
+        // back from that text each became a 0x0 double (the 2026-10-15 ruling, C-040 option B). Nor is
+        // the text the editor of a value shown as a summary for its size is seeded with (editTextOf).
+        if (typeof newValue === 'string' && (newValue === priorValue || newValue === editTextOf(node, propertyName))) {
             return true;
         }
         // A Description the object has none of is refused first, as no property is there to write
@@ -1885,6 +1931,8 @@ export function createSession(opts = {}) {
     // A member of a cell or a struct swapped is a change of its container's rows, as an Add's is.
     function recordRetype(node, replacement, swap) {
         const swapped = (from, to, source) => {
+            // A member swapped changes what its entry's value is (valueGeneration).
+            valuesChangedIn([to]);
             setActiveEntry(to);
             if (to.isEntry) {
                 const parent = to.parent;
@@ -2606,6 +2654,78 @@ export function createSession(opts = {}) {
         const why = renameWhy(node);
         return why === null ? null : 'Cannot rename "' + rowNameOf(node) + '": ' + why + '.';
     }
+    /**
+     * The text an editor of the Value of the row `nodeId` names is seeded with where it is not the text
+     * the cell shows, or null: of a value shown as a summary only for its size, the value written out
+     * whole (BaseNode._editText, the D13 and D14 rulings), on a row that says so (`_hasEditText`). Null
+     * where the cell's own text is the seed, where the Value takes no editor, and where no row of that
+     * id is open. Set back unchanged it is no edit (editProperty, isUnchangedEdit). Changes nothing.
+     */
+    function editText(nodeId) {
+        const node = resolveId(nodeId);
+        return node ? editTextOf(node, 'Value') : null;
+    }
+    /**
+     * Why the Value of the row `nodeId` names takes no editor (its Value cell is greyed), naming the
+     * row: `Cannot edit the Value of "<row>": <why>.` Or null where it takes one. Of a value shown as a
+     * summary, why its text written out whole is no editor's seed (BaseNode._editTextWhy, the D13
+     * ruling): no text spells it, its text is too long to edit, or would make another value of it.
+     * Changes nothing.
+     */
+    function valueEditRefusal(nodeId) {
+        const node = resolveId(nodeId);
+        if (!node) {
+            return unresolvedRefusal(nodeId, 'edit');
+        }
+        if (editTakesValue(node)) {
+            return null;
+        }
+        return 'Cannot edit the Value of "' + rowNameOf(node) + '": ' + valueWhy(node) + '.';
+    }
+    // Why the Value of `node` takes no editor, as a clause: as editProperty and the node's setter refuse
+    // an edit of it, first of all its source (a MAT-file's object, one with another node of it),
+    // then, of a value shown as a summary, why its text written out whole is no seed.
+    function valueWhy(node) {
+        if (!node.isEntry && !editableOwnerOf(node)) {
+            return notEditedWhy(node);
+        }
+        const refused = sourceEditRefusal(node, propNamed(node.getProperties(), 'Value')?.key ?? 'Value');
+        if (refused) {
+            return refusalClause(refused);
+        }
+        const seedless = node._editTextWhy?.();
+        if (seedless) {
+            return seedless;
+        }
+        // A value still in the encoded stream it was read from, or read from a MAT stream that is shown
+        // and not edited (DataNode._refuseEncodedEdit, MatlabVariableNode._refuseStreamEdit).
+        const held = node;
+        const set = held._refuseEncodedEdit?.('Value', '') ?? held._refuseStreamEdit?.('') ?? held._refuseStreamValue?.('');
+        if (set?.reason) {
+            return refusalClause(set.reason);
+        }
+        // Else what it shows says it: no value (a bus, a signal), a summary of what no text spells (a
+        // struct, an object), or an object shown by its text (an enumeration value).
+        const shown = node.displayValue;
+        if (shown === '') {
+            return 'it has no value of its own to edit here';
+        }
+        const summary = /^<([\dx]+) (.+)>$/.exec(shown);
+        if (summary) {
+            return objectWhy(summary[1], summary[2]);
+        }
+        return node.className ? 'it is ' + withArticle(node.className) + ', shown here and not edited' : 'it is shown here and not edited';
+    }
+    // Whether the Value of `node` takes an editor, as its row says (BaseNode.toRow's `_valueEditable`).
+    function editTakesValue(node) {
+        try {
+            const prop = propNamed(node.getProperties(), 'Value');
+            return prop ? node.getPropInfo(prop).editable : !!node.valueEditable;
+        }
+        catch {
+            return false;
+        }
+    }
     function undoAction() {
         const slddNode = getActiveSlddNode();
         if (!slddNode) {
@@ -2806,10 +2926,14 @@ export function createSession(opts = {}) {
         deleteNodeById,
         deleteNodesById,
         // Why each of the explicit forms above refuses, naming the row, or null where it does not;
-        // and why a row's name takes no edit at all.
+        // and why a row's name, or its Value, takes no edit at all.
         addChildRefusal,
         deleteRefusal,
         renameRefusal,
+        valueEditRefusal,
+        // The text an editor of a Value shown as a summary for its size is seeded with (a row's
+        // `_hasEditText`), fetched as the editor opens.
+        editText,
         // For a host whose mutations do NOT come through the forms above (it owns its own
         // undo stack and edits nodes in place): the wrappers that keep the node index and
         // the selection honest across such an edit, at subtree scope instead of a re-parse.

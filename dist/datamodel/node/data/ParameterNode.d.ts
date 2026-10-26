@@ -19,6 +19,8 @@ export default class ParameterNode extends DataNode {
     get dataType(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
+    _editText(): string | null;
+    _editTextWhy(): string | null;
     get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
     _valueIsEnum(): boolean;

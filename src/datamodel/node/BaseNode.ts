@@ -60,6 +60,12 @@ export interface RowData {
   Name?: { label: string; iconId: string; disabled: boolean; editable: boolean; element: boolean };
   Value?: unknown;
   _valueEditable?: boolean;
+  // True where the cell shows a summary of a value only for its size, `<1x500 double>`, and takes an
+  // editor of the value written out whole (BaseNode._editText, the D13 ruling), which the host
+  // fetches as the editor opens (session.editText): the exact text, which set back unchanged is no
+  // edit. Not the text itself, which can be 200,000 characters (the D14 ruling). Absent where the
+  // editor is seeded with the cell's own text, and where the cell takes none.
+  _hasEditText?: true;
   // Whether the Description cell takes an editor. Carried separately for the same
   // reason as `_valueEditable`: the column renders through a dedicated branch that
   // consumes a plain string.
@@ -1054,12 +1060,36 @@ export default class BaseNode {
     if (encodedHolderOf(this)) {
       return false;
     }
+    // Nor a summary, `<1x500 double>`, which is not the value, but where it is one of size alone and
+    // the value written out whole is the editor's seed (_editText).
     const v = this.displayValue;
-    if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>') {
+    if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>' && this._editText() === null) {
       return false;
     }
     // Nor a value its source would not write (sourceEditRefusal).
     return !sourceEditRefused(this, 'Value');
+  }
+
+  /**
+   * The text an editor of this row's Value is seeded with where the row shows no text that is the
+   * value, only for its size (the D13 ruling of the 2026-10-26 edit bash): the value written out
+   * whole, where it makes the value exactly (MatlabVariableNode._editText). Null where the row's own
+   * text is the seed, and here, for a node of no such value. Said on the row as `_hasEditText` (toRow)
+   * and fetched by session.editText; set back unchanged it is no edit, as the shown text is
+   * (DataNode._isUnchangedCommit).
+   */
+  _editText(): string | null {
+    return null;
+  }
+
+  /**
+   * Why this row, whose Value shows a summary, takes no editor of the value written out whole, as a
+   * clause (MatlabVariableNode._editTextWhy): no text spells it, it is too long to edit as text, or
+   * its text would make another value. Null where it takes one, for a row whose own text is the
+   * seed, and here (DataModel.valueEditRefusal).
+   */
+  _editTextWhy(): string | null {
+    return null;
   }
 
   // Whether a Description typed onto this row could be SAVED — the third member of the
@@ -1154,6 +1184,14 @@ export default class BaseNode {
     };
   }
 
+  // Whether the Value's editor is seeded with another text than the cell's (_editText), on a row
+  // whose Value takes an editor.
+  _putEditText(row: RowData, editable: boolean): void {
+    if (editable && this._editText() !== null) {
+      row._hasEditText = true;
+    }
+  }
+
   // `pool`, when a caller building MANY rows brings one, shares each cell with the rows
   // that already hold the same value — 566 bytes per row down to 314 on a large
   // dictionary. Optional, and absent it this returns exactly what it always did: the
@@ -1188,6 +1226,7 @@ export default class BaseNode {
           row.Value = info.displayValue;
         }
         row._valueEditable = info.editable;
+        this._putEditText(row, info.editable);
       } else if (info.editable && !DEDICATED_COLUMNS.has(colKey)) {
         // An editable GENERIC column (e.g. the schema Code Generation columns).
         // Carry the editor + options onto the cell so the webview can open the
@@ -1206,6 +1245,7 @@ export default class BaseNode {
     if (!('Value' in row)) {
       row.Value = this.displayValue;
       row._valueEditable = this.valueEditable;
+      this._putEditText(row, row._valueEditable);
     }
     if (!('DataType' in row)) {
       row.DataType = this.dataType;
