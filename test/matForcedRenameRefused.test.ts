@@ -67,7 +67,7 @@ describe('a name MATLAB cannot load: refused by the rename, and by the save of o
       const bytes = matFile([scalar('a', 1), scalar('b', 2)]);
       const { root, rename } = opened(bytes);
       const node = root.children[0];
-      expect(rename(node, name)).toEqual({ error: true, reason: why, invalidValue: name, validValue: 'a' });
+      expect(rename(node, name)).toEqual({ error: true, reason: 'Cannot rename "a": ' + why + '.', invalidValue: name, validValue: 'a' });
       expect([node.name, root.dirty]).toEqual(['a', false]);
       // Forced around it, the save says the same, naming the variable by the name it would write.
       forceRename(node, name);

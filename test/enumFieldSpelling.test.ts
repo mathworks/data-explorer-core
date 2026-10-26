@@ -151,7 +151,7 @@ describe("Complexity and DimensionsMode take only MATLAB's enumerals under eithe
             session.setActive(source, node);
             expect(session.editProperty(node.id, e.field, 'bogus')).toEqual({
               error: true,
-              reason: "There is no enumerated value named 'bogus'.",
+              reason: `Cannot edit "${node.matlabPath}": There is no enumerated value named 'bogus'.`,
               invalidValue: 'bogus',
               validValue: was,
             });

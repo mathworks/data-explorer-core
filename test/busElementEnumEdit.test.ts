@@ -152,7 +152,7 @@ describe('bus element enum props — editing through the session', () => {
       // object and recorded in Simulink.BusElement.md.
       expect(s.editProperty(elem.id, e.prop, e.illegal)).toEqual({
         error: true,
-        reason: `There is no enumerated value named '${e.illegal}'.`,
+        reason: `Cannot edit "${elem.matlabPath}": There is no enumerated value named '${e.illegal}'.`,
         invalidValue: e.illegal,
         validValue: e.from,
       });

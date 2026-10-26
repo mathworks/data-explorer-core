@@ -253,7 +253,7 @@ describe('editProperty', () => {
 
     expect(s.editProperty(param.id, 'Value', '((((')).toEqual({
       error: true,
-      reason: 'Invalid MATLAB expression',
+      reason: 'Cannot edit "Array": Invalid MATLAB expression.',
       invalidValue: '((((',
       validValue: before,
     });
@@ -270,7 +270,7 @@ describe('editProperty', () => {
 
     expect(s.editProperty(param.id, 'Name', '')).toMatchObject({
       error: true,
-      reason: 'Name cannot be empty',
+      reason: 'Cannot rename "Array": Name cannot be empty.',
       validValue: original,
     });
     expect(param.name).toBe(original);

@@ -131,7 +131,10 @@ describe('an array literal holding a complex member, read as MATLAB R2027a reads
     const root: any = ingest(s, new TextDecoder().decode(readFileSync(TEST + 'fixtures/display/dispcat_text.sldd')), { filename: 'd.sldd' });
     const z = root.getSection('design').children.find((e: any) => e.name === 'z_vector');
     s.setActive(root, z.children[0]);
-    expect(s.editProperty(z.children[0].id, 'Value', '[1i 2i]')).toMatchObject({ error: true, reason: 'Array elements must be scalar numbers' });
+    expect(s.editProperty(z.children[0].id, 'Value', '[1i 2i]')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "z_vector(1)": an element of the 1x2 complex double array takes one number, and the text typed, “[1i 2i]”, is a 1x2 complex array.',
+    });
     expect(z.displayValue).toBe('[1+2i 3-4i]');
   });
 });

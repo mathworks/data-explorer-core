@@ -82,7 +82,7 @@ describe("a char typed into a field of a Simulink.Parameter's struct Value", () 
         const o = opened(file);
         const before = rowsOf(o.root, 'pStruct');
         const r: any = o.edit('pStruct.Value.a', text);
-        expect(r?.reason, file + ' ' + text).toBe(STRUCT_RULE);
+        expect(r?.reason, file + ' ' + text).toBe('Cannot edit "pStruct.Value.a": ' + STRUCT_RULE + '.');
         expect(rowsOf(o.root, 'pStruct'), file + ' ' + text).toEqual(before);
       }
     }
@@ -91,7 +91,7 @@ describe("a char typed into a field of a Simulink.Parameter's struct Value", () 
   it("is refused in a struct array's element of another class, as MATLAB refuses it, in every format", () => {
     for (const file of FORMATS) {
       const r: any = opened(file).edit('pStructArr.Value(1).a', "'abc'");
-      expect(r?.reason, file).toBe('A valid array of structures must be numeric and homogeneous in terms of data type and dimensions');
+      expect(r?.reason, file).toBe('Cannot edit "pStructArr.Value(1).a": A valid array of structures must be numeric and homogeneous in terms of data type and dimensions.');
     }
   });
 });

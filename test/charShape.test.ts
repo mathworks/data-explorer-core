@@ -287,7 +287,7 @@ describe('committing a char’s own displayed literal changes nothing', () => {
     const el = n.children[0];
     expect(el.setProperty('Value', "['ab'; 'cd']")).toEqual({
       error: true,
-      reason: 'String elements must be character or string values',
+      reason: "an element of the 1x2 string array takes one string, or a char row, and the text typed, “['ab'; 'cd']”, is a 2x2 char array",
       invalidValue: "['ab'; 'cd']",
       validValue: '"a"',
     });

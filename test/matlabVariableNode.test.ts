@@ -555,14 +555,14 @@ describe('MatlabVariableNode — editing an element of an array', () => {
   it('rejects a non-scalar-number for an array element', () => {
     const n = parse([1, 2]);
     const res: Any = n.children[0].setProperty('Value', "'text'");
-    expect(res).toMatchObject({ error: true, reason: 'Array elements must be scalar numbers', invalidValue: "'text'" });
+    expect(res).toMatchObject({ error: true, reason: "an element of the 1x2 double array takes one number, and the text typed, “'text'”, is text", invalidValue: "'text'" });
     expect(n._elements).toEqual([1, 2]);
   });
 
   it('rejects a non-string for a string-array element', () => {
     const n = parse({ _array_type: 'String', _dimensions: [1, 2], _elements: ['a', 'b'] });
     const res: Any = n.children[0].setProperty('Value', '42');
-    expect(res).toMatchObject({ error: true, reason: 'String elements must be character or string values' });
+    expect(res).toMatchObject({ error: true, reason: 'an element of the 1x2 string array takes one string, or a char row, and the text typed, “42”, is a number' });
     expect(n._elements).toEqual(['a', 'b']);
   });
 
@@ -1017,7 +1017,7 @@ describe("MatlabVariableNode — a logical array's elements are logicals", () =>
     const n = logicals();
     expect(n.children[0].setProperty('Value', '7')).toEqual({
       error: true,
-      reason: 'Logical array elements must be true or false',
+      reason: 'an element of the 1x3 logical array takes true or false, and the text typed, “7”, is a number',
       invalidValue: '7',
       validValue: 'true',
     });

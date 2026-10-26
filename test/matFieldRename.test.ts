@@ -76,7 +76,7 @@ describe('a field renamed in a MAT-file as in a dictionary, text or binary', () 
         'Invalid MATLAB name. Must start with a letter and contain only letters, digits, and underscores',
         'Name exceeds maximum length of 63 characters',
         "'end' is a reserved MATLAB keyword",
-      ]);
+      ].map((why) => `Cannot rename "${path}": ${why}.`));
       expect(answers[1]).toEqual(answers[0]);
       expect(answers[2]).toEqual(answers[0]);
     });
@@ -85,8 +85,8 @@ describe('a field renamed in a MAT-file as in a dictionary, text or binary', () 
   it("a name another field of the struct has, said of the struct, as a dictionary says it", () => {
     for (const [rel, file] of VENUES) {
       const o = opened(read(rel), file);
-      expect(o.rename('structScalar.a', 'b'), rel).toMatchObject({ error: true, reason: "'b' already names another member of structScalar" });
-      expect(o.rename('struct1x3(3).b', 'a'), rel).toMatchObject({ error: true, reason: "'a' already names another member of struct1x3(3)" });
+      expect(o.rename('structScalar.a', 'b'), rel).toMatchObject({ error: true, reason: "Cannot rename \"structScalar.a\": 'b' already names another member of structScalar." });
+      expect(o.rename('struct1x3(3).b', 'a'), rel).toMatchObject({ error: true, reason: "Cannot rename \"struct1x3(3).b\": 'a' already names another member of struct1x3(3)." });
     }
   });
 });

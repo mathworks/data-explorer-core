@@ -207,7 +207,7 @@ describe('a Description, over every row of every fixture', () => {
           const asked: Any = o.session.editProperty(node.id, 'Description', 'zz');
           const r: Any = asked === false ? node.setProperty('Description', 'zz') : asked;
           // In the codebase's words, or MATLAB's own for the two classes refused in them.
-          if (r === true || !/^Cannot edit ".*": an? .+ has no Description\.$|^Unrecognized property 'Description' for class '[^']+'\.$/.test(r?.reason ?? '') || o.root.dirty) {
+          if (r === true || !/^Cannot edit ".*": an? .+ has no Description\.$|^Cannot edit "[^"]*": Unrecognized property 'Description' for class '[^']+'\.$/.test(r?.reason ?? '') || o.root.dirty) {
             wrong.push(label + ': an edit of its Description answered ' + JSON.stringify(r));
           }
           counts.refused++;

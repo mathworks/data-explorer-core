@@ -162,7 +162,7 @@ describe('an edit to an element of a complex array is undone, redone and undone 
 });
 
 describe('a complex value typed into an element of a real array is still refused', () => {
-  const REAL_ONLY = 'Array elements must be scalar numbers';
+  const REAL_ONLY = expect.stringMatching(/^Cannot edit "[^"]+": an element of the \S+ (?:sparse )?double array takes one number, and the text typed, “3\+4i”, is a complex number\.$/);
   for (const [file, name, reason] of [
     ['sparse/sparse_text.sldd', 'dRow', REAL_ONLY],
     // A sparse array's rows, a text dictionary's MAT stream's and a binary dictionary's hex's alike.

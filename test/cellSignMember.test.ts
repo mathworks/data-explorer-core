@@ -613,7 +613,7 @@ for (const { format, file } of FORMATS) {
       for (const literal of ['{[1] - 2}', "{'a' - 2}", '{- 2 - 3}', '{i + 1i}', '{- -2}', '{1+2}', '{a+b}', '{-a}', '{2i+3i}']) {
         const { session, entry } = openCCplx(file);
         const result = session.editProperty(entry.id, 'Value', literal);
-        expect(result, literal).toMatchObject({ error: true, reason: 'Invalid MATLAB expression' });
+        expect(result, literal).toMatchObject({ error: true, reason: 'Cannot edit "cCplx": Invalid MATLAB expression.' });
         expect(entry.displayValue).toBe('{1+2i}');
         expect(rows(entry)).toEqual([['double (complex)', '1+2i']]);
       }

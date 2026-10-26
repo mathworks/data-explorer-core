@@ -185,9 +185,12 @@ describe('what is still refused', () => {
   it('a value holding a string, into an element of a numeric array, or as a Simulink.Parameter\'s Value', () => {
     const bytes = fixture('./parity/artifacts/mat/cases.mat');
     const { root, at, edit, save } = opened(bytes, 'cases.mat');
-    expect(edit('cellFlat{3}(1)', '{"a"}')).toMatchObject({ error: true, reason: 'Array elements must be scalar numbers' });
+    expect(edit('cellFlat{3}(1)', '{"a"}')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "cellFlat{3}(1)": an element of the 1x2 double array takes one number, and the text typed, “{"a"}”, is a 1x1 cell array.',
+    });
     const p = root.children.find((c: any) => c.className === 'Simulink.Parameter');
-    expect(edit(p.matlabPath, '{1, "a"}')).toMatchObject({ error: true, reason: expect.stringMatching(/^Invalid value specified for parameter/) });
+    expect(edit(p.matlabPath, '{1, "a"}')).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot edit "aParam": Invalid value specified for parameter/) });
     expect(at(p.matlabPath)).toBe(p);
     expect([root.dirty, sameBytes(save(), bytes)]).toEqual([false, true]);
   });
@@ -313,7 +316,7 @@ describe("a MAT-file cell holding strings, edited as its text", () => {
     const bytes = fixture('./fixtures/strings_nested.mat');
     const { root, at, edit, save } = opened(bytes, 'strings_nested.mat');
     expect([at('mixCell').displayValue, at('mixCell').valueEditable]).toEqual(['{<1x1 Simulink.Parameter>, <1x1 string>, 9}', false]);
-    expect(edit('mixCell', '{1, "a"}')).toMatchObject({ error: true, reason: 'This cell shows an element as a summary, which is not its value. Edit the element instead.' });
+    expect(edit('mixCell', '{1, "a"}')).toMatchObject({ error: true, reason: 'Cannot edit "mixCell": This cell shows an element as a summary, which is not its value. Edit the element instead.' });
     expect([root.dirty, sameBytes(save(), bytes)]).toEqual([false, true]);
   });
 
@@ -448,7 +451,7 @@ describe('a bare word typed in a cell', () => {
     for (const path of ['ce', 'ce{1}', 'st.a']) {
       expect(edit(path, typed), path).toMatchObject({
         error: true,
-        reason: word + ' is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes',
+        reason: 'Cannot edit "' + path + '": ' + word + ' is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes.',
         invalidValue: typed,
       });
     }
@@ -462,7 +465,10 @@ describe('a bare word typed in a cell', () => {
       const entry = root.children.flatMap((x: any) => x.children).find((e: any) => e.className === 'cell' && e.valueEditable);
       s.setActive(root, entry);
       const before = entry.displayValue;
-      expect(s.editProperty(entry.id, 'Value', '{missing}'), file).toMatchObject({ error: true, reason: 'missing is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes' });
+      expect(s.editProperty(entry.id, 'Value', '{missing}'), file).toMatchObject({
+        error: true,
+        reason: 'Cannot edit "' + entry.matlabPath + '": missing is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes.',
+      });
       expect(entry.displayValue, file).toBe(before);
       expect(s.editProperty(entry.id, 'Value', "{'missing'}"), file).toBe(true);
       expect(entry.displayValue, file).toBe("{'missing'}");
