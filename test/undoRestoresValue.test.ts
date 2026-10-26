@@ -196,7 +196,7 @@ describe("committing a Value's shown text unchanged is no edit", () => {
     '            <Element Class="double" Dimension="0*3"/>\n' +
     '        </P>';
 
-  /** withEmpties(), and one entry more: a cell whose literal shows `{1, [ ]}`. */
+  /** withEmpties(), and one entry more: a cell whose literal shows `{1, zeros(0,3)}`, its empty spelled as MATLAB makes it (D12). */
   function withCell(): ArrayBuffer {
     const zip = unzipSync(new Uint8Array(withEmpties()));
     const xml = strFromU8(zip['data/chunk0.xml']);
@@ -230,7 +230,7 @@ describe("committing a Value's shown text unchanged is no edit", () => {
       const before = { raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry) };
       expect(entry.valueEditable, `${name} takes an editor`).toBe(true);
       if (name === 'cellOfEmpty') {
-        expect(entry.displayValue).toBe('{1, [ ]}');
+        expect(entry.displayValue).toBe('{1, zeros(0,3)}');
       }
       session.setActive(root, entry);
       expect(session.editProperty(entry.id, 'Value', entry.displayValue)).toBe(true);

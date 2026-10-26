@@ -41,14 +41,14 @@ describe('an empty cell written from the node keeps its extents', () => {
     expect(xmlOf(struct)).toContain('<P Name="f" Class="cell" Dimension="1*0"/>');
   });
 
-  // What is not an empty's extents is written as before: a 0x0, a bag with no dims (1x1 by
-  // default), and a cell whose only element was removed (dims set to 0x0 on removal).
-  it('controls: a 0x0 cell, a cell bag with no _dimensions, and a cell emptied by removal stay Dimension="0*0"', () => {
+  // What is not an empty's extents is written as before: a 0x0, and a bag with no dims (1x1 by
+  // default). A cell whose only element was removed is 1x0, as MATLAB's c(1) = [] leaves it.
+  it('controls: a 0x0 cell and a cell bag with no _dimensions stay Dimension="0*0"; a cell emptied by removal is 1*0', () => {
     expect(xmlOf(cell([0, 0]))).toBe('<P Name="Value" Class="cell" Dimension="0*0"/>');
     expect(xmlOf(cell(undefined))).toBe('<P Name="Value" Class="cell" Dimension="0*0"/>');
     const one = parse(cell([1, 1], [7]));
     one.removeChildNode(one.children[0]);
-    expect(one.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="cell" Dimension="0*0"/>');
+    expect(one.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="cell" Dimension="1*0"/>');
   });
 });
 

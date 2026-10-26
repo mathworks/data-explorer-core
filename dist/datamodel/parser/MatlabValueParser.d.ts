@@ -2,6 +2,7 @@ export interface ParsedValue {
     type: string;
     value: unknown;
     dims?: number[];
+    cls?: string;
 }
 /**
  * A Value as a user types it, read as parse reads it, but for a bare word in a cell, `{missing}`,
@@ -45,6 +46,15 @@ export declare function controlsAsOneChar(value: string): string;
 export declare function unquoteMatlabText(text: string): string;
 declare function parseArray(str: string): ParsedValue | null;
 declare function parseCell(str: string): ParsedValue | null;
+/**
+ * An empty value, spelled as MATLAB makes it of a call no bracket can stand for (the D12 ruling):
+ * `cell(1,0)`, `zeros(0,3)`, `zeros(1,0,'int8')`, `false(1,0)` (or `true(1,0)`, the same empty),
+ * `strings(0,3)`, `char(zeros(1,0))`,
+ * of any rank (`zeros(1,0,2)`), as MatlabVariableNode._emptySpelled shows one. One count is a square,
+ * as in MATLAB (`zeros(0)` is 0x0). Null for any other text, a call that makes no empty (`zeros(2,2)`,
+ * whose elements this package does not make) among it.
+ */
+export declare function emptyConstructor(text: string): ParsedValue | null;
 export declare function classCall(span: string): unknown | null;
 /**
  * A complex value typed in (a parsed 'complex'), as the bag a binary dictionary's reader gives

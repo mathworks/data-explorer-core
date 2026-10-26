@@ -33,10 +33,10 @@ export declare class EnumTypeNode extends DataNode {
     setProperty(propName: string, stringValue: string): ReturnType<DataNode['setProperty']>;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
-    canRemoveChild(): boolean;
+    _removeChildRefusal(child?: BaseNode, describe?: boolean): string | null;
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;
-    canAddChild(): boolean;
+    _addChildRefusal(describe?: boolean): string | null;
     addChildNode(): EnumValueNode;
     execAddChild(): ChildAddEdit<EnumValueNode> | null;
     execRemoveChild(child?: BaseNode): ChildUndoRedo | null;

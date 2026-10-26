@@ -221,8 +221,9 @@ describe('an object whose copy the object made cannot be', () => {
     }
   });
 
-  it('a string the text an edit takes does not hold: an empty or an N-D string array', () => {
-    expectOneRefused(copied('test/fixtures/lossy_empties_readback_binary.sldd', 'e_Str03'), /: e_Str03\.Value could not be set to "<0x3 string>": Invalid MATLAB expression\./);
+  it('a string the text an edit takes does not hold: an N-D string array', () => {
+    // An empty one is spelled as MATLAB makes it, `strings(0,3)` (the D12 ruling), and is taken.
+    expectOneRefused(copied('test/fixtures/strings.mat', 'sNd'), /: sNd\.Value could not be set to "<2x2x2 string>": Invalid MATLAB expression\./);
   });
 });
 

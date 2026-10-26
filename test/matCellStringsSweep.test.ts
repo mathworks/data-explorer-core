@@ -162,10 +162,11 @@ describe('a struct or a cell holding a string, pasted into a MAT-file', () => {
     expect(wrong).toEqual([]);
     // Every source reads, so none is passed over unseen.
     expect(unread).toEqual([]);
-    // At least what was measured when this was written: 129 pastes made; 54 refused, of a value
-    // holding an object as well, or a string no text spells (<missing>, an empty or N-D array).
-    expect(pasted).toBeGreaterThanOrEqual(129);
-    expect(refused).toBeGreaterThanOrEqual(54);
+    // At least what was measured when this was written: 153 pastes made; 30 refused, of a value
+    // holding an object as well, or a string no text spells (<missing>, an N-D array). An empty
+    // string array is spelled as MATLAB makes it, `strings(0,3)` (the D12 ruling), and is made.
+    expect(pasted).toBeGreaterThanOrEqual(153);
+    expect(refused).toBeGreaterThanOrEqual(30);
   });
 });
 
@@ -227,11 +228,12 @@ describe('a MAT-file cell holding strings, its text typed back', () => {
       }
     }
     expect(wrong).toEqual([]);
-    // At least what was measured when this was written: 29 cells taking an edit of their text; 12
-    // not, 4 holding another object, 6 a string no text spells (<missing>, an empty or N-D array),
-    // 2 a summary of another value (a struct). The edit-bash fixtures add, in each release's
-    // values.mat, strMissingInCell (a <missing>) and cLeaves (a summary of a struct among them).
-    expect(editable).toBeGreaterThanOrEqual(29);
-    expect(Object.fromEntries(locked)).toEqual({ 'another object': 4, 'a string no text spells': 8, 'a summary of another value': 4 });
+    // At least what was measured when this was written: 39 cells taking an edit of their text; 14
+    // not, 4 holding another object, 6 a string no text spells (<missing>, an N-D array), 4 a
+    // summary of another value (a struct). An empty string array is spelled as MATLAB makes it (the
+    // D12 ruling). The edit-bash fixtures add, in each release's values.mat, strMissingInCell (a
+    // <missing>) and cLeaves (a summary of a struct among them).
+    expect(editable).toBeGreaterThanOrEqual(39);
+    expect(Object.fromEntries(locked)).toEqual({ 'another object': 4, 'a string no text spells': 6, 'a summary of another value': 4 });
   });
 });

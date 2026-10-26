@@ -269,7 +269,8 @@ const EMPTY_BODY: Empty[] = [
   {
     name: 'cellLgE',
     xml: '<P Name="Value" Class="cell"><Element Class="logical" Dimension="1*2"></Element></P>',
-    shown: '{<0x0 logical>}',
+    // In a cell's literal an empty is spelled as MATLAB makes it (the D12 ruling); its own row keeps its summary.
+    shown: '{false(0,0)}',
     kids: ['<0x0 logical>'],
     value: { _array_type: 'Cell', _dimensions: [1, 1], _elements: [{ _type: 'logical', _value: '[]' }], _mw_element_type: 'MATLABArray' },
   },
@@ -296,7 +297,7 @@ const WRITTEN_EMPTY: Empty[] = [
   {
     name: 'cellLg10',
     xml: '<P Name="Value" Class="cell"><Element Class="logical" Dimension="1*0"></Element></P>',
-    shown: '{<1x0 logical>}',
+    shown: '{false(1,0)}',
     kids: ['<1x0 logical>'],
     value: {
       _array_type: 'Cell',

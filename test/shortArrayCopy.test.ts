@@ -214,7 +214,8 @@ describe('a .mat struct array or cell holding none of the elements it declares (
     // opens with no warning, copies as its empty bag, and a binary dictionary writes it with its
     // extents, as MATLAB writes a shaped empty cell (emptyCellEntry.test.ts).
     const DIMS = [[0, 0], [1, 0], [0, 3]];
-    const SHOWN = ['{}', '<1x0 cell>', '<0x3 cell>'];
+    // A cell of an empty shape but 0x0 is shown as MATLAB makes it (the D12 ruling).
+    const SHOWN = ['{}', 'cell(1,0)', 'cell(0,3)'];
     const empty = (name: string, k: number) => cellVar(name, [], DIMS[k]);
     const bag = (dims: number[]) => ({ _array_type: 'Cell', _dimensions: dims, _elements: [], _mw_element_type: 'MATLABArray' });
     const inCell = (name: string) => cellVar(name, [one(7), empty('', 0), empty('', 1), empty('', 2)], [1, 4]);
@@ -222,7 +223,7 @@ describe('a .mat struct array or cell holding none of the elements it declares (
     const mat = opened(empty('c0', 0), empty('c1', 1), empty('c3', 2), inCell('h'), inStruct('s'));
     expect(mat.warnings).toBeUndefined();
     const [c0, c1, c3, h, s] = mat.children;
-    expect([c0, c1, c3, h].map((v: any) => v.displayValue)).toEqual([...SHOWN, '{7, {}, <1x0 cell>, <0x3 cell>}']);
+    expect([c0, c1, c3, h].map((v: any) => v.displayValue)).toEqual([...SHOWN, '{7, {}, cell(1,0), cell(0,3)}']);
     expect([c0, c1, c3].map(copyOf)).toEqual(DIMS.map(bag));
     expect(copyOf(h)).toEqual({ _array_type: 'Cell', _dimensions: [1, 4], _elements: [7, ...DIMS.map(bag)], _mw_element_type: 'MATLABArray' });
     expect(copyOf(s)).toEqual({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ a: bag([0, 0]), b: bag([1, 0]), c: bag([0, 3]) }], _fields: ['a', 'b', 'c'], _mw_element_type: 'MATLABArray' });
@@ -240,7 +241,7 @@ describe('a .mat struct array or cell holding none of the elements it declares (
       [
         inCell(''),
         '<P Name="Value" Class="cell" Dimension="1*4"> <Element Class="double">7.0</Element> <Element Class="cell" Dimension="0*0"/> <Element Class="cell" Dimension="1*0"/> <Element Class="cell" Dimension="0*3"/> </P>',
-        '{7, {}, <1x0 cell>, <0x3 cell>}',
+        '{7, {}, cell(1,0), cell(0,3)}',
         ['7', ...SHOWN],
       ],
       [

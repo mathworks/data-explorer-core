@@ -21,7 +21,7 @@ import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.
 import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
+import { propNamed, refusalClause, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside, withArticle } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
 import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
@@ -1716,6 +1716,31 @@ export function createSession(opts = {}) {
             indexCurrent = false;
         }
     }
+    // An undo's or a redo's setter, run again (editProperty, where the node holds no restorer of the
+    // value as it stood): where it refuses, the step says why, thrown, and UndoManager keeps it where it
+    // was, to be tried again. It did nothing then, and said nothing: a redo of 7 typed over a
+    // Parameter's "abc" was refused by its DataType and left "abc", with no word.
+    function setAgain(node, propertyName, text, step) {
+        const set = node.setProperty(propertyName, text);
+        if (set === false || (set !== null && typeof set === 'object' && set.error)) {
+            const reason = set === false ? 'it was not set again' : String(set.reason ?? 'it was refused');
+            throw new Error('Cannot ' + step + ' the edit of ' + propertyName + ' of "' + rowNameOf(node) + '": ' + refusalClause(reason) + '.');
+        }
+    }
+    /**
+     * Whether editProperty(nodeId, key, text) would change nothing, by core's own rule: the text the
+     * property shows, committed unchanged, is no edit (editProperty, DataNode._isUnchangedCommit). For a
+     * host that sets a property through the node's own setter, as a dictionary's editor does, to ask
+     * first: true, and nothing is to be set, marked or recorded. False for any other text, and where
+     * no node of that id with a setter is open. Changes nothing.
+     */
+    function isUnchangedEdit(nodeId, key, text) {
+        const node = resolveId(nodeId);
+        if (!node || !node.setProperty || typeof text !== 'string') {
+            return false;
+        }
+        return text === readPropertyValue(node, key, undefined);
+    }
     function editProperty(nodeId, propertyName, newValue, oldValue) {
         const activeNode = getActiveNode();
         if (!activeNode || activeNode.id !== nodeId) {
@@ -1795,8 +1820,12 @@ export function createSession(opts = {}) {
         if (result !== true) {
             return result || false;
         }
-        // A rename's redo puts the name it made back as its undo puts the one it replaced.
+        // A rename's redo puts the name it made back as its undo puts the one it replaced. And where the
+        // undo puts the node back as it stood (`restore`), the redo puts it back as the edit left it, its
+        // very children: run again, the setter built new ones, and a later step's redo (a child deleted,
+        // an element edited) then acted on a child no longer in the tree, and was lost.
         const redoRename = isName ? propertyRestorer(node, propertyName, true) : null;
+        const redoRestore = !isName && restore ? propertyRestorer(node, propertyName, false) : null;
         // Filed under the document the node is in, which is the one it changed: the context may be on
         // another (setActive(a, node of b)), where undo would replay an edit it never made.
         const slddNode = editableOwnerOf(node);
@@ -1804,7 +1833,8 @@ export function createSession(opts = {}) {
         if (slddNode) {
             const cmd = {
                 execute() {
-                    const redone = editInEntry(node, () => (redoRename ? redoRename() : node.setProperty(propertyName, newValue)));
+                    const redo = redoRename ?? redoRestore ?? (() => setAgain(node, propertyName, newValue, 'redo'));
+                    const redone = editInEntry(node, redo);
                     publish('node/edited', { source: 'undo', nodeId: node.id, kind });
                     if (kind === 'rename') {
                         publishActiveChanged();
@@ -1818,7 +1848,7 @@ export function createSession(opts = {}) {
                             restore();
                         }
                         else {
-                            node.setProperty(propertyName, priorValue);
+                            setAgain(node, propertyName, priorValue, 'undo');
                         }
                         holders?.();
                         marks?.();
@@ -1937,13 +1967,34 @@ export function createSession(opts = {}) {
         setActiveEntry(node);
         return node;
     }
-    // Why the last addEntry into the active source added nothing, in words a host shows as it shows a
-    // refused edit's reason, or null where it added an entry or its source says nothing: a MAT-file
-    // says why (MatNode.addEntryRefusal: no save of the file can be written, a class it takes no new
-    // variable of, a subsystem no object can be created in, a name that is no MATLAB name).
-    function addEntryRefusal() {
-        const source = getActiveSlddNode();
-        return typeof source?.addEntryRefusal === 'function' ? source.addEntryRefusal() : null;
+    // Why an addEntry adds nothing, in words a host shows as it shows a refused edit's reason.
+    //
+    // Given `containerId`, a dictionary's section (by its id, `x.sldd/design`) or a MAT-file (by its
+    // srcId), why addEntry would add no entry of `className` named `entryName` there (the class's
+    // default name where none is given; a MAT-file's plain variable where no class is), or null where
+    // it adds one. It changes nothing, and agrees with addEntry both ways, as addChildRefusal does.
+    //
+    // With no argument, why the last addEntry into the active source added nothing, as before: a
+    // MAT-file says why (MatNode.addEntryRefusal), any other source nothing.
+    function addEntryRefusal(containerId, className, entryName) {
+        if (containerId === undefined) {
+            const source = getActiveSlddNode();
+            return typeof source?.addEntryRefusal === 'function' ? source.addEntryRefusal() : null;
+        }
+        const container = (resolveId(containerId) ?? getDataSource(containerId));
+        const named = container ? (container.label ?? container.name) : containerId;
+        const what = className ? withArticle(className) : 'an entry';
+        const said = (why) => 'Cannot add ' + what + ' to "' + named + '": ' + why + '.';
+        if (!container) {
+            return said('no section or file of that id is open');
+        }
+        if (!editableOwnerOf(container)) {
+            return said(notEditedWhy(container));
+        }
+        if (!container.entryRefusal || !container.execAddEntry) {
+            return said('entries are added to a section of it, not to it');
+        }
+        return container.entryRefusal(className ?? '', entryName);
     }
     /**
      * Paste `payloads`, entries a host copied (DataNode.serialize: `{ name, metadata, value }`, of a
@@ -2150,6 +2201,10 @@ export function createSession(opts = {}) {
         if (!node.execAddChild) {
             return null;
         }
+        // What the add marks on `node` and above it (DataNode._editMarks), put back by its undo, as a value
+        // edit's undo puts them back (editProperty): the undo removes the very child the add made, so the
+        // value is what it was read as, and a save writes it so (a MAT-file's variable as its record).
+        const marks = editMarksOf(node);
         // And copied into every node its source keeps in step with `node` (withTwins).
         const added = withTwins(node, () => node.execAddChild());
         const rawResult = added.result;
@@ -2174,6 +2229,7 @@ export function createSession(opts = {}) {
                     // still attached — hence before result.undo() rather than after.
                     const held = heldSubtree(child);
                     const undone = withTwins(node, () => result.undo());
+                    marks?.();
                     unindexHeld(held);
                     selectAfterRemoval(policy, held.nodes, node);
                     publish('node/children-changed', { parent: node });
@@ -2233,6 +2289,8 @@ export function createSession(opts = {}) {
             return false;
         }
         const held = heldSubtree(node);
+        // And what the removal marks, put back by its undo, which puts the same child back where it was (addChildOfNode).
+        const marks = editMarksOf(parent);
         // And made in every node its source keeps in step with `parent` (withTwins).
         const removal = withTwins(parent, () => parent.execRemoveChild(node));
         const rawResult = removal.result;
@@ -2251,6 +2309,7 @@ export function createSession(opts = {}) {
             },
             undo() {
                 const undone = withTwins(parent, () => result.undo());
+                marks?.();
                 indexSubtree(node);
                 if (policy === 'follow') {
                     setActiveEntry(node);
@@ -2411,6 +2470,133 @@ export function createSession(opts = {}) {
             return deleteOneNode(nodes[0], scope, 'keep');
         }
         return deleteEntryBatch(nodes, scope, 'keep');
+    }
+    // ---- Why a structural edit is refused --------------------------------------------------------
+    //
+    // addChildTo, deleteNodeById and deleteNodesById answer null or false for a refusal, and say
+    // nothing more; these say why, in words that name the row, for a host to show. They change
+    // nothing, and agree with the operation both ways: where one returns a reason the operation
+    // refuses, and where it returns null the operation is made. So a host may ask before, to word a
+    // greyed menu item, or after a refusal, to say why. A name typed in that is refused for itself
+    // (an invalid or a duplicate one) is refused by editProperty(id, 'Name', text), with its reason.
+    // The row `node` is, as a refusal names it: its MATLAB path (`s.a`, `c{2}`), an entry's name.
+    function rowNameOf(node) {
+        return node.matlabPath || node.name;
+    }
+    // Why an operation addressed by `nodeId` has no node to act on (resolveId): none of that id is
+    // open, or the id names two, which nothing can tell apart. `verb` is the operation's, 'add to';
+    // `nothing`, where given, what was not done, 'added'.
+    function unresolvedRefusal(nodeId, verb, nothing) {
+        const node = nodeIndex.get(nodeId);
+        const named = node ? rowNameOf(node) : nodeId;
+        const why = node ? 'another row of the file has the same name, and nothing tells which one is meant' : 'no row of that id is open';
+        return 'Cannot ' + verb + ' "' + named + '": ' + why + '.' + (nothing ? ' Nothing was ' + nothing + '.' : '');
+    }
+    // Why `node` is in no file this session edits (editableOwnerOf): a model's, a project's.
+    function notEditedWhy(node) {
+        const root = ownerSourceOf(node);
+        return 'it is in "' + (root?.name ?? '') + '", which this editor shows but does not edit';
+    }
+    /**
+     * Why addChildTo(nodeId) adds no child, naming the row: `Cannot add to "<row>": <why>. Nothing
+     * was added.` Or null where it adds one.
+     */
+    function addChildRefusal(nodeId) {
+        const node = resolveId(nodeId);
+        if (!node) {
+            return unresolvedRefusal(nodeId, 'add to', 'added');
+        }
+        const why = node._addChildRefusal ? node._addChildRefusal(true) : 'it takes no child';
+        return why === null ? null : 'Cannot add to "' + rowNameOf(node) + '": ' + why + '. Nothing was added.';
+    }
+    // Why deleteOneNode would not remove `node`, as a clause, or null where it removes it.
+    function deleteWhy(node) {
+        if (!editableOwnerOf(node)) {
+            return notEditedWhy(node);
+        }
+        if (node.isEntry) {
+            const section = node.parent;
+            if (!section || !section.execRemoveEntry) {
+                return notEditedWhy(node);
+            }
+            return section.removeEntryRefusal ? section.removeEntryRefusal(node) : null;
+        }
+        const parent = node.parent;
+        if (!parent) {
+            return 'it is a file, which is closed and not deleted';
+        }
+        return parent._removeChildRefusal ? parent._removeChildRefusal(node, true) : 'it is part of "' + rowNameOf(parent) + '", which takes no child away';
+    }
+    /**
+     * Why deleteNodeById(id), or deleteNodesById(ids) for an array, deletes nothing, naming the row:
+     * `Cannot delete "<row>": <why>. Nothing was deleted.` Or null where it deletes. A batch deletes
+     * the entries among the rows it is given and passes over the others, so it is refused only where
+     * it deletes none of them.
+     */
+    function deleteRefusal(nodeIds) {
+        const said = (node, why) => 'Cannot delete "' + rowNameOf(node) + '": ' + why + '. Nothing was deleted.';
+        if (typeof nodeIds === 'string') {
+            const node = resolveId(nodeIds);
+            if (!node) {
+                return unresolvedRefusal(nodeIds, 'delete', 'deleted');
+            }
+            const why = deleteWhy(node);
+            return why === null ? null : said(node, why);
+        }
+        // As deleteNodesById takes them: ids of no open row passed over, a shared one refusing all.
+        const nodes = [];
+        for (const id of nodeIds) {
+            const node = nodeIndex.get(id);
+            if (node && idIsShared(node)) {
+                return unresolvedRefusal(id, 'delete', 'deleted');
+            }
+            if (node) {
+                nodes.push(node);
+            }
+        }
+        if (nodes.length === 0) {
+            return 'Cannot delete: no row of ' + (nodeIds.length === 1 ? 'that id' : 'those ids') + ' is open. Nothing was deleted.';
+        }
+        if (nodes.length === 1) {
+            return deleteRefusal(nodes[0].id);
+        }
+        if (!editableOwnerOfAll(nodes)) {
+            const shown = nodes.find((n) => !editableOwnerOf(n));
+            return shown
+                ? said(shown, notEditedWhy(shown))
+                : 'Cannot delete rows of two files at once: each file is deleted from, and undone, on its own. Nothing was deleted.';
+        }
+        let first = null;
+        for (const node of nodes) {
+            const why = node.isEntry ? deleteWhy(node) : 'only entries are deleted together, and it is part of one';
+            if (why === null) {
+                return null;
+            }
+            first ??= said(node, why);
+        }
+        return first;
+    }
+    // Why the name of `node` takes no edit at all, as a clause, or null where it takes one.
+    function renameWhy(node) {
+        if (!node.isEntry && !editableOwnerOf(node)) {
+            return notEditedWhy(node);
+        }
+        if (node._nameRefusal) {
+            return node._nameRefusal();
+        }
+        return node.nameEditable ? null : 'its name is shown and not edited here';
+    }
+    /**
+     * Why the name of the row `nodeId` names takes no edit at all (its Name cell is greyed),
+     * naming the row: `Cannot rename "<row>": <why>.` Or null where it takes one.
+     */
+    function renameRefusal(nodeId) {
+        const node = resolveId(nodeId);
+        if (!node) {
+            return unresolvedRefusal(nodeId, 'rename');
+        }
+        const why = renameWhy(node);
+        return why === null ? null : 'Cannot rename "' + rowNameOf(node) + '": ' + why + '.';
     }
     function undoAction() {
         const slddNode = getActiveSlddNode();
@@ -2590,6 +2776,9 @@ export function createSession(opts = {}) {
         beginBatch,
         endBatch,
         editProperty,
+        // Whether an edit would change nothing (the shown text, committed unchanged), for a host that
+        // calls a node's setter itself.
+        isUnchangedEdit,
         addEntry,
         addEntryRefusal,
         // A paste of copied entries into a MAT-file, as one undo step, and what it would refuse; and
@@ -2605,6 +2794,11 @@ export function createSession(opts = {}) {
         addChildTo,
         deleteNodeById,
         deleteNodesById,
+        // Why each of the explicit forms above refuses, naming the row, or null where it does not;
+        // and why a row's name takes no edit at all.
+        addChildRefusal,
+        deleteRefusal,
+        renameRefusal,
         // For a host whose mutations do NOT come through the forms above (it owns its own
         // undo stack and edits nodes in place): the wrappers that keep the node index and
         // the selection honest across such an edit, at subtree scope instead of a re-parse.

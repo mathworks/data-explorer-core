@@ -22,10 +22,11 @@ export default class StructNode extends DataNode {
     serializeValue(): unknown;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _renameField(from: string, to: string): void;
-    canRemoveChild(): boolean;
+    _removeChildRefusal(child?: BaseNode, describe?: boolean): string | null;
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;
-    canAddChild(): boolean;
+    _addChildRefusal(describe?: boolean): string | null;
+    _dimsText(): string;
     _shapeAfterChildEdit(op: 'add' | 'remove'): ValueShape | null;
     addChildNode(): DataNode;
     execAddChild(): ChildAddEdit<DataNode> | null;

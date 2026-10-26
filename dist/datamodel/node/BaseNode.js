@@ -78,6 +78,23 @@ export function sourceEditRefusal(node, key, describe = true) {
 export function sourceEditRefused(node, key) {
     return sourceEditRefusal(node, key, false) !== null;
 }
+/** The refusal a gate answers with `describe` false (BaseNode._addChildRefusal and the others): unworded. */
+export const UNWORDED = 'refused';
+/**
+ * What a refusal said as a sentence of its own says as a clause: past a leading `Cannot <verb>
+ * "<name>": `, and with no closing period. For a refusal of one kind restated as another's (the
+ * session's addChildRefusal, deleteRefusal, renameRefusal).
+ */
+export function refusalClause(text) {
+    return text.replace(/^Cannot [^"]*"[^"]*": /, '').replace(/\.$/, '');
+}
+// A class name with its article: 'a Simulink.Signal', 'an int8'; 'a value' for none.
+export function withArticle(cls) {
+    if (!cls) {
+        return 'a value';
+    }
+    return (/^[aeio]/i.test(cls) ? 'an ' : 'a ') + cls;
+}
 /**
  * Whether the source `struct` is in renames its fields: `struct` a struct of one element (a struct,
  * or an element of a struct array), whose rows are its fields. A MAT-file says so of a struct its
@@ -429,8 +446,60 @@ export default class BaseNode {
     childStructureRestorer(_child) {
         return null;
     }
+    /**
+     * Why Add gives this node no child, as a clause about it, or null where it gives one: what
+     * canAddChild answers, and what the session's addChildRefusal says. With `describe` false a
+     * refusal is UNWORDED: canAddChild is asked of every row a host shows. Each class that takes a
+     * child says its own; any other takes none.
+     */
+    _addChildRefusal(describe = true) {
+        return describe ? 'it is ' + withArticle(this.className) + ', which takes no child' : UNWORDED;
+    }
     canAddChild() {
-        return false;
+        return this._addChildRefusal(false) === null;
+    }
+    /**
+     * Why `child`, a child of this node, is not deleted, as a clause about the child, or null where
+     * it is; with no `child`, why no child of this node is (canRemoveChild, the session's
+     * deleteRefusal). `describe` false answers UNWORDED, as _addChildRefusal.
+     */
+    _removeChildRefusal(_child, describe = true) {
+        if (!describe) {
+            return UNWORDED;
+        }
+        const of = '"' + this.matlabPath + '", ' + withArticle(this.className);
+        return this.isObjectPropertyBag ? 'it is a property of ' + of + ', whose properties its class defines' : 'it is part of ' + of + ', which keeps every child it has';
+    }
+    canRemoveChild() {
+        return this._removeChildRefusal(undefined, false) === null;
+    }
+    /**
+     * Why this node's name takes no edit at all (nameEditable false), as a clause about it, or null
+     * where it takes one: the session's renameRefusal, and a rename's refusal (DataNode.setProperty).
+     * A name typed in may still be refused for itself (validateMatlabName, a duplicate).
+     */
+    _nameRefusal() {
+        if (this.nameEditable) {
+            return null;
+        }
+        const holder = encodedHolderOf(this);
+        if (holder && holder !== this) {
+            return 'it is part of "' + holder.matlabPath + '", which is stored as an encoded MATLAB value that this editor can show but not write';
+        }
+        if (this.isElementName) {
+            return 'it is an element of "' + (this.parent?.matlabPath ?? '') + '", named by where it stands there';
+        }
+        if (this.parent?.isObjectPropertyBag) {
+            return 'it is a property of "' + this.parent.matlabPath + '", named by its class';
+        }
+        const source = sourceEditRefusal(this, 'Name');
+        if (source) {
+            return refusalClause(source);
+        }
+        if (this.parent?.fixesChildNames) {
+            return 'it is part of "' + this.parent.matlabPath + '", whose children keep the names the file gives them';
+        }
+        return 'it is ' + withArticle(this.className) + ', whose name is shown and not edited here';
     }
     addChildNode() {
         return null;

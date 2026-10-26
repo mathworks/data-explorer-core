@@ -57,6 +57,11 @@ function parse(str) {
     if (str === 'false') {
         return { type: 'logical', value: false };
     }
+    // An empty of a shape no bracket spells: `zeros(1,0)`, `cell(1,0)`, `strings(0,3)` (emptyConstructor).
+    const empty = emptyConstructor(str);
+    if (empty) {
+        return empty;
+    }
     const n = parseMatlabNumber(str);
     if (n !== null) {
         return { type: 'double', value: n };
@@ -849,6 +854,12 @@ function tokenizeCellElements(rowStr) {
             elements.push(typed);
             continue;
         }
+        // And an empty of a shape no bracket spells, `cell(1,0)`, `zeros(1,0,'int8')`, as its bag.
+        const empty = ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined ? null : emptyConstructor(span);
+        if (empty !== null) {
+            elements.push(emptyBag(empty));
+            continue;
+        }
         // An imaginary term then a real one (`i + 1`, `2i-3`) is one complex value in MATLAB,
         // which `parse` reads only real part first. Held as text, `{i+1}` was the char 'i+1'.
         const parsed = parse(span) ?? parseImaginaryFirst(span);
@@ -880,6 +891,68 @@ function tokenizeCellElements(rowStr) {
         elements.push(real !== null ? real : cellElementRaw(parsed));
     }
     return elements.length > 0 ? elements : null;
+}
+// The calls an empty of any shape and class is spelled as (emptyConstructor), and its size: a list
+// of counts, the class a numeric one is of last (`zeros(1,0,'int8')`).
+const EMPTY_CALL = /^(cell|zeros|false|true|strings)\(\s*([^()]*?)\s*\)$/;
+const EMPTY_CHAR_CALL = /^char\(\s*zeros\(\s*([^()]*?)\s*\)\s*\)$/;
+const EMPTY_CLASSES = new Set(['double', 'single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
+/**
+ * An empty value, spelled as MATLAB makes it of a call no bracket can stand for (the D12 ruling):
+ * `cell(1,0)`, `zeros(0,3)`, `zeros(1,0,'int8')`, `false(1,0)` (or `true(1,0)`, the same empty),
+ * `strings(0,3)`, `char(zeros(1,0))`,
+ * of any rank (`zeros(1,0,2)`), as MatlabVariableNode._emptySpelled shows one. One count is a square,
+ * as in MATLAB (`zeros(0)` is 0x0). Null for any other text, a call that makes no empty (`zeros(2,2)`,
+ * whose elements this package does not make) among it.
+ */
+export function emptyConstructor(text) {
+    const t = text.trim();
+    const charCall = EMPTY_CHAR_CALL.exec(t);
+    const call = charCall ? null : EMPTY_CALL.exec(t);
+    // The function that makes the empty (`char` for `char(zeros(...))`), and the text of its size.
+    const fn = charCall ? 'char' : call?.[1];
+    const sizeText = charCall ? charCall[1] : call?.[2];
+    if (fn === undefined || sizeText === undefined) {
+        return null;
+    }
+    const args = sizeText.split(',').map((a) => a.trim());
+    let cls = 'double';
+    const last = args[args.length - 1];
+    const quoted = /^'([a-z0-9]+)'$/.exec(last ?? '');
+    if (quoted) {
+        if (fn !== 'zeros' || !EMPTY_CLASSES.has(quoted[1])) {
+            return null;
+        }
+        cls = quoted[1];
+        args.pop();
+    }
+    if (args.length === 0 || args.some((a) => !/^\d+$/.test(a))) {
+        return null;
+    }
+    const counts = args.map(Number);
+    const dims = counts.length === 1 ? [counts[0], counts[0]] : counts;
+    if (dims.reduce((a, b) => a * b, 1) !== 0) {
+        return null;
+    }
+    switch (fn) {
+        case 'char': return { type: 'char', value: '', dims };
+        case 'cell': return { type: 'cell', value: [], dims };
+        case 'strings': return { type: 'string-array', value: [], dims };
+        case 'false':
+        case 'true': return { type: 'logical', value: [], dims };
+        default: return cls === 'double' ? { type: 'double', value: [], dims } : { type: 'double', value: [], dims, cls };
+    }
+}
+// An empty emptyConstructor read, as the bag each reader gives a cell's member of it.
+function emptyBag(empty) {
+    const dims = empty.dims;
+    switch (empty.type) {
+        case 'cell': return { _array_type: 'Cell', _dimensions: dims, _elements: [] };
+        case 'string-array': return { _array_type: 'String', _dimensions: dims, _elements: [] };
+        case 'logical': return { _type: 'logical', _emptyDims: dims };
+        case 'char': return { _type: 'char', _emptyDims: dims };
+        default: return { _type: empty.cls ?? 'double', _emptyDims: dims };
+    }
 }
 // A call of a numeric class's conversion, `int8(...)`: the class, and the text of its argument.
 const CLASS_CALL = /^(u?int(?:8|16|32|64)|single)\((.*)\)$/s;

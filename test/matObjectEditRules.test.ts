@@ -233,9 +233,10 @@ describe("a string's text is written into its payload, and the variable that hol
 
   // A value of another class typed over a string makes it another variable (MatNode._retype;
   // matRetypeString.test.ts).
-  it('a row added to a string, or removed, is refused', () => {
+  it('a row added to a string array is its text, which a save writes into its payload', () => {
     const { by, root } = opened(read('str.mat'));
-    expect([by('s2').canAddChild(), by('s2').canRemoveChild()]).toEqual([false, false]);
+    // As a dictionary's string array takes one (test/matStringArrayRows.test.ts).
+    expect([by('s2').canAddChild(), by('s2').canRemoveChild()]).toEqual([true, true]);
     expect(root.dirty).toBe(false);
   });
 });

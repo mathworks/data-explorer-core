@@ -48,8 +48,9 @@ export declare function createSession(opts?: CreateSessionOptions): {
         invalidValue: string;
         validValue: string;
     };
+    isUnchangedEdit: (nodeId: string, key: string, text: string) => boolean;
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
-    addEntryRefusal: () => string | null;
+    addEntryRefusal: (containerId?: string, className?: string, entryName?: string) => string | null;
     pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
     pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
         deep?: boolean;
@@ -60,6 +61,9 @@ export declare function createSession(opts?: CreateSessionOptions): {
     addChildTo: (nodeId: string) => INode | null;
     deleteNodeById: (nodeId: string) => boolean;
     deleteNodesById: (nodeIds: string[]) => boolean;
+    addChildRefusal: (nodeId: string) => string | null;
+    deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
+    renameRefusal: (nodeId: string) => string | null;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
     indexSubtree: (root: INode) => void;
     unindexSubtree: (root: INode, detach?: () => void) => void;
@@ -114,8 +118,9 @@ declare const DataModel: {
         invalidValue: string;
         validValue: string;
     };
+    isUnchangedEdit: (nodeId: string, key: string, text: string) => boolean;
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
-    addEntryRefusal: () => string | null;
+    addEntryRefusal: (containerId?: string, className?: string, entryName?: string) => string | null;
     pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
     pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
         deep?: boolean;
@@ -126,6 +131,9 @@ declare const DataModel: {
     addChildTo: (nodeId: string) => INode | null;
     deleteNodeById: (nodeId: string) => boolean;
     deleteNodesById: (nodeIds: string[]) => boolean;
+    addChildRefusal: (nodeId: string) => string | null;
+    deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
+    renameRefusal: (nodeId: string) => string | null;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
     indexSubtree: (root: INode) => void;
     unindexSubtree: (root: INode, detach?: () => void) => void;

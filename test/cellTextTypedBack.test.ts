@@ -83,7 +83,8 @@ describe('a cell that takes an edit of its text, that text typed back', () => {
         if (once.edit(path, text) !== true || once.root.dirty) wrong.push(label + ': typed back, an edit');
         const again = opened(bytes, name);
         const before = rowsUnder(again.root, path);
-        const r: any = again.edit(path, '{ ' + text.slice(1));
+        // A literal respelled with a space after its brace; an empty spelled as its call, after its comma.
+        const r: any = again.edit(path, text.startsWith('{') ? '{ ' + text.slice(1) : text.replace(',', ', '));
         if (r !== true) {
           wrong.push(label + ': respelled, refused ' + JSON.stringify(r));
           continue;

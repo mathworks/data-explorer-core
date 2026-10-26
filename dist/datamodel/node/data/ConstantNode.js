@@ -12,6 +12,7 @@
 // SectionNode.parseEntry, which reclasses a derived plain variable via this class).
 import MatlabVariableNode from './MatlabVariableNode.js';
 import DataNode from '../DataNode.js';
+import { UNWORDED } from '../BaseNode.js';
 import MatlabValueParser, { parsedIsScalarNumeric } from '../../parser/MatlabValueParser.js';
 export default class ConstantNode extends MatlabVariableNode {
     // A Constant is always a Constant — its Kind never follows the section/derived
@@ -24,8 +25,8 @@ export default class ConstantNode extends MatlabVariableNode {
         return 'typeConstant';
     }
     // A Constant is a scalar leaf: no children, ever.
-    canAddChild() {
-        return false;
+    _addChildRefusal(describe = true) {
+        return describe ? 'it is a constant, one number with no rows of its own' + this._typeOverAdvice() : UNWORDED;
     }
     // A well-formed Constant is scalar-numeric and editable. Defensive: if a file on
     // disk carries a derived entry whose value is NOT scalar-numeric (invalid in

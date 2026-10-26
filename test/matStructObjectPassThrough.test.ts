@@ -159,7 +159,7 @@ describe('a plain element beside an object in a cell, edited', () => {
     const saved = o.save();
     expectObjectsAsRead(original, saved);
     const again = opened(saved);
-    expect(['cArr{1}', 'cArr{2}', 'cArr{3}', 'cArr{4}'].map((p) => again.at(p).displayValue)).toEqual(['["a" "b" "c"]', '<1x2 Simulink.Parameter>', '<0x0 string>', '4']);
+    expect(['cArr{1}', 'cArr{2}', 'cArr{3}', 'cArr{4}'].map((p) => again.at(p).displayValue)).toEqual(['["a" "b" "c"]', '<1x2 Simulink.Parameter>', 'strings(0,0)', '4']);
     expect([again.at('cArr{2}(1)').displayValue, again.at('cArr{2}(2)').displayValue]).toEqual(['1', '2']);
   });
 

@@ -239,14 +239,14 @@ describe('a struct or a cell holding strings, pasted into a MAT-file', () => {
     expect(rowsUnder(reopened(save()), 'ce2')).toEqual(['ce2 cell {1, "edited", 7}', 'ce2{1} double 1', 'ce2{2} string "edited"', 'ce2{3} double 7']);
   });
 
-  it('is refused, saying why and changing nothing, where it holds an empty string or an object', () => {
+  it('is made where it holds an empty string array, spelled as MATLAB makes it; refused, saying why and changing nothing, where it holds an object', () => {
+    // An empty string array is `strings(0,3)` (the D12 ruling), which a string made of it takes.
+    const made = opened(containers('r2027a', 'plain'));
+    const empty = { name: 'e', metadata: null, value: { _array_type: 'Cell', _dimensions: [1, 1], _elements: [{ _array_type: 'String', _dimensions: [0, 3], _elements: [] }] } };
+    expect((made.session as any).pasteEntries('f.mat', [empty]).error).toBeUndefined();
+    expect(reopened(made.save()).flatten().find((n: any) => n.matlabPath === 'e').displayValue).toBe('{strings(0,3)}');
     const bytes = containers('r2027a', 'plain');
     const { session, root, save } = opened(bytes);
-    const empty = { name: 'e', metadata: null, value: { _array_type: 'Cell', _dimensions: [1, 1], _elements: [{ _array_type: 'String', _dimensions: [0, 3], _elements: [] }] } };
-    expect((session as any).pasteEntries('f.mat', [empty])).toMatchObject({
-      error: true,
-      reason: 'Cannot paste "e" into "f.mat": e{1} is a string, which a paste makes anew of its text, and it is a 0x3 string array, which no text spells. Nothing was pasted.',
-    });
     const object = copied('fixtures/strings_nested.mat', 'mixCell');
     expect((session as any).pasteEntries('f.mat', [object])).toMatchObject({ error: true, reason: expect.stringMatching(/mixCell\{1\} is a Simulink\.Parameter object/) });
     expect([root.dirty, root._creation, sameBytes(save(), bytes)]).toEqual([false, undefined, true]);
@@ -319,9 +319,11 @@ describe("a MAT-file cell holding strings, edited as its text", () => {
 
   it('a string no text spells keeps its summary, and its cell its lock; one with control characters is spelled as MATLAB would type it', () => {
     const { at } = opened(containers('r2027a', 'cells'));
-    for (const [path, shown] of [['cMissing', '{<1x1 string>, "ok"}'], ['cEmpty', '{<0x3 string>, "x"}'], ['cNd', '{<2x2x2 string>}']]) {
+    for (const [path, shown] of [['cMissing', '{<1x1 string>, "ok"}'], ['cNd', '{<2x2x2 string>}']]) {
       expect([at(path).displayValue, at(path).valueEditable], path).toEqual([shown, false]);
     }
+    // An empty string array is spelled as MATLAB makes it (the D12 ruling), and its cell takes an edit.
+    expect([at('cEmpty').displayValue, at('cEmpty').valueEditable]).toEqual(['{strings(0,3), "x"}', true]);
     expect([at('cControl').displayValue, at('cControl').valueEditable]).toEqual(['{"line" + newline + "break", "tab" + char(9)}', true]);
     expect([at('cPlain').displayValue, at('cPlain').valueEditable]).toEqual(['{"plain", "with ""quotes""", "é中😀", ""}', true]);
   });
@@ -415,7 +417,6 @@ describe('a string a cell or a struct holds, of every kind the review found wron
     ['<missing> alone', cell([str([null])]), 'it holds <missing>'],
     ['<missing> in an array', cell([str(['a', null])]), 'it holds <missing>'],
     ['a 2x2x2 string array', cell([str(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], [2, 2, 2])]), 'it is a 2x2x2 string array'],
-    ['an empty string array', cell([str([], [0, 3])]), 'it is a 0x3 string array'],
   ])('%s, pasted in a cell: refused, saying which, nothing changed', (_what, value, why) => {
     const { root, made, save } = paste('plain', value);
     expect(made).toMatchObject({ error: true, reason: 'Cannot paste "p" into "f.mat": p{1} is a string, which a paste makes anew of its text, and ' + why + ', which no text spells. Nothing was pasted.' });
@@ -428,9 +429,17 @@ describe('a string a cell or a struct holds, of every kind the review found wron
 // Value, a MAT-file's or a dictionary's, it is refused, naming the word (MatlabValueParser.parseTyped).
 // What a file holds is read as it was: the reader of a value's text is the lenient parse.
 describe('a bare word typed in a cell', () => {
+  it('{strings(0,3)}, an empty spelled as MATLAB makes it (the D12 ruling), is no bare word: taken, and read back as typed', () => {
+    for (const path of ['ce', 'ce{1}', 'st.a']) {
+      const { edit, save } = opened(containers('r2027a', 'plain'));
+      expect(edit(path, '{strings(0,3)}'), path).toBe(true);
+      expect(reopened(save()).flatten().find((n: any) => n.matlabPath === path).displayValue, path).toBe('{strings(0,3)}');
+    }
+  });
+
   it.each([
     ['{missing}', 'missing'],
-    ['{strings(0,3)}', 'strings(...)'],
+    ['{strings(2,3)}', 'strings(...)'],
     ['{1, abc}', 'abc'],
     ['{"a", {b}}', 'b'],
   ])('%s is refused in a MAT-file, naming %s, nothing changed', (typed, word) => {

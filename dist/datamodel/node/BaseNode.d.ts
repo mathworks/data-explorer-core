@@ -163,6 +163,15 @@ export declare function sourceEditRefusal(node: BaseNode, key: string, describe?
  * host shows, and a reason can name the node and more, each a walk to the root.
  */
 export declare function sourceEditRefused(node: BaseNode, key: string): boolean;
+/** The refusal a gate answers with `describe` false (BaseNode._addChildRefusal and the others): unworded. */
+export declare const UNWORDED = "refused";
+/**
+ * What a refusal said as a sentence of its own says as a clause: past a leading `Cannot <verb>
+ * "<name>": `, and with no closing period. For a refusal of one kind restated as another's (the
+ * session's addChildRefusal, deleteRefusal, renameRefusal).
+ */
+export declare function refusalClause(text: string): string;
+export declare function withArticle(cls: string): string;
 /**
  * Whether the source `struct` is in renames its fields: `struct` a struct of one element (a struct,
  * or an element of a struct array), whose rows are its fields. A MAT-file says so of a struct its
@@ -342,7 +351,27 @@ export default class BaseNode {
     get nameEditable(): boolean;
     childStructureChanged(_child: BaseNode): void;
     childStructureRestorer(_child: BaseNode): (() => void) | null;
+    /**
+     * Why Add gives this node no child, as a clause about it, or null where it gives one: what
+     * canAddChild answers, and what the session's addChildRefusal says. With `describe` false a
+     * refusal is UNWORDED: canAddChild is asked of every row a host shows. Each class that takes a
+     * child says its own; any other takes none.
+     */
+    _addChildRefusal(describe?: boolean): string | null;
     canAddChild(): boolean;
+    /**
+     * Why `child`, a child of this node, is not deleted, as a clause about the child, or null where
+     * it is; with no `child`, why no child of this node is (canRemoveChild, the session's
+     * deleteRefusal). `describe` false answers UNWORDED, as _addChildRefusal.
+     */
+    _removeChildRefusal(_child?: BaseNode, describe?: boolean): string | null;
+    canRemoveChild(): boolean;
+    /**
+     * Why this node's name takes no edit at all (nameEditable false), as a clause about it, or null
+     * where it takes one: the session's renameRefusal, and a rename's refusal (DataNode.setProperty).
+     * A name typed in may still be refused for itself (validateMatlabName, a duplicate).
+     */
+    _nameRefusal(): string | null;
     addChildNode(): BaseNode | null;
     addChild(child: BaseNode, index?: number): BaseNode;
     removeChild(child: BaseNode): void;

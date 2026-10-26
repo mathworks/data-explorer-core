@@ -44,8 +44,15 @@ export interface INode {
     addChild(child: INode, index?: number): INode;
     removeChild(child: INode): void;
     canAddChild?(): boolean;
+    canRemoveChild?(): boolean;
     execAddChild?(): unknown;
     execRemoveChild?(child?: INode): unknown;
+    /** Why Add gives this node no child, as a clause, or null (BaseNode._addChildRefusal). */
+    _addChildRefusal?(describe?: boolean): string | null;
+    /** Why `child` of this node is not deleted, as a clause, or null (BaseNode._removeChildRefusal). */
+    _removeChildRefusal?(child?: INode, describe?: boolean): string | null;
+    /** Why this node's name takes no edit, as a clause, or null (BaseNode._nameRefusal). */
+    _nameRefusal?(): string | null;
     /** For clipboard: serialize value for class key detection */
     serializeValue?(): unknown;
     /** For XML-based sources: serialize to XML */
@@ -85,6 +92,10 @@ export interface IContainerNode extends INode {
         undo: () => void;
         redo: () => void;
     } | null;
+    /** Why execAddEntry makes no entry of `className` here, as a sentence naming the container, or null where it makes one. */
+    entryRefusal?(className?: string, entryName?: string): string | null;
+    /** Why execRemoveEntry refuses `node`, an entry of this container, as a clause, or null where it removes it. */
+    removeEntryRefusal?(node: INode): string | null;
     /** For paste support */
     _uniqueName?(baseName: string): string;
     parseEntry?(rawEntry: Record<string, unknown>): INode | null;

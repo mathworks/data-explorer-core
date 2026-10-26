@@ -215,6 +215,17 @@ describe("an empty shows as MATLAB's Workspace browser shows it", () => {
     'dispcat_bin.sldd': ['dx_sparse_0x0', 'dx_sparse_2x0', 'dx_enum_0x0', 'dx_enum_1x0', 'en_sl_empty', 'en_i32_empty'],
   };
 
+  // The D12 ruling of the 2026-10-26 edit bash narrows the browser's for two kinds: a cell of an
+  // empty shape but 0x0, and an empty string array, which it showed as a summary and so as a value
+  // that took no edit, show the text MATLAB makes them of: `cell(1,0)`, `strings(0,3)`.
+  const spelledAsMade = (name: string): string | null => {
+    const { class: cls, size } = META.get(name)!;
+    const zeroByZero = size.length === 2 && size[0] === 0 && size[1] === 0;
+    if (cls === 'cell' && !zeroByZero) return 'cell(' + size.join(',') + ')';
+    if (cls === 'string' && name !== 'dx_string_empty_1x1') return 'strings(' + size.join(',') + ')';
+    return null;
+  };
+
   for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
     it(file, () => {
       const { root } = open(file);
@@ -222,7 +233,8 @@ describe("an empty shows as MATLAB's Workspace browser shows it", () => {
       const inFile = new Set(entriesOf(root).map((n) => n.name));
       const held = names.filter((n) => inFile.has(n));
       expect(held.length, file).toBeGreaterThan(18);
-      expect(held.map((n) => [n, entry(root, n).toRow().Value])).toEqual(held.map((n) => [n, ours(browser(n))]));
+      expect(held.map((n) => [n, entry(root, n).toRow().Value])).toEqual(held.map((n) => [n, spelledAsMade(n) ?? ours(browser(n))]));
+      expect(held.filter((n) => spelledAsMade(n) !== null).length, file).toBeGreaterThan(0);
     });
   }
 

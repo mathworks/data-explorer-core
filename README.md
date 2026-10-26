@@ -206,7 +206,7 @@ back, and the file is then saved as it was read. A cell typed in that holds stri
 file's objects, and each then takes an edit of its own. A cell that holds no object but
 strings shows them by their text, as a dictionary does (`{1, "a", ["x" "yz"]}`), and takes an
 edit of that text; one holding another object, or a string no text spells (`<missing>`, an
-empty or N-D string array), shows its summaries and is edited an element at a time. In a
+N-D string array), shows its summaries and is edited an element at a time. In a
 cell's text, in a MAT-file and a dictionary alike, a member of a numeric class other than
 double is spelled with its class (`{1, int8(3), single(2.5), uint16([1 2])}`), so the text
 typed back keeps every class; a cell holding one no text spells exactly (a single -0) is
@@ -214,8 +214,21 @@ edited an element at a time. An integer class's conversion reads its digits exac
 `uint64(9007199254740993)` keeps that value, where MATLAB, which reads the digits as a
 double first, keeps 9007199254740992. A bare word typed in a cell (`{missing}`) is refused: a char
 is typed in quotes. A string is still refused in an element of a numeric array, and as a
-`Simulink.Parameter`'s Value where MATLAB refuses it.
-Add is not offered on a struct array or on an element of one. A variable stored
+`Simulink.Parameter`'s Value where MATLAB refuses it. A string array (a row or a column)
+takes `""` added and an element deleted, as in a dictionary, written into its object;
+one string, a matrix and an empty array do not.
+Add is not offered on a struct array or on an element of one. A field of a 1x1 struct
+is deleted, at any depth, as MATLAB's `rmfield` deletes it, as in a dictionary; a field
+of a struct array or of an element of one is not. In every format, Add grows a cell as
+MATLAB's `c{end+1}` does: a 1x1 or an empty cell as a row (`{3}` to `{3, 0}`), a
+column as a column; and a delete of a 1x1 cell's element leaves it 1x0, as `c(1) = []`
+does. A vector of any rank grows and shrinks along its one dimension past 1 (a 1x1x3 to a
+1x1x4), and an array that is no vector, a 1x2x2 as a 2x3, takes neither. In every format, an
+empty of a shape no bracket spells is shown in a cell's text as MATLAB makes it, and is taken
+typed: `cell(1,0)`, `zeros(0,3)`, `zeros(1,0,'int8')`, `false(1,0)`, `char(zeros(1,0))`,
+`strings(0,3)`; a cell of such a shape and an empty string array show it as their own Value
+too, where a numeric, logical or char empty shows `[ ]` or `''` as MATLAB's Workspace browser
+does. An undone Add or delete saves the file as it was read. A variable stored
 after the objects, which MATLAB does not load, takes no edit, not even a rename,
 and can be deleted. A file no save of which can be written is `readOnly` and takes
 no edit, addition or delete at all: one whose records do not tile it, one opened
@@ -236,8 +249,8 @@ property the copy holds is set on it as an edit sets it; the object made is then
 to the copy, row by row and in the properties no row shows, and a difference refuses
 the paste, naming the property. So does anything else no save could write as it was
 copied: a function handle, an object array, an object inside a struct or a cell (a
-string there is made one of the file's objects, as a cell typed in makes it; an empty
-one, which no text spells, is refused), an enumeration, the classes `addEntry` does not offer, a value past the
+string there is made one of the file's objects, as a cell typed in makes it, an empty one
+too; an N-D one, which no text spells, is refused), an enumeration, the classes `addEntry` does not offer, a value past the
 writer's budget, and a Parameter Value whose text does not hold it (an integer,
 `single` or complex Value, a struct). `session.pasteRefusal(srcId, payload, { deep })`
 answers what the paste would refuse, cheaply or, with `deep`, by making the paste and
@@ -245,6 +258,23 @@ taking it back; `getAdmittedTypes()` of the file lists what a paste takes by the
 value's `_array_class` (`'MatlabVariable'` for one with none). `session.copyRefusal(nodeId,
 target?)` says whether an entry can be copied at all, and into a text (`'json'`) or a
 binary (`'xml'`) dictionary.
+
+`addChildTo(nodeId)`, `deleteNodeById(nodeId)` and `deleteNodesById(ids)` answer a
+refusal with `null` or `false`. `session.addChildRefusal(nodeId)`,
+`session.deleteRefusal(nodeId | ids)` and `session.renameRefusal(nodeId)` say why, in
+words that name the row, in every format: `Cannot add to "c": it is a 2x3 cell array,
+which an element added at its end would not leave rectangular: type the whole value
+over it instead. Nothing was added.` Each returns `null` exactly where its operation is
+made, and changes nothing, so a host can ask before (to word a greyed menu item) or
+after a refusal. `renameRefusal` is about a name that takes no edit at all (an
+element's, a class property's); a name typed in that is refused for itself comes back
+from `editProperty(id, 'Name', text)` with its reason. `session.addEntryRefusal(containerId,
+className?, name?)` says the same of `addEntry` into a dictionary's section (by its id,
+`x.sldd/design`) or a MAT-file (by its srcId): a class the section does not hold names
+the one that does. Called with no argument it says why the last `addEntry` into the
+active MAT-file added nothing, as before. `session.isUnchangedEdit(nodeId, key, text)` says
+whether an edit would change nothing, the text a property shows committed unchanged, as
+`editProperty` takes it, for a host that calls a node's setter itself.
 
 ## Usage across a folder
 
