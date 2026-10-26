@@ -7,4 +7,7 @@ export interface McosPlace {
 export declare function setMcosPlace(node: object, variable: MatVariable, index: number): void;
 /** Where the object `node` was built of is, or undefined for a node built of none. */
 export declare function mcosPlaceOf(node: object): McosPlace | undefined;
+export declare function setMcosEnumeration(node: object, variable: MatVariable): void;
+/** The variable of the enumeration value `node` was built of, or undefined for a node built of none. */
+export declare function mcosEnumerationOf(node: object): MatVariable | undefined;
 //# sourceMappingURL=mcosPlace.d.ts.map

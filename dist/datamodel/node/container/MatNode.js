@@ -18,7 +18,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import { objectIdOf } from '../../parser/McosSubsystemEdit.js';
 import { memberRefusal, objectNodeAt, objectNodesUnder, mirrorTwins, twinGroupByNode, twinGroupsOf, twinMasterRefusal, twinsTouching, } from '../data/mcosObjectEdit.js';
 import { matClassRefusal, matEditsRefusal, matObjectStateOf, matObjectSubsystemEdit, matPropertyAt, matShownDataType, projectedBusState, spotValue, matBagEditorOf, matBagEditorsOf, matBagEditorShown, matOffersSpot, matNumericTypeAfter, BUS_ELEMENTS, ELEMENTS_SAVED, MAT_SHOWN_SAVED_KEYS, MatSpotVerdicts, } from '../data/matObjectEdit.js';
-import { mcosPlaceOf, setMcosPlace } from '../mcosPlace.js';
+import { mcosEnumerationOf, mcosPlaceOf, setMcosPlace } from '../mcosPlace.js';
 import { newEntryName, uniqueName } from '../../matlabName.js';
 import { owningEntryOf } from '../DataNode.js';
 import { propertyChoices } from '../../parser/McosPropertyRules.js';
@@ -226,10 +226,16 @@ export default class MatNode extends ContainerNode {
         }
         // At or under an MCOS object a save writes as the element it was read as, beside a plain value
         // of the variable it writes fresh (MatlabVariableNode._objectMemberOf): an object array's own
-        // row, a string's, an opaque object's. Its element names the file's objects, and nothing of it
-        // but an object's property, which objectNodeAt finds, is an edit a save writes.
+        // row, a string's, an opaque object's, an enumeration value's. Its element names the file's
+        // objects, and nothing of it but an object's property, which objectNodeAt finds, is an edit a
+        // save writes; an enumeration value has none.
         for (let n = node; n && n !== entry; n = n.parent) {
             if (MatlabVariableNode._objectMemberOf(n)) {
+                const enumeration = mcosEnumerationOf(n);
+                if (enumeration) {
+                    return cannotEdit(entry.name, node.matlabPath + ' is a value of the enumeration ' + enumeration.className
+                        + ', which a save writes only as it was read, so its edit cannot be saved');
+                }
                 return cannotEdit(entry.name, n.matlabPath + ' is ' + (n === node ? '' : 'part of ') + 'an object of the file, which a save writes as it was read: '
                     + 'only the properties of an object it takes are written into the file\'s objects');
             }

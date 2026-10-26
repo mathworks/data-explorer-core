@@ -121,6 +121,12 @@ export declare function unwritableIn(at: BaseNode, stringsMade?: boolean): {
  * repo's fixtures, 79 of 79 over 60 files, each is so, MATLAB's element byte for byte; and one
  * that is not is not passed through, rather than written as bytes this package cannot say name
  * the objects they named.
+ *
+ * An enumeration value holds no handle: its element is passed through where it is the one this
+ * package writes for it (McosSubsystemCodec.enumerationReferenceElement), the instance struct it
+ * holds in a handle's place as read, which names its class, enumerals and their objects in the
+ * subsystem; measured on every enumeration value the fixtures hold in a struct field or a cell,
+ * each is so.
  */
 export declare function objectElementOf(v: MatVariable, path: string): {
     element: Uint8Array;

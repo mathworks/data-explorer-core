@@ -22,7 +22,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { objectElementOf, streamWriteRefusal, variableDifference } from '../../parser/MatFileWriter.js';
-import { mcosPlaceOf } from '../mcosPlace.js';
+import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins, withOrigin } from '../../parser/EntrySource.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
@@ -3772,11 +3772,17 @@ export default class MatlabVariableNode extends DataNode {
     static _objectMemberOf(node) {
         let variable;
         const place = mcosPlaceOf(node);
+        const enumeration = mcosEnumerationOf(node);
         if (place) {
             if (place.index !== 0) {
                 return { why: node.matlabPath + ' is an element of an object array, which a save writes only whole' };
             }
             variable = place.variable;
+        }
+        else if (enumeration) {
+            // An enumeration value's node, scalar or array (mcosPlace.mcosEnumerationOf): the variable
+            // whose element holds it.
+            variable = enumeration;
         }
         else if (node instanceof MatlabVariableNode) {
             if (!node._isOpaque || !node._matVar?.isOpaque) {

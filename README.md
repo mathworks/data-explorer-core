@@ -157,6 +157,9 @@ These take a rename and a delete and nothing else:
 - an object of any class but `Simulink.Parameter` and `Simulink.Signal` (a bus,
   an `mpt.Parameter`, a class of your own): none of its properties and none of
   the rows under it;
+- an enumeration value (`matlab.lang.OnOffSwitchState.on`, an enumeration of
+  your own), scalar or array. A struct or a cell holding one writes it as it was
+  read, so the other members of the struct or the cell take every edit;
 - a function handle, and a value the reader could not decode;
 - a plain variable holding any of these, or a cell or struct array the reader
   read short (holding fewer elements than it declares, which a save would write

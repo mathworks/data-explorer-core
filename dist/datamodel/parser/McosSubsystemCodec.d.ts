@@ -296,6 +296,15 @@ export declare function readDescriptor(element: Uint8Array): McosDescriptor | nu
  */
 export declare function objectReferenceElement(name: string, className: string, d: McosDescriptor): Uint8Array;
 /**
+ * The class-17 element of an enumeration value of class `className` that a struct field or a cell
+ * holds (name ''), made of `element`, the one it was read as; or null where that is not one. Its
+ * fourth part is no handle but MATLAB's instance struct, EnumerationInstanceTag its first field
+ * (MatParser.enumerationInstanceOf), which names the class by row and each enumeral by its string
+ * and its object, all of the subsystem, which no edit here renumbers (APPEND ONLY): so the struct
+ * is kept as it was read, and the rest restated as objectReferenceElement writes it.
+ */
+export declare function enumerationReferenceElement(className: string, element: Uint8Array): Uint8Array | null;
+/**
  * The value cell of a `string` array: a uint64 row [1, ndims, dims…, one length per element
  * (UTF-16 code units; 2^64 - 1 for <missing>), then every element's code units packed, zero-padded
  * to 8 bytes]. `texts` are column-major, null for <missing>.
