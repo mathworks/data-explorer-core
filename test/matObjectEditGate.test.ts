@@ -160,10 +160,12 @@ function candidates(node: any, object: any, key: string): string[] {
     case 'Max':
       return [String((bound(object.Min) ?? 0) + 1), '9', '[]', '200'];
     case 'Description':
-    case 'Unit':
     case 'description':
-    case 'unit':
       return ['zz edited', '', 'Grüße 温度 \u{1F600}'];
+    // And a unit expression, which a ValueType's Unit takes, and no text of two words (unitExpression).
+    case 'Unit':
+    case 'unit':
+      return ['zz edited', '', 'Grüße 温度 \u{1F600}', 'm/s^2'];
     case 'DataType':
     case 'dataType':
       return ['double', 'int8', 'fixdt(1,16,4)', 'boolean', 'single'];

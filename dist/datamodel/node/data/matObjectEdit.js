@@ -3,11 +3,12 @@ import { mcosPlaceOf } from '../mcosPlace.js';
 import { MatWriteError, classPhrase } from '../../parser/MatWriter.js';
 import { variableDifference } from '../../parser/MatFileWriter.js';
 import { objectIdOf } from '../../parser/McosSubsystemEdit.js';
+import { isObjectHandle } from '../../parser/McosHandle.js';
 import { McosValueKind, isHandleOpaque, measuredVersion, propertiesOf, readDescriptor, cloneSubsystem, replaceValueCell, stringObjectOf, stringPayloadCell, } from '../../parser/McosSubsystemCodec.js';
 import { elementValue } from '../../parser/McosObjectWrite.js';
 import { addBusElements, busElementsOf, removeBusElement } from '../../parser/McosTemplateMerge.js';
 import { editedObjects, handleRuleObjectOf, heldObjectIds, ruleObjectOf, writeObjectEdits } from '../../parser/McosObjectWrite.js';
-import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRefusal, planPropertyEdits, propertyRowOf, } from '../../parser/McosPropertyRules.js';
+import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRefusal, planPropertyEdits, propertyChoices, propertyRowOf, } from '../../parser/McosPropertyRules.js';
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
@@ -37,6 +38,56 @@ const BUS = 'Simulink.Bus';
 const BUS_ELEMENT = 'Simulink.BusElement';
 const NUMERIC_TYPE = 'Simulink.NumericType';
 const STRING = 'string';
+/**
+ * A typed text as an offered editor of `kind` takes it (MatNode._setOffered, dictObjectEdit): text
+ * as typed, a choice (which the rules hold to theirs), true or false, a number, or a row of numbers
+ * (a number alone, or in brackets, by spaces or commas), Inf and -Inf among them; or why it is none.
+ */
+export function offeredValue(text, kind) {
+    const number = (t) => {
+        const u = t.trim();
+        if (/^[+-]?inf$/i.test(u)) {
+            return u.startsWith('-') ? -Infinity : Infinity;
+        }
+        return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(u) ? Number(u) : null;
+    };
+    switch (kind) {
+        case 'text':
+        case 'choice':
+            return { value: text };
+        case 'flag': {
+            const t = text.trim();
+            if (t === 'true' || t === '1') {
+                return { value: true };
+            }
+            if (t === 'false' || t === '0') {
+                return { value: false };
+            }
+            return 'must be true or false';
+        }
+        case 'number': {
+            const x = number(text);
+            return x === null ? 'must be a number' : { value: x };
+        }
+        case 'numbers': {
+            const t = text.trim().replace(/^\[(.*)\]$/s, '$1').trim();
+            const xs = t === '' ? [] : t.split(/[\s,]+/).map(number);
+            return xs.length === 0 || xs.some((x) => x === null) ? 'must be a number or a row of numbers' : { value: xs.length === 1 ? xs[0] : xs };
+        }
+    }
+}
+/**
+ * The editor an offered property of a `className` object shows, by how its text is read
+ * (MatNode._offeredEditor, dictObjectEdit): a dropdown of true and false for a flag, of the rules'
+ * choices for a choice they hold to a closed set, else a text box.
+ */
+export function offeredEditorOf(className, editor) {
+    if (editor.kind === 'flag') {
+        return { editor: 'select', options: ['true', 'false'] };
+    }
+    const choices = editor.kind === 'choice' ? propertyChoices(className, editor.property) : null;
+    return choices ? { editor: 'select', options: [...choices] } : { editor: 'text' };
+}
 /** What the node `holder` shows of the property an editor writes (MatBagEditor): its field, else its bag's key. */
 export function matBagEditorShown(holder, editor) {
     return editor.field ? holder[editor.field] : bagValueOf(holder, editor.bag);
@@ -360,6 +411,37 @@ function stringValueOf(node, field) {
     }
     return 'is not held as a string';
 }
+// The path of the first object reference `v`, a value the file holds, holds in a struct field or a
+// cell at any depth, under `path`, or null: the handle words of an object of the file, which MATLAB
+// writes for a string or another object a struct or a cell inside an object's property holds.
+function objectInside(v, path) {
+    if (!v) {
+        return null;
+    }
+    if (isObjectHandle(v)) {
+        return path;
+    }
+    if (v.className === 'cell' && Array.isArray(v.value)) {
+        for (let i = 0; i < v.value.length; i++) {
+            const below = objectInside(v.value[i], path + '{' + (i + 1) + '}');
+            if (below) {
+                return below;
+            }
+        }
+    }
+    if (v.className === 'struct') {
+        for (const [name, held] of Object.entries(v.fields ?? {})) {
+            const elements = Array.isArray(held) ? held : [held];
+            for (let i = 0; i < elements.length; i++) {
+                const below = objectInside(elements[i], path + (Array.isArray(held) ? '(' + (i + 1) + ')' : '') + '.' + name);
+                if (below) {
+                    return below;
+                }
+            }
+        }
+    }
+    return null;
+}
 // Whether two values are one: two strings by their size and every element's text, anything else
 // as the save's self-check compares it (MatFileWriter.variableDifference).
 function valueDifference(a, b, named) {
@@ -493,7 +575,12 @@ export function matObjectStateOf(records, node) {
         else {
             const difference = valueDifference(v, reference, named);
             if (difference) {
-                exact = named + ' is not, as this editor reads it, the value the file holds (' + difference + '), so a save could not write it as it is';
+                // A string or another object a struct or a cell Value holds, which the file holds as a
+                // reference to an object of its own (McosSubsystemEdit: a cell holding one takes no swap).
+                const inside = objectInside(reference, named);
+                exact = inside
+                    ? named + ' holds an object of the file (' + inside + '), which a save does not write anew there, so it takes no edit'
+                    : named + ' is not, as this editor reads it, the value the file holds (' + difference + '), so a save could not write it as it is';
                 asRead = v;
             }
         }
@@ -1237,7 +1324,7 @@ const SLOPE_BIAS_SCALING = 'Fixed-point: slope and bias scaling';
 // Why a NumericType in mode `mode` takes no edit of `property`, as a clause, or null: MATLAB keeps
 // a floating type's WordLength, Signedness and scaling, an unscaled one's scaling, and a binary
 // point one's Bias as its mode's setter left them, refusing or warning at any other value.
-function numericTypeGate(mode, property) {
+export function numericTypeGate(mode, property) {
     const floating = ['Double', 'Single', 'Half', 'Boolean'].includes(mode);
     if (floating && ['WordLength', 'Signedness', 'FractionLength', 'Slope', 'Bias'].includes(property)) {
         return 'is set only in a fixed-point mode: MATLAB keeps a ' + mode + " type's as it is";

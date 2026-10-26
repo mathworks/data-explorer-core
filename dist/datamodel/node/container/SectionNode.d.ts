@@ -1,6 +1,7 @@
 import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
+import { type SourceOfferedEditor, type SourceSetResult } from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
@@ -24,6 +25,9 @@ export default class SectionNode extends ContainerNode {
     getAdmittedTypes(): string[];
     allowsType(className: string): boolean;
     _namespaceEntryNames(): string[];
+    _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
+    _setOffered(entry: BaseNode, node: BaseNode, key: string, text: string): SourceSetResult | null;
+    _offeredRestorer(entry: BaseNode, node: BaseNode, key: string): (() => void) | null;
     _namespaceHolds(name: string): number;
     addChild(child: BaseNode, index?: number): BaseNode;
     removeChild(child: BaseNode): void;

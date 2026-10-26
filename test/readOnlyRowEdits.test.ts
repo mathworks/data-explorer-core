@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// A row a dictionary shows read-only that names nothing its node holds: a NumericType's
-// WordLength, a Parameter's HeaderFile, every node's Kind and Class, a plain value's DataType.
+// A row a dictionary shows read-only that names nothing its node holds: a NumericType's DataType,
+// a Parameter's HeaderFile, every node's Kind and Class, a plain value's DataType. (A NumericType's
+// WordLength was one, and now takes an edit, as a MAT-file's does: dictObjectEdit.)
 // An edit of one answered true and wrote nothing: DataNode.setProperty's last resort made a field
 // of the row's key on the node, which nothing reads. And it marked the entry edited all the same, so
 // that it was written again from the node, which spelled some values otherwise: a complex int16 of
@@ -58,18 +59,19 @@ function typedOver(shown: string, options?: string[]): string {
 }
 
 describe('an edit of a row shown read-only that names nothing its node holds', () => {
-  it("is refused naming the row, and the dictionary is as it was: a NumericType's WordLength", () => {
+  it("is refused naming the row, and the dictionary is as it was: a NumericType's DataType", () => {
     for (const file of ['test/parity/artifacts/text/params.sldd', 'test/parity/artifacts/binary/params.sldd']) {
       const { root, at, edit, save } = opened(file);
       const before = save();
       const node = at('MyNumType');
-      expect(edit(node, 'wordLength', '8'), file).toEqual({
+      const rows = rowsOf(node);
+      expect(edit(node, 'DataType', 'int8'), file).toEqual({
         error: true,
-        reason: 'Cannot edit "MyNumType": the Word Length of MyNumType is read-only here.',
-        invalidValue: '8',
-        validValue: '16',
+        reason: 'Cannot edit "MyNumType": the Data Type of MyNumType is read-only here.',
+        invalidValue: 'int8',
+        validValue: '',
       });
-      expect([root.dirty, rowsOf(node).find((r: string) => r.startsWith('wordLength'))], file).toEqual([false, 'wordLength = 16']);
+      expect([root.dirty, rowsOf(node)], file).toEqual([false, rows]);
       expect(sameBytes(save(), before), file).toBe(true);
     }
   });
@@ -91,13 +93,13 @@ describe('an edit of a row shown read-only that names nothing its node holds', (
     const node = at('MyNumType');
     const read = node.getPropInfo.bind(node);
     node.getPropInfo = (prop: Any) => {
-      if (prop.key === 'wordLength') throw new Error('unreadable row');
+      if (prop.key === 'DataType') throw new Error('unreadable row');
       return read(prop);
     };
-    expect(node.setProperty('wordLength', '8')).toEqual({
+    expect(node.setProperty('DataType', 'int8')).toEqual({
       error: true,
-      reason: 'Cannot edit "MyNumType": the Word Length of MyNumType is read-only here.',
-      invalidValue: '8',
+      reason: 'Cannot edit "MyNumType": the Data Type of MyNumType is read-only here.',
+      invalidValue: 'int8',
       validValue: '',
     });
   });

@@ -646,17 +646,18 @@ describe("where the object is: an edit writes the subsystem, and the record that
     expect([again.object('h').displayValue, again.object('r').displayValue]).toEqual(['7', '7']);
   });
 
-  it("a struct Value's field, edited where it shows, and not to text", () => {
+  it("a struct Value's field, edited where it shows: a char taken, as MATLAB keeps it, and not a string", () => {
     const original = read(ALLOWLIST, 'al_shape.mat');
     const { object, edit, save } = opened(original);
-    const field = object('spB')._valueNode.children.find((c: any) => c.name === 'a');
-    for (const [typed, what] of [["'x'", 'a char'], ['"x"', 'a string']]) {
-      expect(edit(field, 'Value', typed), typed).toMatchObject({
-        error: true,
-        reason: 'Cannot edit "spB": spB.Value.a would be ' + what + ", which this editor does not write into a Simulink.Parameter's Value.",
-      });
-    }
-    expect(edit(field, 'Value', '5')).toBe(true);
+    const field = () => object('spB')._valueNode.children.find((c: any) => c.name === 'a');
+    expect(edit(field(), 'Value', '"x"')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "spB": spB.Value.a would be a string, which a MAT-file holds as an object of the file, and this package writes no object '
+        + "into a Simulink.Parameter's Value: type the text in single quotes to make it a char.",
+    });
+    expect(edit(field(), 'Value', "'x'")).toBe(true);
+    expect(field().className).toBe('char');
+    expect(edit(field(), 'Value', '5')).toBe(true);
     const saved = save();
     expect(cellsReadDifferently(subsystemOf(saved), subsystemOf(read(ALLOWLIST, 'mut_g3_struct_leaf.mat')))).toBeNull();
     expectOnlyTheSubsystemChanged(original, saved, 'al_shape');

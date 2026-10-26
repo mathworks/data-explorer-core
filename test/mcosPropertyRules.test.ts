@@ -198,7 +198,8 @@ rows('Simulink.Parameter: its Value, and what MATLAB changes with it', [
   { name: 'a cell Value', of: param(), edits: [['Value', v('cell', [dbl(1)], [1, 1])]], expect: refused('Value', /p\.Value would be a cell, which this editor does not write into a Simulink\.Parameter/) },
   { name: 'a sparse Value', of: param(), edits: [['Value', dbl([1], [1, 1]) && { ...dbl(1), isSparse: true }]], expect: refused('Value', /a sparse double/) },
   { name: 'an empty char Value', of: param(), edits: [['Value', chr('')]], expect: refused('Value', /a char that is not one row of text/) },
-  { name: 'a struct Value holding text', of: param(), edits: [['Value', strct({ a: chr('x') })]], expect: refused('Value', /a struct holding a char/) },
+  { name: 'a struct Value holding a char', of: param(), edits: [['Value', strct({ a: chr('x') })]], expect: ['set Dimensions double[1 2]:[1,1]', expect.stringMatching(/^set Value struct\[1 1\]/), 'set DataType char[1 6]:"struct"'] as unknown as string[] },
+  { name: 'a struct Value holding an empty char', of: param(), edits: [['Value', strct({ a: chr('') })]], expect: refused('Value', /a struct holding a char that is empty, or not text/) },
   { name: 'an object Value', of: param(), edits: [['Value', v('Simulink.Signal', null, [1, 1], { isOpaque: true })]], expect: refused('Value', /a Simulink\.Signal/) },
   { name: 'a complex logical Value', of: param(), edits: [['Value', v('uint8', [{ re: 1, im: 1 }], [1, 1], { isLogical: true, isComplex: true })]], expect: refused('Value', /a complex logical/) },
 ]);
@@ -420,6 +421,11 @@ rows('Simulink.ValueType: every property omittable, nothing cross-checked', [
   { name: 'Min above Max, which MATLAB does not check for a value type', of: vt(), edits: [['Min', dbl(5)], ['Max', dbl(1)]], expect: ['set Min double[1 1]:5', 'set Max double[1 1]:1'] },
   { name: 'an int16 Max', of: vt(), edits: [['Max', num('int16', 1)]], expect: refused('Max', /finite real double scalar/) },
   { name: 'Unit, saved as Unit', of: vt(), edits: [['Unit', chr('m')]], expect: ['set Unit char[1 1]:"m"'] },
+  // A unit expression MATLAB parses (unitExpression; test/unitExpression.test.ts), which a file loads
+  // as '' when it does not parse.
+  { name: 'Unit m/s^2', of: vt(), edits: [['Unit', chr('m/s^2')]], expect: ['set Unit char[1 5]:"m/s^2"'] },
+  { name: 'Unit of two names', of: vt(), edits: [['Unit', chr('m s')]], expect: refused('Unit', /^p\.Unit would be 'm s', which MATLAB refuses: Encountered error while parsing unit expression 'm s' at position 3$/) },
+  { name: 'Unit with a comma', of: vt(), edits: [['Unit', chr('m,s')]], expect: refused('Unit', /^p\.Unit would be 'm,s', which MATLAB refuses: Invalid unit expression 'm,s' in 'Unit' property$/) },
   { name: 'Description of white space, kept', of: vt(), edits: [['Description', chr(' ')]], expect: ['set Description char[1 1]:" "'] },
 ]);
 
@@ -454,6 +460,9 @@ rows("Simulink.lookuptable.Table and .Breakpoint: a Value, and its Dimensions fo
   { name: "TunableSizeName 'bad name'", of: breakpoint(), edits: [['TunableSizeName', chr('bad name')]], expect: refused('TunableSizeName', /MATLAB identifier/) },
   { name: 'a Table has no TunableSizeName', of: table(), edits: [['TunableSizeName', chr('N2')]], expect: refused('TunableSizeName', /is not one this editor writes into a Simulink\.lookuptable\.Table/) },
   { name: 'FieldName', of: table(), edits: [['FieldName', chr('T')]], expect: ['set FieldName char[1 1]:"T"'] },
+  { name: 'a Table Unit', of: table(), edits: [['Unit', chr('kg*m')]], expect: ['set Unit char[1 4]:"kg*m"'] },
+  { name: 'a Table Unit of two names', of: table(), edits: [['Unit', chr('kg m')]], expect: refused('Unit', /Encountered error while parsing unit expression 'kg m' at position 4/) },
+  { name: 'a Breakpoint Unit with a trailing operator', of: breakpoint(), edits: [['Unit', chr('m*')]], expect: refused('Unit', /Encountered error while parsing unit expression 'm\*' at position 3/) },
   { name: 'Min, with no check against Max or the data', of: table({ Max: dbl(0) }), edits: [['Min', dbl(5)]], expect: ['set Min double[1 1]:5'] },
   { name: 'a Min set back to []', of: table({ Min: dbl(1) }), edits: [['Min', empty()]], expect: ['remove Min'] },
 ]);

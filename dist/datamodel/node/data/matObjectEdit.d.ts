@@ -1,4 +1,5 @@
 import type BaseNode from '../BaseNode.js';
+import type { SourceOfferedEditor } from '../BaseNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 import { type McosWrittenCell } from '../../parser/MatFileWriter.js';
 import { type McosSubsystemRecords } from '../../parser/McosSubsystemCodec.js';
@@ -29,6 +30,20 @@ export interface MatBagEditor {
     mirror?: string;
     kind: 'text' | 'choice' | 'flag' | 'number' | 'numbers';
 }
+/**
+ * A typed text as an offered editor of `kind` takes it (MatNode._setOffered, dictObjectEdit): text
+ * as typed, a choice (which the rules hold to theirs), true or false, a number, or a row of numbers
+ * (a number alone, or in brackets, by spaces or commas), Inf and -Inf among them; or why it is none.
+ */
+export declare function offeredValue(text: string, kind: MatBagEditor['kind']): {
+    value: unknown;
+} | string;
+/**
+ * The editor an offered property of a `className` object shows, by how its text is read
+ * (MatNode._offeredEditor, dictObjectEdit): a dropdown of true and false for a flag, of the rules'
+ * choices for a choice they hold to a closed set, else a text box.
+ */
+export declare function offeredEditorOf(className: string, editor: Pick<MatBagEditor, 'property' | 'kind'>): SourceOfferedEditor;
 /** What the node `holder` shows of the property an editor writes (MatBagEditor): its field, else its bag's key. */
 export declare function matBagEditorShown(holder: BaseNode, editor: MatBagEditor): unknown;
 /**
@@ -220,6 +235,7 @@ export declare function matEditsRefusal(state: MatObjectState, node: BaseNode, p
  * the node holds none of a save writes.
  */
 export declare function matShownDataType(state: MatObjectState, node: BaseNode): string | null;
+export declare function numericTypeGate(mode: string, property: string): string | null;
 /**
  * The NumericType at `node` as MATLAB's setter of `property` leaves it given `value`, from what its
  * node holds now (not the file: an earlier edit's mode gates this one): its bag's shown values, by

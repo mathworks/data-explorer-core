@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { classPhrase } from './MatWriter.js';
+import { unitExpressionRefusal } from './unitExpression.js';
 // ---- Values ------------------------------------------------------------------------------------
 const NUMERIC = new Set(['double', 'single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
 // MATLAB's class of `v`: a logical array is class uint8 with the logical flag.
@@ -508,6 +509,10 @@ const TRIM = { is: 'text', ws: 'trim' };
 // A HeaderFile: trimmed, and ASCII alone, which its setter takes and nothing else (measured against
 // MATLAB R2027a: 'bé.h' and a zero-width space are refused, "only supports ascii characters").
 const HEADER = { is: 'text', ws: 'trim', ascii: true };
+// A ValueType's and a lookup table's Unit: a unit expression, which MATLAB parses (measured against
+// MATLAB R2027a and R2023b: 'm s' and 'kg m' are refused, and a file holding one loads it as '');
+// a Parameter's, a Signal's and a BusElement's DocUnits take any text.
+const UNIT = { is: 'unit' };
 const IDENT = { is: 'identifier' };
 const LUT_NAME = { is: 'identifier', maxLength: OLD_NAME_LENGTH_MAX };
 const SCOPES = ['Auto', 'Exported', 'Imported'];
@@ -518,7 +523,7 @@ const LUT_DATA_ROWS = {
     DataType: cell('DataType', dataType({})),
     Min: cell('Min', BOUND),
     Max: cell('Max', BOUND),
-    Unit: cell('Unit', KEEP),
+    Unit: cell('Unit', UNIT),
     Description: cell('Description', KEEP),
     FieldName: cell('FieldName', LUT_NAME),
 };
@@ -580,7 +585,7 @@ const RULES = {
             DataType: cell('DataType', dataType({ auto: false })),
             Min: cell('Min', BOUND),
             Max: cell('Max', BOUND),
-            Unit: cell('Unit', KEEP),
+            Unit: cell('Unit', UNIT),
             Description: cell('Description', KEEP),
             // Held as char cells, not as indices into the file's text.
             Complexity: cell('Complexity', { is: 'choice', choices: ['real', 'complex'] }),
@@ -723,6 +728,14 @@ function take(row, v, named) {
             return takeDimensions(v, named, c.minusOne);
         case 'dataType':
             return takeDataType(v, named, c.forms);
+        case 'unit': {
+            const t = takeText(v, named, 'keep');
+            const why = unitExpressionRefusal(t.value);
+            if (why) {
+                refuse(named + ' would be ' + quoted(t.value) + ', which MATLAB refuses: ' + why.replace(/\.$/, ''));
+            }
+            return t;
+        }
         case 'own':
             throw new Error(named + ' is taken by its class handler');
     }
@@ -813,8 +826,9 @@ function blame(edits, ...candidates) {
 /**
  * A Simulink.Parameter's Value: numeric of any class and size, an empty and an N-D one included,
  * real or complex; a real logical; a non-empty char row (which MATLAB loads as a string scalar);
- * a struct, whose every field holds one of those but text, at any depth. Not a cell, a sparse
- * array, an object, a function handle, nor a value this package could not write.
+ * a struct, whose every field holds one of those, or a char of any shape, at any depth. Not a cell,
+ * a sparse array, an object (a string among them), a function handle, nor a value this package
+ * could not write.
  */
 function parameterValue(v, named) {
     const what = parameterValueRefusal(v, false);
@@ -826,7 +840,7 @@ function parameterValue(v, named) {
 /**
  * What a Simulink.Parameter's Value `v` is that these rules write none of (`a cell`, `a sparse
  * double`), or null where they take it: a member of a struct Value where `inStruct`, which holds
- * what a Value may but text.
+ * what a Value may, and a char of any shape (heldChar).
  */
 export function parameterValueRefusal(v, inStruct) {
     if (v._unwritable) {
@@ -845,7 +859,10 @@ export function parameterValueRefusal(v, inStruct) {
     if (cls === 'logical') {
         return v.isComplex ? 'a complex logical' : null;
     }
-    if (cls === 'char' && !inStruct) {
+    if (cls === 'char' && inStruct) {
+        return heldChar(v);
+    }
+    if (cls === 'char') {
         const t = textOf(v);
         return dimsOf(v)[0] === 1 && t !== null && t !== '' && !loneSurrogate(t) ? null : 'a char that is not one row of text';
     }
@@ -861,6 +878,21 @@ export function parameterValueRefusal(v, inStruct) {
         return null;
     }
     return classPhrase(cls || 'value');
+}
+/**
+ * Why `v`, a char a field of a Parameter's struct Value holds, is not one the rules write, or null:
+ * a non-empty char of any 2-D shape, which MATLAB keeps a char there (measured, R2027a and R2023b:
+ * `p.Value.a = 'abc'` and `= ['ab';'cd']` stay char, and `= ''` is refused, "A valid structure must
+ * be numeric", by the Parameter's own rule, ParameterNode).
+ */
+export function heldChar(v) {
+    const d = v.dimensions ?? [];
+    const count = d.reduce((a, b) => a * b, 1);
+    const text = typeof v.value === 'string' ? v.value : null;
+    if (v.isComplex || d.length !== 2 || count === 0 || text === null || text.length !== count) {
+        return 'a char that is empty, or not text';
+    }
+    return loneSurrogate(text) ? 'a char holding a lone UTF-16 surrogate' : null;
 }
 /** MATLAB's DataType after `p.Value = v` of class `now` over a Value of class `old` under DataType `dt`, measured. */
 export function parameterDataTypeAfter(old, now, dt) {

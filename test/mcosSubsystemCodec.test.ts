@@ -77,6 +77,7 @@ const byOlderRelease = (where: string): boolean =>
   where.startsWith('fixtures/edit-bash/r2023b/') ||
   where.startsWith('fixtures/nd-shapes/r2023b/') ||
   where.startsWith('fixtures/mat-enum-members/r2023b/') ||
+  where.startsWith('fixtures/mat-param-struct-text/r2023b/') ||
   where.startsWith('fixtures/mat-char/r2023b/') ||
   /^fixtures\/mat-(create-gate|field-rename)\/targets\/[^/]*_r202[34]b\.mat/.test(where) ||
   /^fixtures\/mcos-rules-parity\/originals\/(ci|r)2[34]_/.test(where);

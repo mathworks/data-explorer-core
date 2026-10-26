@@ -3,7 +3,8 @@
 import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
-import { withArticle } from '../BaseNode.js';
+import { withArticle, type SourceOfferedEditor, type SourceSetResult } from '../BaseNode.js';
+import { dictOfferedEditor, dictOfferedRestorer, dictSetOffered } from '../data/dictObjectEdit.js';
 import type DataNode from '../DataNode.js';
 // Not a static import of NodeClassMap: NodeRegistry is the deliberately
 // dependency-free indirection (types only) that every node class goes through to
@@ -197,6 +198,22 @@ export default class SectionNode extends ContainerNode {
       }
     }
     return names;
+  }
+
+  // The editors a dictionary offers of an object's properties a MAT-file's object takes an edit of
+  // (a Signal's Dimensions, a BusElement's DataType, a Bus's HeaderFile), its source's
+  // (BaseNode.sourceOfferedEditor, sourceSetOffered, sourceRestorerFor): judged by the rules a
+  // MAT-file's save holds them to, and written into the object's bag (dictObjectEdit).
+  _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null {
+    return dictOfferedEditor(entry, node, key);
+  }
+
+  _setOffered(entry: BaseNode, node: BaseNode, key: string, text: string): SourceSetResult | null {
+    return dictSetOffered(entry, node, key, text);
+  }
+
+  _offeredRestorer(entry: BaseNode, node: BaseNode, key: string): (() => void) | null {
+    return dictOfferedRestorer(entry, node, key);
   }
 
   // How many entries named `name` share this section's namespace: how many times

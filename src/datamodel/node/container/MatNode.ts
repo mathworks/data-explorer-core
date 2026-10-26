@@ -64,6 +64,8 @@ import {
   spotValue,
   matBagEditorOf,
   matBagEditorsOf,
+  offeredValue,
+  offeredEditorOf,
   matBagEditorShown,
   matOffersSpot,
   matNumericTypeAfter,
@@ -752,14 +754,7 @@ export default class MatNode extends ContainerNode {
     if (!editor && object && (key === 'DataType' || key === 'Unit')) {
       return matOffersSpot(object === node ? cls : null, cls, key) ? { editor: 'text' } : null;
     }
-    if (!editor) {
-      return null;
-    }
-    if (editor.kind === 'flag') {
-      return { editor: 'select', options: ['true', 'false'] };
-    }
-    const choices = editor.kind === 'choice' ? propertyChoices(cls, editor.property) : null;
-    return choices ? { editor: 'select', options: [...choices] } : { editor: 'text' };
+    return editor ? offeredEditorOf(cls, editor) : null;
   }
 
   /**
@@ -2086,37 +2081,6 @@ function typedKind(text: string): 'string' | 'strings' | 'other' | null {
 function rowsAdded(before: number, after: McosSubsystemRecords): number[] {
   const from = Math.max(1, before);
   return Array.from({ length: Math.max(0, after.blob.objects.length - from) }, (_, i) => from + i);
-}
-
-// A typed text as an offered editor of `kind` takes it (MatNode._setOffered): text as typed, a
-// choice (which the rules hold to theirs), true or false, a number, or a row of numbers (a number
-// alone, or in brackets, by spaces or commas), Inf and -Inf among them; or why it is none.
-function offeredValue(text: string, kind: MatBagEditor['kind']): { value: unknown } | string {
-  const number = (t: string): number | null => {
-    const u = t.trim();
-    if (/^[+-]?inf$/i.test(u)) {
-      return u.startsWith('-') ? -Infinity : Infinity;
-    }
-    return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(u) ? Number(u) : null;
-  };
-  switch (kind) {
-    case 'text':
-    case 'choice':
-      return { value: text };
-    case 'flag': {
-      const t = text.trim();
-      return t === 'true' || t === '1' ? { value: true } : t === 'false' || t === '0' ? { value: false } : 'must be true or false';
-    }
-    case 'number': {
-      const x = number(text);
-      return x === null ? 'must be a number' : { value: x };
-    }
-    case 'numbers': {
-      const t = text.trim().replace(/^\[(.*)\]$/s, '$1').trim();
-      const xs = t === '' ? [] : t.split(/[\s,]+/).map(number);
-      return xs.length === 0 || xs.some((x) => x === null) ? 'must be a number or a row of numbers' : { value: xs.length === 1 ? xs[0] : xs };
-    }
-  }
 }
 
 // The properties of MATLAB's default Simulink.BusElement, as this package reads one from a file

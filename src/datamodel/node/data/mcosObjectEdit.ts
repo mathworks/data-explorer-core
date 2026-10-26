@@ -364,11 +364,16 @@ export function nodePropertyValue(node: BaseNode, property: string, field?: { va
 /**
  * Why `value`, a node built of the text an edit typed into `node`, a field of the struct Value of
  * the Parameter at `object` (or a row under one), is what such a field holds no cell of, as a
- * clause, or null: text, which MATLAB refuses in a Parameter's struct, and anything else the rules
- * do not write (McosEditRules.valueMemberRefusal).
+ * clause, or null: a string, which MATLAB takes there and a MAT-file holds as an object of the
+ * file, which a save writes into no object's Value; and anything else the rules do not write
+ * (McosEditRules.valueMemberRefusal).
  */
 export function memberRefusal(object: BaseNode, node: BaseNode, value: BaseNode): string | null {
   const v = valueVariable(value);
+  if (typeof v !== 'string' && v.className === 'string') {
+    return node.matlabPath + ' would be a string, which a MAT-file holds as an object of the file, and this package writes no object into '
+      + classPhrase(classOf(object)) + "'s Value: type the text in single quotes to make it a char";
+  }
   const what = typeof v === 'string' ? v.replace(/^holds /, '') : valueMemberRefusal(v);
   return what ? node.matlabPath + ' would be ' + what + ', which this editor does not write into ' + classPhrase(classOf(object)) + "'s Value" : null;
 }

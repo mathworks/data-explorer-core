@@ -169,7 +169,12 @@ const rows: Row[] = [
   { name: 'a sparse Value', of: param({}), edits: [['Value', v('double', [], [2, 2], { isSparse: true })]], expect: refused('Value', /^p\.Value would be a sparse double/) },
   { name: 'a char matrix', of: param({}), edits: [['Value', chr('abcd', [2, 2])]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
   { name: "the empty char ''", of: param({}), edits: [['Value', chr('')]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
-  { name: 'a struct with a char field', of: param({}), edits: [['Value', strct({ a: chr('x') })]], expect: refused('Value', /^p\.Value would be a struct holding a char/) },
+  // MATLAB keeps a char a char in a field of a Parameter's struct Value, of any shape (measured,
+  // R2027a and R2023b), and refuses an empty one, which the Parameter's own rule says.
+  { name: 'a struct with a char field', of: param({}), edits: [['Value', strct({ a: chr('x') })]], expect: ['Value=struct[1 1]:null'] },
+  { name: 'a struct with a two-row char field', of: param({}), edits: [['Value', strct({ a: chr('acbd', [2, 2]) })]], expect: ['Value=struct[1 1]:null'] },
+  { name: 'a struct with an empty char field', of: param({}), edits: [['Value', strct({ a: chr('') })]], expect: refused('Value', /^p\.Value would be a struct holding a char that is empty, or not text/) },
+  { name: 'a struct with a string field', of: param({}), edits: [['Value', strct({ a: v('string', null, [1, 1], { isOpaque: true }) })]], expect: refused('Value', /^p\.Value would be a struct holding a string/) },
   { name: 'an object', of: param({}), edits: [['Value', v('Simulink.Parameter', null, [1, 1], { isOpaque: true })]], expect: refused('Value', /^p\.Value would be a Simulink\.Parameter/) },
   { name: 'a value this package has no variable for', of: param({}), edits: [['Value', v('Simulink.Bus', null, [1, 1], { _unwritable: 'a Simulink.Bus MatWriter has no variable for' })]], expect: refused('Value', /^p\.Value would be a Simulink\.Bus MatWriter has no variable for/) },
   { name: 'a Value at its default', of: held(P, { Complexity: 'not-a-cell', Dimensions: dbl([0, 0]) }), edits: [['Value', dbl(5)]], expect: refused('Value', /^p\.Value is at its class default/) },
