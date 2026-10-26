@@ -6,14 +6,17 @@
 // [1 1] and Complexity 'real'). A MAT-file's save kept 'complex', so the row showed 'real' after the
 // edit and 'complex' once the file was opened again; the dictionaries wrote 'real'. MATLAB loads such
 // a file 'real' all the same, so the Complexity the file holds is asked of the file itself.
+//
+// "" and '' are the string "" there (S15 of the 2026-10-26 edit bash): its DataType 'string', its Min,
+// Max and Unit cleared, as any text clears them (R2027a and R2023b). A MAT-file refused both, "a char
+// that is not one row of text"; the dictionaries took them.
 import { describe, it, expect } from 'vitest';
 import { EDIT_BASH_FORMATS, nodeAt, openEditBash, redo, reopened, saved, shownCell, typeInto, undo, type Opened } from './tools/editBash.js';
 import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { attachMcosDecoded } from '../src/datamodel/node/data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../src/datamodel/node/data/mcosDecodedTable.js';
 
-// Not "" or '': a MAT-file refuses an empty text as a Parameter's Value (S15 of the 2026-10-26 edit bash).
-const TEXTS = ['"x"', "'abc'", "['ab'; 'cd']", "'a\"b'"];
+const TEXTS = ['"x"', "'abc'", "['ab'; 'cd']", "'a\"b'", '""', "''"];
 
 // The Parameter's own columns MATLAB sets with its Value.
 const shape = (o: Opened, path: string) => {
@@ -84,6 +87,23 @@ describe.each(EDIT_BASH_FORMATS)("text as a complex Parameter's Value, %s", (for
       expect(heldComplexity(o, at)).toBe(held(o, 'real'));
     });
   }
+
+  // The string "" of either, over a Parameter with a Min, a Max and a Unit, as MATLAB makes it; a
+  // dictionary keeps '' the char it writes (the divergence DESIGN.md records), which MATLAB reads back
+  // as "".
+  it.each(['""', "''"])('%s typed at pProps is the string "", and clears Min, Max and Unit', (text) => {
+    const o = openEditBash(format);
+    const columns = (x: Opened) => Object.fromEntries(['Value', 'DataType', 'Min', 'Max', 'Unit', 'dimensions', 'complexity'].map((k) => [k, shownCell(nodeAt(x, 'pProps'), k)]));
+    const before = columns(o);
+    expect(before).toMatchObject({ Min: '0', Max: '10', Unit: 'm' });
+    expect(typeInto(o, 'pProps', 'Value', text)).toBe(true);
+    const made = { Value: format.startsWith('mat') ? '""' : text, DataType: 'string', Min: '', Max: '', Unit: '', dimensions: '[1 1]', complexity: 'real' };
+    expect(columns(o)).toEqual(made);
+    expect(columns(reopened(o))).toEqual(made);
+    undo(o);
+    expect(columns(o)).toEqual(before);
+    expect(columns(reopened(o))).toEqual(before);
+  });
 
   // A number after the text is MATLAB's again: complex where it is.
   it('a complex number typed after the text makes it complex again', () => {

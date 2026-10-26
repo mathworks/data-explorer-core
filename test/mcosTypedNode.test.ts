@@ -203,6 +203,11 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     const shown = node.toRow().complexity as unknown;
     expect(typeof shown === 'object' && shown ? (shown as { text?: string }).text : shown).toBe('real');
     expect(decoded.Complexity).toBe('complex');
+    // An empty char, as a save writes "" or '' typed in, is the string "" MATLAB loads.
+    const empty = buildTypedNodeFromMcos('Simulink.Parameter', 'e', null, { Value: '', Complexity: 'complex', Dimensions: [1, 1] })!;
+    expect(empty.displayValue).toBe('""');
+    const emptyShown = empty.toRow().complexity as unknown;
+    expect(typeof emptyShown === 'object' && emptyShown ? (emptyShown as { text?: string }).text : emptyShown).toBe('real');
     // A Value that is no text keeps the Complexity the file holds.
     const numeric = buildTypedNodeFromMcos('Simulink.Parameter', 'q', null, { Value: [1, 2], Complexity: 'complex', Dimensions: [1, 2] })!;
     const held = numeric.toRow().complexity as unknown;
