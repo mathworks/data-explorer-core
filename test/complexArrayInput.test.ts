@@ -173,8 +173,10 @@ describe('every complex array of every fixture, its shown text read back', () =>
 
   it('reads each shown text back as the value it is, complex, of its size and parts', () => {
     for (const { where, node } of shown) {
-      const back = typed(node.displayValue);
-      expect(back, where + ' ' + node.displayValue).not.toBeNull();
+      // Or, of one shown as a summary for its size, the text its editor is seeded with (the D13 ruling).
+      const text = node._editText() ?? node.displayValue;
+      const back = typed(text);
+      expect(back, where + ' ' + text).not.toBeNull();
       const want = nodeShape(node);
       // Typed in, it is a double, as MATLAB's literal is.
       expectShape(nodeShape(back), { ...want, class: 'double' }, where);

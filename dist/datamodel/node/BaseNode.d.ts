@@ -36,6 +36,7 @@ export interface RowData {
     };
     Value?: unknown;
     _valueEditable?: boolean;
+    _hasEditText?: true;
     _descriptionEditable?: boolean;
     _descriptionApplies?: boolean;
     DataType?: string | {
@@ -401,9 +402,26 @@ export default class BaseNode {
      */
     _labelUnder(parentLabel: () => string): string | null;
     get valueEditable(): boolean;
+    /**
+     * The text an editor of this row's Value is seeded with where the row shows no text that is the
+     * value, only for its size (the D13 ruling of the 2026-10-26 edit bash): the value written out
+     * whole, where it makes the value exactly (MatlabVariableNode._editText). Null where the row's own
+     * text is the seed, and here, for a node of no such value. Said on the row as `_hasEditText` (toRow)
+     * and fetched by session.editText; set back unchanged it is no edit, as the shown text is
+     * (DataNode._isUnchangedCommit).
+     */
+    _editText(): string | null;
+    /**
+     * Why this row, whose Value shows a summary, takes no editor of the value written out whole, as a
+     * clause (MatlabVariableNode._editTextWhy): no text spells it, it is too long to edit as text, or
+     * its text would make another value. Null where it takes one, for a row whose own text is the
+     * seed, and here (DataModel.valueEditRefusal).
+     */
+    _editTextWhy(): string | null;
     get descriptionEditable(): boolean;
     get descriptionApplies(): boolean;
     getPropInfo(PropClassRef: PropClass): PropInfo;
+    _putEditText(row: RowData, editable: boolean): void;
     toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[] | null;

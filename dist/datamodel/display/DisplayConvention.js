@@ -121,10 +121,33 @@ export function elementCount(dims) {
 // be a lie: it would show page 1 and silently drop the rest.
 export function needsSummary(dims) {
     const d = effectiveDims(dims);
-    return d.length > 2 || elementCount(d) > SUMMARY_MAX_ELEMENTS;
+    return d.length > 2 || (budgetsOff === 0 && elementCount(d) > SUMMARY_MAX_ELEMENTS);
 }
 export function overCharBudget(text) {
-    return text.length > SUMMARY_MAX_CHARS;
+    return budgetsOff === 0 && text.length > SUMMARY_MAX_CHARS;
+}
+// The longest text an editor of a value shown as a summary for its size is seeded with
+// (MatlabVariableNode._editText, the D13 ruling of the 2026-10-26 edit bash): a 1x10,000 double
+// of 17-digit numbers is some 180,000 characters. Past it the value keeps its summary's lock, as
+// one too large to edit as text, and its elements are edited one at a time.
+export const EDIT_TEXT_MAX_CHARS = 200_000;
+// Whether the two display budgets above are off (spelledWhole): counted, as a spelling of a cell
+// spells each of its elements within the one call.
+let budgetsOff = 0;
+/**
+ * What `spell` returns with the element and char budgets off (needsSummary, overCharBudget): the
+ * text of a value written out whole, past the size its row shows a summary at, which an editor of
+ * it is seeded with (the D13 ruling). Rank >= 3 still has no literal, and a struct, an object and a
+ * sparse array are still their summaries: those are not about size.
+ */
+export function spelledWhole(spell) {
+    budgetsOff++;
+    try {
+        return spell();
+    }
+    finally {
+        budgetsOff--;
+    }
 }
 // Angle brackets are the consumer's italic/gray signal AND the signal that a
 // cell gets no editor (BaseNode.valueEditable). Every summary must use them;

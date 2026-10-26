@@ -183,7 +183,8 @@ describe('a cell whose literal shows an element as a summary offers no in-cell e
     const sparse = design.children.find((e: any) => e.name === 'c').serialize().value._elements[0];
     const cases: [string, unknown[], boolean][] = [
       ['plain', [1, 'a', [2, 3]], true],
-      ['bigDense', [big, 1], false],
+      // A summary of size alone: edited as its text written out whole (the D13 ruling).
+      ['bigDense', [big, 1], true],
       ['struct', [{ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ a: 1 }] }], false],
       ['nested', [{ _array_type: 'Cell', _dimensions: [1, 1], _elements: [sparse] }], false],
     ];

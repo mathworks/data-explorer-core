@@ -14,6 +14,7 @@ import { elementOriginAt, originAttr, recordElementOrigins, taggingOrigins, with
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { mcosPlaceOf } from './mcosPlace.js';
+import { entryValuesChanged } from './valueGeneration.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import {
   charRowDimension,
@@ -518,7 +519,8 @@ export default class DataNode extends BaseNode {
     }
     try {
       const info = this.getPropInfo(prop);
-      return info.editable && info.displayValue === stringValue;
+      // Or, of a Value shown as a summary for its size, the text its editor is seeded with (_editText).
+      return info.editable && (info.displayValue === stringValue || (prop.key === 'Value' && this._editText() === stringValue));
     } catch {
       // A property projection that throws leaves the edit to go ahead as it did (DataModel's
       // readPropertyValue, for the same reason).
@@ -997,6 +999,8 @@ export default class DataNode extends BaseNode {
   // or is the entry's own rename.
   _markModified(edit: 'value' | 'name' = 'value'): void {
     const entry = this.owningEntry;
+    // And a verdict judged of a value under the entry is judged again (valueGeneration).
+    entryValuesChanged(this);
     let ofObject = false;
     for (let node: BaseNode | null = this; node && node !== entry; node = node.parent) {
       if ((node as DataNode)._rawInput !== undefined) {
