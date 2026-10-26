@@ -80,10 +80,10 @@ describe('the fixtures are what these tests need', () => {
   it('hold editable complex elements, dense and sparse, with an Inf or NaN part among them', () => {
     const all = FILES.flatMap((f) => complexElements(open(f)));
     expect(all.length).toBeGreaterThan(100);
-    // None of them sparse: a text dictionary's sparse array is a MAT stream holding one, which
-    // is shown and not edited (the C-012 ruling, revised 2026-10-24, keeps it so), and a binary
-    // dictionary's sparse array is hex, read-only already.
-    expect(all.some((el) => el.parent._sparse)).toBe(false);
+    // Sparse ones among them: a text dictionary's sparse array is a MAT stream, and a binary
+    // dictionary's hex, each of which MatWriter writes as it reads back once edited (the C-012
+    // ruling, revised 2026-10-24).
+    expect(all.some((el) => el.parent._sparse)).toBe(true);
     expect(all.some((el) => !el.parent._sparse)).toBe(true);
     expect(all.some((el) => /Inf|NaN/.test(el.displayValue))).toBe(true);
     expect(all.some((el) => el.parent._dims.length > 2)).toBe(true);
@@ -165,9 +165,10 @@ describe('a complex value typed into an element of a real array is still refused
   const REAL_ONLY = 'Array elements must be scalar numbers';
   for (const [file, name, reason] of [
     ['sparse/sparse_text.sldd', 'dRow', REAL_ONLY],
-    // A text dictionary's sparse array is a MAT stream, shown and not edited (the C-012 ruling).
-    ['sparse/sparse_text.sldd', 'spDiag', "'spDiag' is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only."],
+    // A sparse array's rows, a text dictionary's MAT stream's and a binary dictionary's hex's alike.
+    ['sparse/sparse_text.sldd', 'spDiag', REAL_ONLY],
     ['sparse/sparse_binary.sldd', 'dRow', REAL_ONLY],
+    ['sparse/sparse_binary.sldd', 'spDiag', REAL_ONLY],
   ] as const) {
     it(`${file} ${name}`, () => {
       const session = createSession();

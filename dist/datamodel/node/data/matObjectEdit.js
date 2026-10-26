@@ -11,7 +11,7 @@ import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRe
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
-import { nodePropertyValue, REFUSED } from './mcosObjectEdit.js';
+import { dataTypeFollowedFrom, nodePropertyValue, REFUSED } from './mcosObjectEdit.js';
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
 // rules (McosPropertyRules) and written through the codec (McosObjectWrite): a property swapped,
 // one at its default given a value (a triple inserted), one set back to it (its triple removed),
@@ -1133,12 +1133,12 @@ export function matObjectEditsOf(state, node, pending, more) {
             const fileDt = textIn(dtSpot.reference, 'auto');
             let dt = textIn(v, '');
             let derived = fileDt;
+            // The one a pending edit of the Value follows to, one typing the file's Value back included.
+            if (pending?.key === 'Value') {
+                dt = dataTypeShownFor(state, node, valueClassOf(pending.value) ?? 'double');
+            }
             if (value) {
-                const now = valueClassOf(value) ?? 'double';
-                if (pending?.key === 'Value') {
-                    dt = dataTypeShownFor(state, node, now);
-                }
-                derived = parameterDataTypeAfter(valueClassOf(state.spots.get('Value').reference) ?? 'double', now, fileDt);
+                derived = parameterDataTypeAfter(valueClassOf(state.spots.get('Value').reference) ?? 'double', valueClassOf(value) ?? 'double', fileDt);
             }
             if (dt !== derived) {
                 per.set('', [...(per.get('') ?? []), { property: 'DataType', value: charOf(dt) }]);
@@ -1189,8 +1189,6 @@ function heldValueVariable(node) {
 function valueUnchanged(state, node) {
     return state.valueAsRead !== undefined && heldValueVariable(node) === state.valueAsRead;
 }
-// The DataType each Parameter node was last told to show (matShownDataType).
-const shownDataTypes = new WeakMap();
 function valueClassOf(v) {
     return v && typeof v !== 'string' ? (v.isLogical ? 'logical' : v.className) : null;
 }
@@ -1202,16 +1200,14 @@ function textIn(v, otherwise) {
  * The DataType the Simulink.Parameter at `node` shows once its Value is of class `now`: what
  * MATLAB's own `p.Value = v` makes of the DataType (McosPropertyRules.parameterDataTypeAfter: an
  * int16 v makes it 'int16', a double v over an int16 Value 'auto', over a double the DataType it
- * held). From the file's Value and DataType, as a save derives it, where the node shows the file's
- * DataType or one this answered; and from the DataType the node shows, over a double Value, where
- * an edit set it, which only an edit over a double Value can (matSpotRefusal).
+ * held), one edit at a time: of the Value class the node last followed (the file's, until it has)
+ * and the DataType it shows, which an edit sets only over a double Value (matSpotRefusal). Derived
+ * from the file's, "abc" and then 7 typed over a single Parameter's 5 showed and saved 'single',
+ * where MATLAB's is 'auto'.
  */
 function dataTypeShownFor(state, node, now) {
-    const shown = String(node.DataType ?? state.dataType);
-    const fileDt = textIn(state.spots.get('DataType')?.reference, 'auto');
-    const fileClass = valueClassOf(state.spots.get('Value')?.reference) ?? 'double';
-    const set = shown !== fileDt && shown !== shownDataTypes.get(node);
-    return set ? parameterDataTypeAfter('double', now, shown) : parameterDataTypeAfter(fileClass, now, fileDt);
+    const { before, shown } = dataTypeFollowedFrom(node, state.dataType);
+    return parameterDataTypeAfter(before ?? valueClassOf(state.spots.get('Value')?.reference) ?? 'double', now, shown);
 }
 /**
  * The DataType the Simulink.Parameter at `node` holds after an edit of its Value, as its node is to
@@ -1227,9 +1223,7 @@ export function matShownDataType(state, node) {
     if (now === null) {
         return null;
     }
-    const dt = dataTypeShownFor(state, node, now);
-    shownDataTypes.set(node, dt);
-    return dt;
+    return dataTypeShownFor(state, node, now);
 }
 // ---- A NumericType ---------------------------------------------------------------------------------
 //

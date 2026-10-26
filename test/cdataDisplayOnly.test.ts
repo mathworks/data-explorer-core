@@ -5,9 +5,10 @@
 // created from parsing xml or json string, then allow editing. If it is from the mat stream in
 // the json sldd, do not allow editing, only present the data." Revised on 2026-10-24: a plain
 // value, a number, a logical or a char, real or complex, of any size, takes edits, judged by the
-// rule a MAT-file's save writes a variable fresh by (MatFileWriter.streamWriteRefusal); a stream
-// holding a cell, a struct, a string, a sparse array, a function handle or a value not decoded is
-// still shown and not edited (test/textStreamEdits.test.ts holds the rule over every stream).
+// rule a MAT-file's save writes a variable fresh by (MatFileWriter.streamWriteRefusal), and so does
+// a cell or a struct of plain values, at its members (test/textStreamContainers.test.ts); a stream
+// holding a string, a sparse array, a function handle or a value not decoded is still shown and not
+// edited (test/textStreamEdits.test.ts holds the rule over every stream).
 //
 // MATLAB's own text dictionary keeps a stream for a value its JSON cannot spell: every rank
 // >= 3 value, every complex one, a sparse array. Only a stream holding an MCOS object was
@@ -38,45 +39,26 @@ function open(name: string): { session: any; source: any } {
   return { session, source };
 }
 
-const subtree = (node: any): any[] => [node, ...node.children.flatMap(subtree)];
 const entryOf = (source: any, name: string): any => source.getSection('design').children.find((e: any) => e.name === name);
 /** The node at `path` under an entry: child names, `/`-separated. */
 const at = (entry: any, path: string): any =>
   path.split('/').reduce((n: any, name: string) => n.children.find((c: any) => c.name === name), entry);
 
-const STREAM_REASON = /is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only/;
-const refused = (path: string) => ({ error: true, reason: expect.stringMatching(new RegExp(`^'${path.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}' ` + STREAM_REASON.source)) });
-
-/** Every row at and under `node` takes no value edit and no structural edit, and its setter refuses. */
-function expectDisplayOnly(node: any, holderPath: string): void {
-  for (const n of subtree(node)) {
-    const label = n.id;
-    expect(n.valueEditable, label).toBe(false);
-    expect(typeof n.canAddChild === 'function' ? n.canAddChild() : false, label).toBe(false);
-    expect(typeof n.canRemoveChild === 'function' ? n.canRemoveChild() : false, label).toBe(false);
-    expect(n.setProperty('Value', '1'), label).toMatchObject(refused(holderPath));
-  }
-}
-
-describe('a text dictionary value read from a MAT stream that is no plain value is display-only', () => {
+// A stream that is no plain value, and is shown and not edited, all of it: one that does not decode
+// (test/cdataDecodeFailure.test.ts), and a sparse array MatWriter would not write once edited
+// (test/sparseDamaged.test.ts). Every stream a fixture holds is a plain value now: a number, a
+// sparse array, or a cell or a struct of them (test/textStreamEdits.test.ts).
+describe('a text dictionary value read from a MAT stream', () => {
   // nd_text.sldd: MATLAB-written, A a 2x3x2 double, C a 2x2x2 cell, s a 2x3x2 struct, each a
-  // stream; Kp a 2x3 double literal beside them.
-  for (const name of ['C', 's']) {
-    it(`nd_text.sldd ${name}, and every row under it`, () => {
-      const { source } = open('nd_text.sldd');
-      const entry = entryOf(source, name);
-      const before = JSON.stringify(entry.serialize());
-      expectDisplayOnly(entry, name);
-      expect(entry.status).not.toBe('Modified');
-      expect(JSON.stringify(entry.serialize())).toBe(before);
-    });
-  }
-
+  // stream; Kp a 2x3 double literal beside them. C and s hold plain values, and take edits at their
+  // members (test/textStreamContainers.test.ts); a member typed as a string would make the cell hold
+  // what MatWriter has no class for.
   it('the two edits that reached MatWriter refusing or rewriting a value are refused', () => {
     const { session, source } = open('nd_text.sldd');
     const element = entryOf(source, 'C').children[0];
-    expect(element.setProperty('Value', '"str"')).toMatchObject(refused('C'));
-    expect(element.setProperty('Value', '["a" "b"]')).toMatchObject(refused('C'));
+    const why = 'Cannot edit "C": C{1,1,1} is held in the MAT stream of C, and the one this edit makes would not be written as typed: it would hold a string, which a MAT stream there holds only to be shown.';
+    expect(element.setProperty('Value', '"str"')).toMatchObject({ error: true, reason: why });
+    expect(element.setProperty('Value', '["a" "b"]')).toMatchObject({ error: true, reason: why });
     // The save that threw "no MAT class for string", or wrote 'ab', writes the stream as read.
     const saved = JSON.parse(session.serializeSource(source.name).text);
     const original = JSON.parse(new TextDecoder().decode(fixture('nd_text.sldd')));
@@ -109,11 +91,6 @@ describe('a text dictionary value read from a MAT stream that is no plain value 
     const entry = entryOf(source, 'A');
     expect(session.deleteNodeById(entry.id)).toBe(true);
     expect(entryOf(source, 'A')).toBeUndefined();
-  });
-
-  it('sparse_text.sldd: a sparse array, and its rows', () => {
-    const { source } = open('sparse/sparse_text.sldd');
-    expectDisplayOnly(entryOf(source, 'spTall'), 'spTall');
   });
 });
 

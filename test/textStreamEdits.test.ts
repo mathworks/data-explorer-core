@@ -13,7 +13,9 @@
 // Over every stream of every text dictionary fixture: one the rule passes takes an edit at the
 // value or at its elements, of the same kind and to a complex value, which a save writes and a
 // reopen reads back, and which an undo puts back as the bytes it was read from; one it does not pass
-// (a sparse array, a cell, a struct, a value not decoded) refuses every edit and writes nothing.
+// (a value not decoded, one holding a string) refuses every edit and writes nothing. A sparse array,
+// and a cell or a struct of plain values, which MATLAB keeps as a stream at rank >= 3, take edits at
+// their rows and members too (test/textStreamContainers.test.ts).
 // And an unedited stream is saved as its own bytes. An Add or a Remove of an element is offered
 // only where the value it leaves passes the rule too. Then the same of streams built here: values
 // no display text holds exactly (-0, a signed NaN, intmin and intmax of the 64-bit classes,
@@ -70,9 +72,13 @@ function shownAt(root: Any, matlabPath: string): Any {
 }
 const subtree = (n: Any): Any[] => [n, ...(n.children ?? []).flatMap(subtree)];
 
-// A plain value, the rule's own kinds: a number, a logical or a char, real or complex.
-const plainKind = (n: Any) =>
-  n._kind !== 'cell' && !n._sparse && !n._isOpaque && !n._undecoded && !['struct', 'string', 'function_handle', 'object'].includes(n._scalarType);
+// A plain value, the rule's own kinds: a number, a logical or a char, real or complex; a sparse array
+// MatWriter writes once edited; or a cell or a struct of them, at any depth, whose value is in its rows.
+const plainKind = (n: Any): boolean =>
+  (n._kind !== 'cell' && !n._sparse && !n._isOpaque && !n._undecoded && !['struct', 'string', 'function_handle', 'object'].includes(n._scalarType))
+  || (!!n._sparse && !n._isOpaque && !n._undecoded && n._sparseRefusal() === null)
+  || ((n._kind === 'cell' || n._scalarType === 'struct') && !n._isOpaque && !n._undecoded && !n._cutByCeiling && !n._unexpandedStruct()
+    && n.children.every((c: Any) => c instanceof MatlabVariableNode && plainKind(c)));
 
 // Another value of the kind a row shows, typed as its text: a number for a number, the other
 // logical, another complex number, another char.
@@ -102,10 +108,12 @@ for (const file of slddUnder('test')) {
 
 describe("a text dictionary's MAT stream", () => {
   it('is found in the fixtures, of every kind', () => {
-    // Measured when this was written: 100, of them 66 plain and 34 not.
-    expect(STREAMS.length).toBeGreaterThanOrEqual(100);
-    expect(STREAMS.filter((s) => !s.locked).length).toBeGreaterThanOrEqual(60);
-    expect(STREAMS.filter((s) => s.locked).length).toBeGreaterThanOrEqual(30);
+    // Measured when this was written: 119, every one plain, 27 of them a sparse array and 10 a cell
+    // or a struct of plain values. A stream that is not (one that does not decode, a sparse array
+    // MatWriter would not write) is built by test/cdataDecodeFailure.test.ts and
+    // test/sparseDamaged.test.ts.
+    expect(STREAMS.length).toBeGreaterThanOrEqual(110);
+    expect(STREAMS.filter((s) => s.locked)).toEqual([]);
   });
 
   it('takes an edit exactly where the rule of a fresh write passes it, which a save writes and an undo takes back', () => {
@@ -160,14 +168,20 @@ describe("a text dictionary's MAT stream", () => {
         }
         const shown = node.matlabPath.endsWith('.Value') && !node.parent?.children.includes(node) ? node.parent?.displayValue : node.displayValue;
         const back = shownAt(opened(e.save(), file.split('/').pop()).root, node.matlabPath);
-        // A real number typed into a complex array's element is that number with an imaginary part
-        // of 0, which a reopen spells so, as a binary dictionary's does.
-        const complexElement = node !== holder && node.parent?._isComplexValue?.() && back?.displayValue === shown + '+0i';
-        if (back?.displayValue !== shown && !complexElement) {
-          wrong.push(label + ' ' + node.matlabPath + ' = ' + text + ': shows ' + JSON.stringify(shown) + ', reopened ' + JSON.stringify(back?.displayValue));
-        }
-        if (!back?.valueEditable) {
-          wrong.push(label + ' ' + node.matlabPath + ' = ' + text + ': reopened, it takes no edit');
+        // A sparse array's row set to zero (a logical one's to false) is no non-zero of it: a save
+        // writes the non-zeros, as MATLAB's own `sp(1,1) = 0` drops it, and read again it has no such row.
+        if (node.parent?._sparse && (text === 'false' || Number(text) === 0)) {
+          if (back) wrong.push(label + ' ' + node.matlabPath + ' = ' + text + ': reopened, the zero is still a row');
+        } else {
+          // A real number typed into a complex array's element is that number with an imaginary part
+          // of 0, which a reopen spells so, as a binary dictionary's does.
+          const complexElement = node !== holder && node.parent?._isComplexValue?.() && back?.displayValue === shown + '+0i';
+          if (back?.displayValue !== shown && !complexElement) {
+            wrong.push(label + ' ' + node.matlabPath + ' = ' + text + ': shows ' + JSON.stringify(shown) + ', reopened ' + JSON.stringify(back?.displayValue));
+          }
+          if (!back?.valueEditable) {
+            wrong.push(label + ' ' + node.matlabPath + ' = ' + text + ': reopened, it takes no edit');
+          }
         }
         e.session.undo();
         if (JSON.stringify(nodeAt(e.root, path).serializeValue()) !== before) {
@@ -177,8 +191,9 @@ describe("a text dictionary's MAT stream", () => {
       }
     }
     expect(wrong).toEqual([]);
-    // The two N-D chars, char_text.sldd's and nd_rich.sldd's ndChar, shown as `<2x3x2 char>`.
-    expect(unoffered.map((l) => l.split('/').pop())).toEqual(['char_text.sldd ndChar', 'nd_rich.sldd ndChar']);
+    // The two N-D chars, char_text.sldd's and nd_rich.sldd's ndChar, shown as `<2x3x2 char>`, and a sparse
+    // array of no non-zero, sparse_text.sldd's spAllZero, which has no row.
+    expect(unoffered.map((l) => l.split('/').pop())).toEqual(['char_text.sldd ndChar', 'nd_rich.sldd ndChar', 'sparse_text.sldd spAllZero']);
     expect(edited).toBeGreaterThanOrEqual(100);
   });
 
@@ -209,7 +224,7 @@ describe('a double typed over as a complex number', () => {
 });
 
 describe('a complex value MATLAB wrote into a text dictionary (complex_inf_text.sldd)', () => {
-  it('takes an edit and is saved as typed; its sparse one is still shown and not edited', () => {
+  it('takes an edit and is saved as typed, its sparse one at its rows', () => {
     const file = 'test/fixtures/complex_inf/complex_inf_text.sldd';
     const entries = (root: Any) => root.children.flatMap((s: Any) => s.children);
     const o = opened(new Uint8Array(readFileSync(file)));
@@ -224,7 +239,10 @@ describe('a complex value MATLAB wrote into a text dictionary (complex_inf_text.
     expect(back.find((x: Any) => x.name === 'zInf').displayValue).toBe('-Inf+2i');
     expect(back.find((x: Any) => x.name === 'zInfRow').displayValue).toBe('[Inf-Infi Inf-1i 1NaNi -Inf+2i]');
     const sparse = entries(o.root).find((x: Any) => x.name === 'zInfSparse');
-    expect(o.edit(sparse, '1+2i')).toMatchObject({ error: true, reason: "'zInfSparse' is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only." });
+    expect([sparse.valueEditable, sparse.children.map((r: Any) => r.valueEditable)]).toEqual([false, sparse.children.map(() => true)]);
+    expect(o.edit(sparse.children[0], '1+2i')).toBe(true);
+    const sparseBack = entries(opened(o.save()).root).find((x: Any) => x.name === 'zInfSparse');
+    expect(sparseBack.children[0].displayValue).toBe('1+2i');
   });
 });
 
@@ -384,8 +402,7 @@ describe('the rule refuses no plain stream this package writes', () => {
   // columns, matrices, N-D), at each class's extremes: -0, NaN, Inf, the largest and the
   // smallest double and single, intmin and intmax of each integer class, non-ASCII chars and
   // one outside the BMP. None is refused, so a refusal is stood in for in the tests above and
-  // below (withNoSize); the one real shape the rule's Add refuses is an empty given a field
-  // (a struct, which a stream holds only to be shown), in the last describe.
+  // below (withNoSize).
   it('none of 264 shapes', () => {
     const EXTREMES: Record<string, unknown[]> = {
       double: [-0, NaN, Infinity, -Infinity, Number.MAX_VALUE, 5e-324],
@@ -451,15 +468,15 @@ describe('an Add or a Remove of an element of a stream value', () => {
     expect(savedStreams(o.save()).zRow.cdata).toBe(savedStreams(bytes).zRow.cdata);
   });
 
-  it('is not offered, and not made, where it would not be: an empty given a field is a struct', () => {
+  // MATLAB makes a 1x1 struct of any empty given a field, `x = zeros(0,0,2); x.field = 0` included
+  // (R2027a), as Add makes one of `[]`; a struct of plain values is one a stream takes edits of.
+  it('is made where MATLAB makes it: an empty given a field is a 1x1 struct, saved and read back', () => {
     const o = opened(dictionaryOf(VARIABLES));
     const e = entry(o.root, 'eNd');
-    expect(e.canAddChild()).toBe(false);
-    expect(e._streamChildRefusal('add')).toBe(
-      'Cannot add an element to "eNd": eNd is held as a MAT stream, and the one an Add leaves would not be written as it shows: it would be a struct, which a MAT stream there holds only to be shown.',
-    );
-    expect(o.session.addChildTo(e.id)).toBeNull();
-    expect([e._kind, e._dims, o.root.dirty]).toEqual(['array', [0, 0, 2], false]);
+    expect([e.canAddChild(), e._streamChildRefusal('add')]).toEqual([true, null]);
+    expect(o.session.addChildTo(e.id)?.name).toBe('field');
+    const back = entry(opened(o.save()).root, 'eNd');
+    expect([back.className, back.displayValue, back.children.map((c: Any) => [c.name, c.displayValue])]).toEqual(['struct', '<1x1 struct>', [['field', '0']]]);
   });
 
   it('is not offered, and not made, where the stream it leaves would not be written', () => {

@@ -1,7 +1,7 @@
 {
-  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-18",
+  "date": "2026-10-26",
   "originals": [
     {
       "file": "orig_dispcat_bin.sldd",
@@ -1691,7 +1691,7 @@
           "value": "R23-11"
         }
       ],
-      "sha": "b4a26ff8826b2a1f6450ae943ef4df7831e3694acf9c79b44ea9ea758e53741d",
+      "sha": "05a12c887ad289f0d83710e940b96209269b165900f22d0ddfbf9dcf3ba4cb37",
       "matlab": {
         "opened": true,
         "warnings": [],
@@ -1763,7 +1763,7 @@
         "to": "csSimscapePasted"
       },
       "dynamic": [],
-      "sha": "faac406a16d238fb6f083290eda776a30a5dc1c90a63f0e42619fa0078fbdb67",
+      "sha": "1d12549ee21b65e2b44d5b5f0c0836f3cdb570b7731076c66c08f01cab2d9772",
       "matlab": {
         "opened": true,
         "warnings": [],
@@ -1847,7 +1847,7 @@
           "value": "R23-11"
         }
       ],
-      "sha": "a900b4ac24796f3a8c4f725ccb4b41945a7d8d712fe3ba7c5cb67becdbf7fdb2",
+      "sha": "89bac06521e2d12c4820a66500dfc467260ddcc6ad1fe1824cb703328ed57460",
       "matlab": {
         "opened": true,
         "warnings": [],

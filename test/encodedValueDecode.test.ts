@@ -201,10 +201,13 @@ describe('a hex value shows what it holds', () => {
     const value = param.children.find((c: any) => c.name === 'Value');
     expect([value.displayValue, value.dims]).toEqual(['<2x3 sparse double>', [2, 3]]);
 
-    // Each nested value is read-only and written back as read, and its siblings are not.
+    // Each nested value takes edits at its rows, as a sparse array read as XML or out of a .mat
+    // does (MatlabVariableNode._rewritesEncoded): its summary offers no editor. Unedited, it is
+    // written back as read.
     for (const [entry, holder] of [[struct, field], [cell, cell.children[0]], [param, value]]) {
-      for (const n of subtree(holder)) {
-        expect(n.valueEditable, n.id).toBe(false);
+      expect(holder.valueEditable, holder.id).toBe(false);
+      for (const n of holder.children) {
+        expect(n.valueEditable, n.id).toBe(true);
       }
       expect(serializeEntryToXml(entry)).toContain(body);
       expect(regenerateEntryXml(entry)).toContain(body);
@@ -533,10 +536,11 @@ describe('the two reader sites MATLAB has not been seen writing an encoded value
 });
 
 describe('an encoded value in Architectural Data stays the node that writes its stream back', () => {
-  it('is not reclassed as a Constant, and is read-only and written back as read', async () => {
+  it('is not reclassed as a Constant, and is written back as read', async () => {
     // A plain variable in a derived entry becomes a ConstantNode (NodeClassMap's
     // wrapDerivedVariable), which is editable as a scalar. An encoded one must not: it is
-    // written back from its stream, so an edit could not reach the file.
+    // written back from its stream. Its rows take edits as a sparse array's do anywhere
+    // (MatlabVariableNode._rewritesEncoded), and an edit writes the stream anew.
     const { getSectionMetadata } = await import('../src/datamodel/SectionConstants.js');
     const tag = hexElement(SPARSE_2x3);
     const xml =
@@ -547,8 +551,10 @@ describe('an encoded value in Architectural Data stays the node that writes its 
     const root: any = createSession().addDataSource('mem://arch-encoded', parseBinarySlddParts(xml, {}, []), { path: 'a.sldd' });
     const entry = root.getSection('arch').children[0];
     expect([entry.constructor.name, entry.displayValue, entry.valueEditable]).toEqual(['MatlabVariableNode', '<2x3 sparse double>', false]);
-    expect(entry.children[0].setProperty('Value', '9')).toMatchObject({ error: true });
     expect(writtenValue(entry)).toBe(tag.trim());
+    expect(entry.children[0].setProperty('Value', '9')).toBe(true);
+    expect(writtenValue(entry)).not.toBe(tag.trim());
+    expect(writtenValue(entry)).toMatch(/^<P Name="Value" Class="double" Encoding="hex" EncodedLength="\d+">/);
     // And a plain one beside it still becomes a Constant: the exclusion is the stream's.
     const plain = root.getSection('arch').parseEntry({ name: 'k2', metadata: { uuid: 'v', isderived: '1' }, value: 4 });
     expect(plain.constructor.name).toBe('ConstantNode');

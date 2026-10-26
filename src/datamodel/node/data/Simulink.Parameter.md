@@ -117,6 +117,10 @@ the custom-class scoping guard).
   (`SensorReading`), `Bus: X` / `Enum: X` / `fixdt(...)` expressions, and hand-written
   typedef names (`CntrU16_t`) all pass through verbatim. Nothing here maps or validates.
   Test: `test/parameterNode.test.ts` (`ParameterNode.dataType`).
+- **It follows the Value**, as MATLAB's `p.Value = v` re-derives it, one edit at a time: of the
+  class of the Value before the edit and the DataType then (`ParameterNode._followSourceDataType`,
+  `_classFollowed`). `"abc"` and then `7` typed over a `single` Parameter's `5` leave `'auto'`, in
+  every format. Test: `test/dictionaryParameterDataType.test.ts`.
 
 ### DataType / Unit / Description
 

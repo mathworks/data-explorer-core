@@ -118,15 +118,26 @@ describe('a hex object pasted into a text dictionary reopens as the object it wa
   });
 });
 
-describe('reopened, it is read-only, as it is in the binary dictionary: only its name edits, and an object\'s property a save writes', () => {
+describe('reopened, it takes the edits it takes in the binary dictionary: its name, an object\'s property a save writes, and a part of it that is no object', () => {
   // As in the binary dictionary (hexObjectFixtures.test.ts): an allow-listed property of a
   // Simulink.Parameter or a Simulink.Signal that MATLAB stored a value for takes an edit, which a save
   // writes into the stream's subsystem (slddStreamObjects.test.ts), and every other property of those
-  // two, and anything under a sparse Value of one, is refused by the rules. Everything else is
-  // refused with the words an encoded value always had.
+  // two, and anything under a sparse Value of one, is refused by the rules; a part of the value that
+  // is no object takes the edits a MAT-file's does, the save writing the value anew around its
+  // objects. Everything else is refused with the words an encoded value always had.
   const TAKEN: Record<string, string[]> = { 'objs.sig': ['Min'], 'objs.prm': ['Value'], 'objsCell{2}': ['Min'], 'objsCell{7}': ['Value'] };
   const ruled = (node: any, path: string): boolean =>
     /^Simulink\.(Parameter|Signal)$/.test(node.className) || /^(pSp|pSpComplex|pSpLogical|pTall)\.Value\b/.test(path);
+  // A node of an object, or under one; and a field of a struct of the value that is no object.
+  const inObject = (node: any, entry: any): boolean => {
+    for (let n = node; n; n = n.parent) {
+      if (n.constructor.name !== 'MatlabVariableNode' || n._isOpaque) return true;
+      if (n === entry) break;
+    }
+    return false;
+  };
+  const plainField = (node: any, entry: any): boolean =>
+    node.parent?.constructor.name === 'MatlabVariableNode' && node.parent._holdsFields() && !inObject(node.parent, entry);
   for (const venue of VENUES) {
     const { reopened } = pastedAndReopened(venue);
     for (const name of venue.objects) {
@@ -136,8 +147,12 @@ describe('reopened, it is read-only, as it is in the binary dictionary: only its
           const path = name + node.matlabPath.slice(entry.matlabPath.length);
           const taken = TAKEN[path] ?? [];
           const label = `${name}: ${node.id} (${node.constructor.name})`;
+          // A part of the value that is no object takes a MAT-file's edits (slddStreamObjects.test.ts).
+          if (!inObject(node, entry)) {
+            continue;
+          }
           expect(node.valueEditable, label).toBe(taken.includes('Value'));
-          expect(node.nameEditable, label).toBe(node === entry);
+          expect(node.nameEditable, label).toBe(node === entry || plainField(node, entry));
           expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(false);
           expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(false);
           for (const prop of ['Value', 'Description', 'DataType', 'Min']) {

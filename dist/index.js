@@ -60,6 +60,10 @@ export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/Bin
 // An edited entry is saved as those bytes with only what the edit changed written from the model
 // (README, "Saving a file").
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+// For a host that splices one entry's text into a text dictionary it holds as text: the JSON of the
+// entry's `serialize()` record with its numbers as MATLAB writes them, as a save writes them.
+// JSON.stringify spells a double of 2^64 as an integer literal, which MATLAB does not open.
+export { textDictionaryJson, jsonNumberText } from './datamodel/parser/TextDictionaryJson.js';
 export { readEntryFragment } from './datamodel/parser/EntryMerge.js';
 // What a refused write throws, out of session.serializeSource(), an entry's serialize() (a
 // copy) or serializeEntryToXml() (a binary dictionary's paste and splice). A host has to

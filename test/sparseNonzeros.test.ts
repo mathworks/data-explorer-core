@@ -268,9 +268,10 @@ describe('a sparse array node holds its non-zeros, and offers no grid', () => {
           ['spTall(9999999,2)', '8'],
         ],
       ]);
-      // A binary dictionary's is hex, and a text dictionary's a MAT stream, which is shown and
-      // not edited there (the C-012 ruling, 2026-10-15).
-      expect(spTall.children.map((c: any) => c.valueEditable), venue).toEqual(venue === 'binary' || venue === 'text' ? [false, false] : [true, true]);
+      // A binary dictionary's is hex, and a text dictionary's a MAT stream, each of which MatWriter
+      // writes as it reads back once edited, and so takes edits as a MAT-file's does (the C-012
+      // ruling, revised 2026-10-24; MatlabVariableNode._isPlainTree, _rewritesEncoded).
+      expect(spTall.children.map((c: any) => c.valueEditable), venue).toEqual([true, true]);
     });
 
     it(`${venue}: no sparse array lists its elements for a grid, and every one says it is sparse`, () => {
@@ -327,18 +328,17 @@ describe('a sparse array node holds its non-zeros, and offers no grid', () => {
 });
 
 describe('an edit changes the non-zero it names, and the writers write the non-zeros', () => {
-  // A text dictionary's sparse array is a MAT stream, which is shown and not edited there (the
-  // C-012 ruling, 2026-10-15). So each case below says so, and edits the same stream read in no
-  // file, where the writers are what is graded.
-  const textInNoFile = (name: string): any => {
+  // A text dictionary's sparse array is a MAT stream, which takes edits there as a MAT-file's does
+  // (the C-012 ruling, revised 2026-10-24): each case below edits it in the file.
+  const textEntry = (name: string): any => {
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     const entry = design.children.find((e: any) => e.name === name);
-    expect(entry.children[0].setProperty('Value', '1'), name).toMatchObject({ error: true });
-    return MatlabVariableNode.parseCdata(entry.serializeValue() as Record<string, unknown>, name, null);
+    expect(entry.children[0].valueEditable, name).toBe(true);
+    return entry;
   };
 
   it('a non-zero set to 0 keeps its row, showing 0, and is not in what is written', () => {
-    const spRow = textInNoFile('spRow');
+    const spRow = textEntry('spRow');
     expect(spRow.children[1].setProperty('Value', '0')).toBe(true);
     expect(rows(spRow)).toEqual([
       ['spRow(1,2)', '2'],
@@ -366,7 +366,7 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
 
   it('a complex array whose every non-zero is set to a real number is still complex', () => {
     // Its complexity used to ride on the text of its zeros, `0+0i`; there are none now.
-    const spComplex = textInNoFile('spComplex');
+    const spComplex = textEntry('spComplex');
     for (const row of spComplex.children) {
       expect(row.setProperty('Value', '1')).toBe(true);
     }
@@ -384,7 +384,7 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
   });
 
   it('spTall, edited, is written from its non-zeros; set to what it holds, as MATLAB wrote it', () => {
-    const spTall = textInNoFile('spTall');
+    const spTall = textEntry('spTall');
     const row = spTall.children[1];
     // What it holds, in a text other than the one it shows: that text set back is no edit (the
     // 2026-10-15 evening ruling A3).

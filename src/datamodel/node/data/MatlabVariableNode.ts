@@ -396,6 +396,10 @@ export default class MatlabVariableNode extends DataNode {
   // Whether a value read from a text dictionary's MAT stream is shown and not edited, once judged
   // (_streamLocked).
   _streamLockVerdict?: boolean;
+  // Whether a value still in a binary dictionary's hex takes edits all the same, once judged
+  // (_rewritesEncoded); and the hex it was read as (_encodedReadAgain).
+  _rewritesEncodedVerdict?: boolean;
+  _encodedRead?: EncodedValue;
   // The stream such a value was read from (_streamReadAgain).
   _streamRead?: Record<string, unknown>;
   // Of a MAT-file's string, whether the text it shows spells it, judged of that text and those
@@ -406,7 +410,10 @@ export default class MatlabVariableNode extends DataNode {
   _classSpelledAs?: { key: string; exact: boolean };
   // Of such a value, why an Add or a Remove of an element is not offered, as judged for the rows it
   // had then (_streamChildRefusal).
-  _streamChildVerdicts?: Partial<Record<'add' | 'remove', { rows: BaseNode[]; count: number; reason: string | null }>>;
+  _streamChildVerdicts?: Partial<Record<'add' | 'remove', { rows: BaseNode[]; count: number; edits: number | undefined; reason: string | null }>>;
+  // Of such a value, how many edits at or under it there have been (_markModified): a verdict held for
+  // a row under it (_streamChildVerdicts) was judged of the stream as it was then.
+  _streamEdits?: number;
   // Set on a container read out of a .mat file that the file's node ceiling built without its
   // rows (matNodeCeiling.admitRows): how many direct rows it has none of. It keeps the variable it
   // was read from (`_matVar`), and what it shows and what a copy of it is are answered from the
@@ -649,10 +656,29 @@ export default class MatlabVariableNode extends DataNode {
   // it too: a decoded MCOS object in a struct field is a ParameterNode or a BusNode. The
   // names of an array's, a cell's and a struct array's rows are their positions. A struct's
   // fields are renamed where its source writes the struct anew under its rows' names
-  // (BaseNode.sourceRenamesFields: a MAT-file, _renameField), and only there: a value in a
-  // model workspace is its stream, and a dictionary's struct value is a StructNode.
+  // (BaseNode.sourceRenamesFields: a MAT-file, _renameField), and where a dictionary's MAT stream that
+  // takes edits does (a text dictionary's, _openStream; a binary dictionary's hex, _rewritesEncoded,
+  // which an edit writes as XML), and only there: a value in a model workspace is its stream, and a
+  // dictionary's struct value is otherwise a StructNode.
   get fixesChildNames(): boolean {
-    return !this._holdsFields() || !sourceRenamesFields(this);
+    return !this._holdsFields() || !(sourceRenamesFields(this) || this._openStream() !== null || this._inRewrittenHex() || this._inPlainMcosStream());
+  }
+
+  // Whether this value is a part of a dictionary's MAT stream holding objects that the stream writes
+  // anew when edited (mcosStreamEdit._plainEditRefusal): a struct there renames its fields.
+  _inPlainMcosStream(): boolean {
+    return inMcosStream(this) && !sourceEditRefused(this, 'Add');
+  }
+
+  // Whether this value is at or under one a binary dictionary read as hex that takes edits all the
+  // same (_rewritesEncoded), or that an edit has written anew since.
+  _inRewrittenHex(): boolean {
+    for (let n: BaseNode | null = this; n instanceof MatlabVariableNode; n = n.parent) {
+      if (n._encodedRead) {
+        return n._rewritesEncodedVerdict === true || (n._encoded !== undefined && n._rewritesEncoded());
+      }
+    }
+    return false;
   }
 
   // Whether this value's rows are a struct's fields: a struct of one element, a struct array's
@@ -1682,7 +1708,9 @@ export default class MatlabVariableNode extends DataNode {
    * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
    * the char 'ab'. Unedited, it is written as the stream it was read from. Revised on 2026-10-24,
    * the ruling keeps display-only the stream holding no plain value, and one this package does
-   * not write as it reads back (_streamLocked).
+   * not write as it reads back (_streamLocked). A cell or a struct of plain values, which MATLAB
+   * keeps there at rank >= 3, takes edits as the same value in a MAT-file or a binary dictionary
+   * does, its members' included (_openStream).
    *
    * So at and under such a node the value takes no editor (valueEditable), the setter refuses
    * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
@@ -1714,23 +1742,72 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
+   * The node at or above this one read from a text dictionary's MAT stream that takes edits
+   * (_streamLocked), or null: the stream an edit at this node is written into, and so the one it is
+   * held to (_refuseStreamWrite, _setStreamElement, _streamChildRefusal). For a member of a cell or a
+   * struct held whole as one stream, it is the cell's or the struct's.
+   */
+  _openStream(): MatlabVariableNode | null {
+    for (let n: BaseNode | null = this; n instanceof MatlabVariableNode; n = n.parent) {
+      if (n._readFromStream) {
+        return n._isTextDictionaryStream() && !n._streamLocked() ? n : null;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Whether this value, read from a text dictionary's MAT stream, is shown and not edited: the
    * maintainer's ruling on C-012, as revised on 2026-10-24 ("the mat file complex number is always
    * enabled"). Edited is a plain value, a number, a logical or a char, real or complex, of any size,
-   * whose stream this package writes as it reads back: the rule a MAT-file's save writes a
-   * variable fresh by (MatFileWriter.streamWriteRefusal). MATLAB keeps a complex value there as a
-   * stream, as it keeps every rank >= 3 one, and so locked, a value MATLAB wrote could not be
-   * edited where the same value in a MAT-file or a binary dictionary could. Shown and not edited
-   * is everything else: a stream holding a string, a sparse array, a cell or a struct, a function
-   * handle or a value not decoded (_createUndecodableCdata), and one holding an object, which is
-   * built otherwise (_parseCdataObjects). Asked of the value as read, once: an edit of it is held
-   * to the same rule as it is made (_refuseStreamWrite).
+   * a sparse array, or a cell or a struct of them (_isPlainTree), whose stream this package writes
+   * as it reads back: the rule a MAT-file's save writes a variable fresh by
+   * (MatFileWriter.streamWriteRefusal). MATLAB keeps a complex value there as a stream, as it keeps
+   * every rank >= 3 one and every sparse one, and so locked, a value MATLAB wrote could not be edited
+   * where the same value in a MAT-file could. Shown and not edited is everything else: a stream
+   * holding a string, a function handle or a value not decoded (_createUndecodableCdata), at any
+   * depth, and one holding an object, which is built otherwise (_parseCdataObjects). Asked of the
+   * value as read, once: an edit of it is held to the same rule as it is made (_refuseStreamWrite).
    */
   _streamLocked(): boolean {
     if (this._streamLockVerdict === undefined) {
-      this._streamLockVerdict = !this._isPlainValue() || streamWriteRefusal(this) !== null;
+      this._streamLockVerdict = !this._isPlainTree() || streamWriteRefusal(this) !== null;
     }
     return this._streamLockVerdict;
+  }
+
+  /**
+   * Whether this value, still the hex a binary dictionary read it as (DataNode._adoptEncoded), takes
+   * edits all the same (BaseNode.encodedHolderOf): one of plain values and sparse arrays
+   * (_isPlainTree) whose stream MatWriter writes as it reads back (MatFileWriter.streamWriteRefusal).
+   * MATLAB writes a binary dictionary's entry as hex where it holds a sparse array or a function
+   * handle, and so a sparse array's non-zeros, which a MAT-file's rows edit, were read-only there.
+   * Edited, the value is written as its XML, each sparse array in it as the hex element of the stream
+   * MatWriter writes for it (serializeXml, _hexValue), or whole as that stream (_binaryEncoded), which
+   * MATLAB reads back as the value it is. Not one holding a function handle, an object or a string,
+   * which this package writes no stream of. Judged once, of the value as read: an edit drops the hex.
+   */
+  _rewritesEncoded(): boolean {
+    if (this._rewritesEncodedVerdict === undefined) {
+      this._rewritesEncodedVerdict = !!this._encoded && this._ownerFormat() === 'xml' && this._isPlainTree() && streamWriteRefusal(this) === null;
+    }
+    return this._rewritesEncodedVerdict;
+  }
+
+  /**
+   * The hex a binary dictionary read this value as (_encodedRead), where an edit set it back to the
+   * value it was read as: an undo of an element's edit, which sets the element's shown text back, or
+   * of an Add or a Remove. Written as that hex, as an unedited one is, and as a text dictionary's
+   * stream is (_streamReadAgain). Null for any other value.
+   */
+  _encodedReadAgain(): EncodedValue | null {
+    const read = this._encodedRead;
+    if (!read || !this._rewritesEncodedVerdict) {
+      return null;
+    }
+    const stream = encodedStream(read);
+    const got = stream.bytes ? decodeMatStream(stream.bytes) : null;
+    return got?.ok && variableDifference(got.variable, this._var, this.name) === null ? read : null;
   }
 
   // A number, a logical or a char, real or complex, of any size: what a text dictionary's MAT
@@ -1740,6 +1817,74 @@ export default class MatlabVariableNode extends DataNode {
       && !['struct', 'string', 'function_handle', 'object'].includes(this._scalarType);
   }
 
+  // A plain value (_isPlainValue), a sparse array MatWriter writes once edited (_sparseRefusal), or
+  // a cell or a struct, of any size, every row of which is one, at any depth: what a dictionary's
+  // MAT stream holds that takes edits (_streamLocked, _rewritesEncoded). Not a container whose value
+  // is not in its rows: one the node ceiling built without them, a struct array with no element
+  // rows (_unexpandedStruct).
+  _isPlainTree(): boolean {
+    if (this._isPlainValue()) {
+      return true;
+    }
+    if (this._isOpaque || this._undecoded || this._mcosString || this._cutByCeiling || this._unexpandedStruct()) {
+      return false;
+    }
+    if (this._sparse) {
+      return this._sparseRefusal() === null;
+    }
+    return (this._kind === 'cell' || this._scalarType === 'struct') && this.children.every((c) => c instanceof MatlabVariableNode && c._isPlainTree());
+  }
+
+  // The first row at or under this value that is not plain (_isPlainTree), as a refusal names what
+  // it is: 'a string', 'a function_handle'.
+  _unplainPhrase(): string {
+    const n = this._firstUnplain();
+    if (n._sparse) {
+      return 'a sparse array';
+    }
+    return classPhrase(n._isOpaque ? n._opaqueClassName || 'object' : n._scalarType);
+  }
+
+  // That row (_unplainPhrase): in a cell or a struct whose rows hold its value, the first row that is
+  // not plain, looked into in turn; otherwise this value.
+  _firstUnplain(): MatlabVariableNode {
+    const holdsRows = (this._kind === 'cell' || this._scalarType === 'struct') && !this._isOpaque && !this._cutByCeiling && !this._unexpandedStruct();
+    if (holdsRows) {
+      for (const c of this.children) {
+        if (c instanceof MatlabVariableNode && !c._isPlainTree()) {
+          return c._firstUnplain();
+        }
+      }
+    }
+    return this;
+  }
+
+  /**
+   * A copy of `holder`, the stream this node is at or under (_openStream), as its save writes it and
+   * a read gives it back, and the node at this one's place in it: what an edit is tried on before it
+   * is made here, so that a refused one changes nothing.
+   */
+  _inStreamCopy(holder: MatlabVariableNode): { copy: MatlabVariableNode; twin: MatlabVariableNode | null } {
+    const copy = NodeRegistry.parseValue(holder.serializeValue(), holder.name, null) as MatlabVariableNode;
+    const path: number[] = [];
+    for (let n: BaseNode = this; n !== holder && n.parent; n = n.parent) {
+      path.unshift(n.parent.children.indexOf(n));
+    }
+    const twin = path.reduce<BaseNode | undefined>((n, i) => n?.children[i], copy);
+    return { copy, twin: twin instanceof MatlabVariableNode ? twin : null };
+  }
+
+  // Why `copy`, a stream's value as an edit leaves it, would not be written as it shows, or null: it
+  // holds what a stream there holds only to be shown (_isPlainTree), or it is held as a stream that
+  // would not read back as it (_heldStreamRefusal).
+  static _streamCopyWhy(copy: MatlabVariableNode): string | null {
+    if (!copy._isPlainTree()) {
+      return 'it would hold ' + copy._unplainPhrase() + ', which a MAT stream there holds only to be shown';
+    }
+    const refused = copy._heldStreamRefusal();
+    return refused && writerWhy(refused);
+  }
+
   /**
    * The refusal of a Value edit of a value read from a text dictionary's MAT stream that takes
    * edits (_streamLocked) where what the edit makes is held as a stream there and that stream would
@@ -1747,13 +1892,35 @@ export default class MatlabVariableNode extends DataNode {
    * text alone (_valueMadeOf), as _refuseUnwritableValue judges a MAT-file's, so that a refused edit
    * changes nothing. A value the text dictionary spells in its JSON (a real scalar, a row of
    * numbers, a string) is held as that, and asks nothing.
+   *
+   * A member of a cell or a struct held whole as the stream is judged of a copy of the stream's value
+   * with the edit made at its place in it (_inStreamCopy): typed as a string, it would make the cell
+   * hold one, which MatWriter has no class for.
    */
   _refuseStreamWrite(parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
-    if (!this._isTextDictionaryStream()) {
+    if (this._isTextDictionaryStream()) {
+      const refused = this._valueMadeOf(parsed)._heldStreamRefusal();
+      return refused ? { error: true, reason: this._streamEditReason(refused), invalidValue: stringValue, validValue: this.displayValue } : null;
+    }
+    const holder = this._openStream();
+    if (!holder) {
       return null;
     }
-    const refused = this._valueMadeOf(parsed)._heldStreamRefusal();
-    return refused ? { error: true, reason: this._streamEditReason(refused), invalidValue: stringValue, validValue: this.displayValue } : null;
+    let why: string | null;
+    try {
+      const { copy, twin } = this._inStreamCopy(holder);
+      const set = twin ? twin.setProperty('Value', stringValue) : null;
+      if (set !== true && set?.error) {
+        return { ...set, validValue: this.displayValue };
+      }
+      why = set === true ? MatlabVariableNode._streamCopyWhy(copy) : 'it is not where the stream holds it';
+    } catch (e) {
+      if (!(e instanceof MatWriteError)) {
+        throw e;
+      }
+      why = writerWhy(e);
+    }
+    return why ? { error: true, reason: holder._streamEditReason(why, this), invalidValue: stringValue, validValue: this.displayValue } : null;
   }
 
   // Where a text dictionary holds this value as a MAT stream, the writer's refusal of that stream,
@@ -1773,35 +1940,39 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
-   * Why an Add (`op` 'add') or a Remove ('remove') of an element is not made of this value, read
-   * from a text dictionary's MAT stream that takes edits (_streamLocked), or null: the value it would
-   * leave is no plain value (Add gives an empty a field, which makes it a struct), or is held as a
-   * stream there that would not read back as it (MatFileWriter.streamWriteRefusal). So the editor
-   * offers only what the save writes (canAddChild, canRemoveChild). Judged on a copy of the value,
-   * as an element's edit is (_setStreamElement): for a Remove, of `child`, or of the last element
-   * where the gate asks of none, as _shapeAfterChildEdit judges one. The gates are asked for each
-   * row the table draws, so that answer is held for the rows the value has (_streamChildVerdicts),
-   * and dropped by any edit (_markModified).
+   * Why an Add (`op` 'add') or a Remove ('remove') of an element is not made of this value, at or
+   * under one read from a text dictionary's MAT stream that takes edits (_openStream), or null: the
+   * value of the stream it would leave holds what a stream there holds only to be shown, or is held
+   * as a stream there that would not read back as it (_streamCopyWhy). So the editor offers only what
+   * the save writes (canAddChild, canRemoveChild). Judged on a copy of the stream's value, as an
+   * element's edit is (_setStreamElement): for a Remove, of `child`, or of the last element where
+   * the gate asks of none, as _shapeAfterChildEdit judges one. The gates are asked for each row the
+   * table draws, so that answer is held for the rows the value has (_streamChildVerdicts), and
+   * dropped by any edit of the stream (_markModified, _streamEdits).
    */
   _streamChildRefusal(op: 'add' | 'remove', child?: BaseNode): string | null {
-    if (!this._isTextDictionaryStream()) {
+    const holder = this._openStream();
+    if (!holder) {
       return null;
     }
     const held = child ? undefined : this._streamChildVerdicts?.[op];
-    if (held && held.rows === this.children && held.count === this.children.length) {
+    if (held && held.rows === this.children && held.count === this.children.length && held.edits === holder._streamEdits) {
       return held.reason;
     }
     let why: string | null;
     try {
-      const copy = NodeRegistry.parseValue(this.serializeValue(), this.name, null) as MatlabVariableNode;
+      const { copy, twin } = this._inStreamCopy(holder);
       const at = child ? this.children.indexOf(child) : this.children.length - 1;
-      if (op === 'add') {
-        copy.addChildNode();
-      } else if (copy.children[at]) {
-        copy.removeChildNode(copy.children[at]);
+      if (!twin) {
+        why = 'it is not where the stream holds it';
+      } else {
+        if (op === 'add') {
+          twin.addChildNode();
+        } else if (twin.children[at]) {
+          twin.removeChildNode(twin.children[at]);
+        }
+        why = MatlabVariableNode._streamCopyWhy(copy);
       }
-      const refused = copy._isPlainValue() ? streamWriteRefusal(copy) : null;
-      why = copy._isPlainValue() ? refused && writerWhy(refused) : 'it would be ' + classPhrase(copy._scalarType) + ', which a MAT stream there holds only to be shown';
     } catch (e) {
       // The value as it stands is one the writer refuses (an edit made it so): nothing it leaves is.
       if (!(e instanceof MatWriteError)) {
@@ -1810,17 +1981,23 @@ export default class MatlabVariableNode extends DataNode {
       why = writerWhy(e);
     }
     const reason = why
-      ? `Cannot ${op === 'add' ? 'add an element to' : 'remove an element of'} "${(this.owningEntry ?? this).name}": ${this.matlabPath} is held as a MAT stream, and the one ${op === 'add' ? 'an Add' : 'a Remove'} leaves would not be written as it shows: ${why}.`
+      ? `Cannot ${op === 'add' ? 'add an element to' : 'remove an element of'} "${(this.owningEntry ?? this).name}": ${holder._heldPhrase(this)}, and the one ${op === 'add' ? 'an Add' : 'a Remove'} leaves would not be written as it shows: ${why}.`
       : null;
     if (!child) {
-      (this._streamChildVerdicts ??= {})[op] = { rows: this.children, count: this.children.length, reason };
+      (this._streamChildVerdicts ??= {})[op] = { rows: this.children, count: this.children.length, edits: holder._streamEdits, reason };
     }
     return reason;
   }
 
-  // A writer's refusal `e` of what an edit of this stream's value makes, as an editor's refusal.
-  _streamEditReason(e: MatWriteError): string {
-    return `Cannot edit "${(this.owningEntry ?? this).name}": ${this.matlabPath} is held as a MAT stream, and the one this edit makes would not be written as typed: ${writerWhy(e)}.`;
+  // A writer's refusal (`why`, or its error) of what an edit at `at`, this stream's value or a row
+  // under it, makes, as an editor's refusal.
+  _streamEditReason(why: MatWriteError | string, at: BaseNode = this): string {
+    return `Cannot edit "${(this.owningEntry ?? this).name}": ${this._heldPhrase(at)}, and the one this edit makes would not be written as typed: ${typeof why === 'string' ? why : writerWhy(why)}.`;
+  }
+
+  // Where `at`, this stream's value or a row under it, is held, as a refusal says it.
+  _heldPhrase(at: BaseNode): string {
+    return at === this ? `${this.matlabPath} is held as a MAT stream` : `${at.matlabPath} is held in the MAT stream of ${this.matlabPath}`;
   }
 
   /**
@@ -1984,24 +2161,23 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
-   * _setConstrainedValue, of an element of a value a text dictionary read from a MAT stream that
-   * takes edits (_streamLocked), held first to the rule that judged it: the edit made on a copy of
-   * the value, and the stream that copy is written as read back (MatFileWriter.streamWriteRefusal),
-   * so that an edit that would not be written as typed is refused and changes nothing. An element
-   * keeps its array's class and complexity (_setConstrainedValue), so this is the budget's and the
-   * encoder's to refuse.
+   * _setConstrainedValue, of an element of a value at or under one a text dictionary read from a MAT
+   * stream that takes edits (_openStream), held first to the rule that judged it: the edit made on a
+   * copy of the stream's value (_inStreamCopy), and the stream that copy is written as read back
+   * (MatFileWriter.streamWriteRefusal), so that an edit that would not be written as typed is refused
+   * and changes nothing. An element keeps its array's class and complexity (_setConstrainedValue),
+   * so this is the budget's and the encoder's to refuse.
    */
   _setStreamElement(stringValue: string): true | SetPropertyResult {
-    const holder = this.parent instanceof MatlabVariableNode && this.parent._isTextDictionaryStream() ? this.parent : null;
+    const holder = this.parent instanceof MatlabVariableNode ? this.parent._openStream() : null;
     if (!holder) {
       return this._setConstrainedValue(stringValue);
     }
-    const copy = NodeRegistry.parseValue(holder.serializeValue(), holder.name, null);
-    const twin = copy instanceof MatlabVariableNode ? copy.children[holder.children.indexOf(this)] : undefined;
-    if (twin instanceof MatlabVariableNode && twin._setConstrainedValue(stringValue) === true) {
-      const refused = streamWriteRefusal(copy);
-      if (refused) {
-        return { error: true, reason: holder._streamEditReason(refused), invalidValue: stringValue, validValue: this.displayValue };
+    const { copy, twin } = this._inStreamCopy(holder);
+    if (twin && twin._setConstrainedValue(stringValue) === true) {
+      const why = MatlabVariableNode._streamCopyWhy(copy);
+      if (why) {
+        return { error: true, reason: holder._streamEditReason(why, this.parent!), invalidValue: stringValue, validValue: this.displayValue };
       }
     }
     return this._setConstrainedValue(stringValue);
@@ -2017,7 +2193,7 @@ export default class MatlabVariableNode extends DataNode {
    */
   _streamReadAgain(): Record<string, unknown> | null {
     const raw = this._streamRead;
-    if (!raw || !this._isPlainValue()) {
+    if (!raw || !this._isPlainTree()) {
       return null;
     }
     const read = decodeMatStream(uudecode(raw._value as string));
@@ -2193,6 +2369,9 @@ export default class MatlabVariableNode extends DataNode {
     while (node instanceof MatlabVariableNode) {
       node._varStale = true;
       node._streamChildVerdicts = undefined;
+      if (node._readFromStream) {
+        node._streamEdits = (node._streamEdits ?? 0) + 1;
+      }
       // Whatever changed below a sparse array changed its non-zeros, however it got there,
       // so the bytes it was read from are no longer it (_matStream, _buildVarObject). Its
       // own rename is not below it, and leaves them its value.
@@ -2639,7 +2818,18 @@ export default class MatlabVariableNode extends DataNode {
     return ofChild ? ': type the whole value of "' + this.matlabPath + '" instead' : ': type the whole value over it instead';
   }
 
+  // An Add, a removal and its undo each tell what holds this value that its shape changed
+  // (_shapeChanged), at the node, whichever way the edit is made.
   addChildNode(): BaseNode | null {
+    const child = this._addChildNow();
+    if (child) {
+      this._shapeChanged();
+    }
+    return child;
+  }
+
+  // The Add itself, as this value's kind makes it: the row added, or null where none is.
+  _addChildNow(): BaseNode | null {
     if (this._kind === 'array' && this._elements.length === 0) {
       return this._convertToStructAndAddField();
     }
@@ -2656,6 +2846,18 @@ export default class MatlabVariableNode extends DataNode {
       return this._addStringChild();
     }
     return null;
+  }
+
+  /**
+   * Tell what holds this value that its shape changed (BaseNode.childStructureChanged): a
+   * Simulink.Parameter's Value row and its Dimensions and Complexity follow it
+   * (ParameterNode._followValueShape). The session's Add and removal said so (childEdit's
+   * notifyParent), but a host that adds or removes a row in place, as the dictionary editors do
+   * (mutateEntry), calls the node's own method, and a Parameter whose Value went from three
+   * elements to two was saved with Dimensions [1 3]. Telling it twice changes nothing.
+   */
+  _shapeChanged(): void {
+    this.parent?.childStructureChanged(this);
   }
 
   // Turn an untyped `[]` into an empty 1x1 struct. Kept separate from
@@ -2802,6 +3004,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     this._reindexPositional();
     this._markModified();
+    this._shapeChanged();
   }
 
   _updateArrayAfterRemove(): void {
@@ -2950,6 +3153,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     this._reindexPositional();
     this._markModified();
+    this._shapeChanged();
   }
 
   execAddChild(): ChildAddEdit | null {
@@ -5322,6 +5526,7 @@ export default class MatlabVariableNode extends DataNode {
       node._adoptEncoded(encoded);
       if (node instanceof MatlabVariableNode) {
         node._keepStreamElement(stream.bytes);
+        node._encodedRead = encoded;
       }
       // Its objects' allow-listed properties take an edit, which rewrites the stream
       // (mcosStreamEdit): the stream is the gate of every edit inside it, and its writer.
@@ -5404,6 +5609,11 @@ export default class MatlabVariableNode extends DataNode {
     // stream, but not the element's layout, and not a damaged stream's bytes at all.
     if (this._encoded) {
       return null;
+    }
+    // The hex it was read as, where an edit set it back to the value it was read as (_encodedReadAgain).
+    const again = this._encodedReadAgain();
+    if (again) {
+      return again;
     }
     const raw = this._rawInput as Record<string, unknown> | undefined;
     if (raw && isMatCdata(raw) && this._matVar) {

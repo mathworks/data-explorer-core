@@ -246,29 +246,34 @@ Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
 `artifacts/text/cases.sldd`).
 
 A value read from a text dictionary's MAT stream takes edits where it is a plain value: a
-number, a logical or a char, real or complex, of any size, as the same value read from a
-MAT-file or a binary dictionary does. That is the maintainer's ruling on C-012 as revised on
-2026-10-24; the first ruling (2026-10-15) made every such value display-only. `parseCdata`
-marks the node it builds (`_readFromStream`) and keeps the stream (`_streamRead`).
-`_streamLocked` judges the value as read, once: a plain value whose stream this package
+number, a logical or a char, real or complex, of any size, or a cell or a struct of plain
+values at any depth (`_isPlainTree`, which MATLAB keeps there at rank >= 3), as the same value
+read from a MAT-file or a binary dictionary does. That is the maintainer's ruling on C-012 as
+revised on 2026-10-24; the first ruling (2026-10-15) made every such value display-only.
+`parseCdata` marks the node it builds (`_readFromStream`) and keeps the stream (`_streamRead`).
+`_streamLocked` judges the value as read, once: a plain one whose stream this package
 writes as it reads back (`MatFileWriter.streamWriteRefusal`, the rule a MAT-file's save
-writes a variable fresh by) takes edits. Every other one (a string, a sparse array, a cell,
-a struct, a function handle, an object, a value not decoded) is display-only, at and under
+writes a variable fresh by) takes edits. Every other one (one holding a string, a sparse array,
+a function handle, an object or a value not decoded, at any depth) is display-only, at and under
 it: `_streamHolder` finds it from any row under it, `valueEditable` is false,
 `setProperty('Value')` refuses (`_refuseStreamEdit`), and `canAddChild` and
 `canRemoveChild` are false. A `Simulink.Parameter` whose Value is such a stream refuses a
-Value edit the same way. An edit of a plain one is held to the same rule as it is made,
+Value edit the same way. An edit of a plain one, at the value or at any row under it
+(`_openStream` finds the stream it is written into), is held to the same rule as it is made,
 typed whole (`_refuseStreamWrite`; `ParameterNode._refuseValueForStream` for a Parameter's
-Value) or at an element (`_setStreamElement`): one whose stream would not read back as
-typed is refused, naming it, and changes nothing. Add and Remove of an element are offered
-only where the value they leave passes the same rule, and is still a plain value
-(`_streamChildRefusal`, asked by `canAddChild`, `canRemoveChild` and `execRemoveChild`): an
-empty that Add would give a field is a struct, and is not offered one. An unedited one is saved as its own
+Value) or at an element (`_setStreamElement`): made first on a copy of the stream's value
+(`_inStreamCopy`), one that would leave it holding a string, or whose stream would not read
+back, is refused, naming the row and the stream, and changes nothing (`_streamCopyWhy`). Add
+and Remove of an element are offered only where the value they leave passes the same rule
+(`_streamChildRefusal`, asked by `canAddChild`, `canRemoveChild` and `execRemoveChild`), and
+a field of a struct of one element under such a stream is renamed (`fixesChildNames`), in
+every element of a struct array, as a MAT-file renames it. An unedited one is saved as its own
 bytes, and so is one an edit set back to the value it was read as (`_streamReadAgain`). The
 node holding a locked stream can still be renamed and its entry deleted, because neither
 writes the stream again. A stream in no file, in a binary dictionary it was pasted into, or
 read out of a `.mat` or a model workspace is unaffected. Pinned in
-`test/cdataDisplayOnly.test.ts` and `test/textStreamEdits.test.ts`.
+`test/cdataDisplayOnly.test.ts`, `test/textStreamEdits.test.ts` and
+`test/textStreamContainers.test.ts`.
 
 ### A binary dictionary's hex values are the same stream, read-only
 A compressed-binary dictionary writes a value XML cannot spell — a sparse array or a
@@ -289,6 +294,13 @@ of any class (a `ParameterNode` for a `Simulink.Parameter`), and it:
   writes into the stream's subsystem cell that holds it (`data/mcosStreamEdit.ts`: the
   stream is the gate of every edit inside it, through `node/mcosStream.ts`, and the writer
   of the stream, its value element as read, `EncodedLength` the new byte count);
+- takes edits as the same value read as XML does where it holds plain values and sparse
+  arrays only, whose stream MatWriter writes as it reads back (`_rewritesEncoded`, which
+  `BaseNode.encodedHolderOf` asks): a sparse array's rows, a struct's and a cell's members
+  and fields. The edit drops the hex, and the save writes the value as its XML, each sparse
+  array the hex element of its own stream (`_hexValue`), or whole as that stream where it is
+  a sparse array or a cell holding one (`_binaryEncoded`). One an edit set back to the value
+  it was read as (an undo) is written as the hex it was read as (`_encodedReadAgain`);
 - goes into a text dictionary as the equivalent cdata (`MatWriter.textDictionaryForm`);
 - shows `<CLASS, not decoded>` when the stream does not read, and a part-unreadable
   warning says why, never a number;

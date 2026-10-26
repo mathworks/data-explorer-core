@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { classPhrase } from './MatWriter.js';
+import { parameterDataTypeAfter } from './McosPropertyRules.js';
 const PARAMETER = 'Simulink.Parameter';
 const SIGNAL = 'Simulink.Signal';
 // The properties each class takes an edit of, and the name each is saved under. Measured on
@@ -192,8 +193,12 @@ function heldWhy(refusal) {
  *
  * The edits are judged together, as the object a save leaves: a Min and a Max set in one save are
  * held to each other as they will be, not as they were.
+ *
+ * `followed`, for a Simulink.Parameter, is the DataType its node shows (followedDataType): MATLAB's
+ * after each edit of its Value in turn, written in place of the one derived from the file's Value
+ * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export function objectEditCells(held, edits, path) {
+export function objectEditCells(held, edits, path, followed) {
     const refuse = (property, message) => ({ ok: false, property, message });
     const cells = new Map();
     const editedBy = new Map();
@@ -213,13 +218,17 @@ export function objectEditCells(held, edits, path) {
         cells.set(saved, written);
         editedBy.set(saved, property);
     }
+    const heldDataType = held.stored.get('DataType')?.value;
+    if (held.className === PARAMETER && followed !== undefined && !cells.has('Value') && heldDataType && textOf(heldDataType) !== followed) {
+        cells.set('DataType', charCell(followed));
+    }
     if (cells.size === 0) {
         return { ok: true, cells: [] };
     }
     // What MATLAB's own edit of the Value changes with it.
     const value = cells.get('Value');
     if (held.className === PARAMETER && value) {
-        const co = valueCoWrites(held, value, path);
+        const co = valueCoWrites(held, value, path, followed);
         if (typeof co === 'string') {
             return refuse('Value', co);
         }
@@ -350,9 +359,10 @@ function valueClassRefusal(v, inStruct) {
  *     loads equal.
  *
  * Why not, as a clause, when the DataType has to change and its cell takes no swap: the Value then
- * loads converted, with a warning, every time.
+ * loads converted, with a warning, every time. `followed` is the DataType MATLAB's edits of the
+ * Value one at a time leave, where it is known (objectEditCells), in place of the one derived here.
  */
-function valueCoWrites(held, v, path) {
+function valueCoWrites(held, v, path, followed) {
     const out = new Map();
     const dims = held.stored.get('Dimensions');
     const size = sizeOf(v);
@@ -366,7 +376,7 @@ function valueCoWrites(held, v, path) {
     const old = held.stored.get('Value')?.value;
     if (dataType && old) {
         const dt = dataType.value ? textOf(dataType.value) : null;
-        const after = dt === null ? null : dataTypeAfter(classOf(old), classOf(v), dt);
+        const after = dt === null ? null : followed ?? parameterDataTypeAfter(classOf(old), classOf(v), dt);
         if (dt === null || dataType.refusal !== null) {
             // Kept as it is, a DataType that does not read needs no cell; one that has to change does.
             if (after === null || after !== dt) {
@@ -379,18 +389,19 @@ function valueCoWrites(held, v, path) {
     }
     return out;
 }
-/** MATLAB's DataType after `p.Value = v` of class `now` over a Value of class `old` under DataType `dt`, measured. */
-export function dataTypeAfter(old, now, dt) {
-    if (now === 'struct') {
-        return old === 'struct' ? dt : 'struct';
+/**
+ * The DataType of the Simulink.Parameter `held` once its Value is `v`, as MATLAB's own `p.Value = v`
+ * makes it over a Value of class `before` (the file's, where none is given) under DataType `dt`: the
+ * one its node shows as it follows each edit of the Value in turn. Null where the object holds no
+ * DataType cell that reads, whose DataType the rules derive from the file's alone (valueCoWrites).
+ */
+export function followedDataType(held, v, before, dt) {
+    const cell = held.stored.get('DataType');
+    const old = held.stored.get('Value')?.value;
+    if (held.className !== PARAMETER || !cell || cell.refusal !== null || !cell.value || textOf(cell.value) === null || !old) {
+        return null;
     }
-    if (now === 'char') {
-        return 'string';
-    }
-    if (now !== 'double') {
-        return now === 'logical' ? 'boolean' : now;
-    }
-    return old !== 'double' ? 'auto' : dt;
+    return parameterDataTypeAfter(before ?? classOf(old), classOf(v), dt);
 }
 /**
  * Why a double Value `v` is refused under the DataType it keeps (`changed` false): a builtin one
@@ -484,7 +495,7 @@ function effectiveDataType(className, at) {
         return textOf(dataType);
     }
     const value = className === PARAMETER ? at('Value') : null;
-    return value ? dataTypeAfter('double', classOf(value), 'auto') : 'auto';
+    return value ? parameterDataTypeAfter('double', classOf(value), 'auto') : 'auto';
 }
 function rangeOf(dt) {
     if (dt === 'single') {

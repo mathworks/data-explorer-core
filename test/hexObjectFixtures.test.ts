@@ -27,6 +27,7 @@ import { unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { regenerateChunkXml, regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const FIXTURES = new URL('./fixtures/sparse/', import.meta.url);
@@ -91,6 +92,15 @@ describe('a function handle shows as func2str says, in every venue', () => {
 
 describe('under a hex value, every node is read-only, whatever its class, but an object\'s property a save writes', () => {
   const design = variablesOf('hexobj_binary.sldd');
+  // But a hex value of plain values and sparse arrays, which MatWriter writes anew as it reads back
+  // (MatlabVariableNode._rewritesEncoded): cTall, a cell holding a sparse array, whose rows take
+  // edits as a MAT-file's do (test/encodedValueWriteBack.test.ts).
+  const PLAIN = ['cTall'];
+  it('holds one hex value of plain values, cTall, whose rows take edits', () => {
+    expect(HEX.filter((name) => design.children.find((e: any) => e.name === name)._rewritesEncoded?.())).toEqual(PLAIN);
+    const sparse = design.children.find((e: any) => e.name === 'cTall').children[0];
+    expect([sparse.isSparse, sparse.children.map((r: any) => r.valueEditable)]).toEqual([true, [true, true]]);
+  });
   // Every property each class edits through an override of its own before DataNode's —
   // Min and Max (SignalNode, BusNode, ValueTypeNode), the enumerals (BusNode,
   // ValueTypeNode), Value (VariantControlNode, MatlabVariableNode) — and the generic ones.
@@ -103,18 +113,41 @@ describe('under a hex value, every node is read-only, whatever its class, but an
   const TAKEN: Record<string, string[]> = { 'objs.sig': ['Min'], 'objs.prm': ['Value'], 'objsCell{2}': ['Min'], 'objsCell{7}': ['Value'] };
   const ruled = (node: any): boolean =>
     /^Simulink\.(Parameter|Signal)$/.test(node.className) || /^pTall\.Value\b/.test(node.matlabPath);
+  // A node of an object, or under one: what the stream's rules for objects answer. Every other node
+  // of an entry's whole value is a part of it that is no object, which takes the edits a MAT-file's
+  // does, the save writing the value anew around its objects (test/slddStreamObjects.test.ts).
+  const inObject = (node: any, entry: any): boolean => {
+    for (let n = node; n; n = n.parent) {
+      if (!(n instanceof MatlabVariableNode) || n._isOpaque) return true;
+      if (n === entry) break;
+    }
+    return false;
+  };
+  // A field of a struct of the value that is no object, whose name is its struct's.
+  const plainField = (node: any, entry: any): boolean =>
+    node.parent instanceof MatlabVariableNode && node.parent._holdsFields() && !inObject(node.parent, entry);
 
-  for (const name of HEX) {
+  for (const name of HEX.filter((n) => !PLAIN.includes(n))) {
     it(name, () => {
       const entry = design.children.find((e: any) => e.name === name);
       for (const node of subtree(entry).slice(1)) {
         const label = `${name}: ${node.id} (${node.constructor.name})`;
-        expect(node.nameEditable, label).toBe(false);
+        if (!inObject(node, entry)) {
+          // A row of the value that is no object: its value takes an edit where it is offered one.
+          if (node.valueEditable) {
+            const fresh = subtree(variablesOf('hexobj_binary.sldd').children.find((e: any) => e.name === name)).find((n: any) => n.id === node.id);
+            expect(fresh.setProperty('Value', '7'), label).toBe(true);
+          }
+          continue;
+        }
+        expect(node.nameEditable, label).toBe(plainField(node, entry));
         expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(false);
         expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(false);
         // Asked of a fresh reading of the same node, so that an edit taken leaves `entry` as read.
         const fresh = subtree(variablesOf('hexobj_binary.sldd').children.find((e: any) => e.name === name)).find((n: any) => n.id === node.id);
         const keys = new Set([...PROPS, ...(node.getProperties?.() ?? []).map((p: any) => p.key)]);
+        // A field's rename is its struct's, taken there (test/slddStreamObjects.test.ts).
+        if (plainField(node, entry)) keys.delete('Name');
         for (const prop of keys) {
           for (const text of ['1', '[]', 'single']) {
             const result = fresh.setProperty(prop, text);
@@ -128,7 +161,8 @@ describe('under a hex value, every node is read-only, whatever its class, but an
                 expect(result, what).toBe(true);
                 expect(prop === 'Value' ? fresh.displayValue : String(fresh.Min ?? '[]'), what).toBe(text === '1' ? '1' : prop === 'Value' ? '[ ]' : '[]');
               }
-            } else if (ruled(node)) {
+            } else if (ruled(node) || prop === 'Name') {
+              // A cell's member is named by its place, which the cell answers for.
               expect(result, what).toMatchObject({ error: true });
             } else if (prop === 'Description' && !node.descriptionApplies) {
               // A value with no Description says so first (DataNode._noDescriptionRefusal).

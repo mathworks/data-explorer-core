@@ -14,6 +14,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { parameterDataTypeAfter } from '../../parser/McosPropertyRules.js';
 const CLASS_NAME = 'Simulink.Parameter';
 // The own fields an undo of a Value edit leaves as they are (_restorerFor): where the node
 // stands, which it restores apart (its children, the Value row) or not at all (its name and
@@ -309,9 +310,19 @@ export default class ParameterNode extends DataNode {
     // put back after the undone change is reported. That report sets them from the Value it
     // restored (_followValueShape), which gives what was read for a file MATLAB wrote, where they
     // are the Value's. A hand-edited file's need not be (MATLAB refuses that state): pRow with
-    // [1 5] for its three elements, cut to two and undone, came back [1 3] and was saved so.
+    // [1 5] for its three elements, cut to two and undone, came back [1 3] and was saved so. And the
+    // DataType, with the Value class it followed, which the report follows on from the edit's.
     childStructureRestorer(child) {
-        return child === this._valueNode ? this._shapeRestorer() : null;
+        if (child !== this._valueNode) {
+            return null;
+        }
+        const shape = this._shapeRestorer();
+        const { DataType, _classFollowed } = this;
+        return () => {
+            shape();
+            this.DataType = DataType;
+            this._classFollowed = _classFollowed;
+        };
     }
     // What puts back the Dimensions and Complexity as they are now, each the file holds.
     _shapeRestorer() {
@@ -369,13 +380,63 @@ export default class ParameterNode extends DataNode {
     // writes the DataType so where the object holds one (McosEditRules). Shown as read, the
     // DataType column said 'int16' of a Parameter MATLAB loads as 'auto' until the file was
     // reopened. So it is set to what the source says the save leaves it (BaseNode.sourceFollowedProperty),
-    // after every edit of the Value and its undo; a dictionary says nothing, and its Parameters keep
-    // the DataType they hold, which the dictionary writes as it is.
+    // after every edit of the Value and its undo; and in a dictionary, which says nothing, as the same
+    // rule makes it (_followedDataType), which the dictionary writes as it is. A dictionary's
+    // Parameter kept the DataType it was read with: `true` typed over an int16 one was saved as a
+    // logical under 'int16', which MATLAB loads as a double, with a warning.
+    //
+    // MATLAB applies the rule one edit at a time, to the Value and DataType each edit leaves, so each
+    // rule follows on from the Value class this last followed (_classFollowed) and the DataType shown.
+    // Derived from what the file held, "abc" and then 7 typed over a single Parameter's 5 showed and
+    // saved 'single', where MATLAB's is 'auto', and an edit after a save followed the file read.
     _followSourceDataType() {
-        const dataType = sourceFollowedProperty(this, 'DataType');
-        if (typeof dataType === 'string' && dataType !== this.DataType) {
+        let dataType = sourceFollowedProperty(this, 'DataType');
+        if (dataType === undefined) {
+            const format = this._ownerFormat();
+            dataType = format === 'json' || format === 'xml' ? this._followedDataType() : null;
+        }
+        if (typeof dataType !== 'string') {
+            return;
+        }
+        this._classFollowed = this._valueClass() ?? this._classFollowed;
+        if (dataType !== this.DataType) {
             this.DataType = dataType;
         }
+    }
+    /**
+     * The DataType this Parameter holds once its Value is of the class it is now, as MATLAB's own
+     * `p.Value = v` makes it (McosPropertyRules.parameterDataTypeAfter) of the Value class this last
+     * followed and the DataType it shows, an edit's included. A Parameter added holds MATLAB's
+     * default, an empty double. The rule a MAT-file's object is shown by
+     * (matObjectEdit.dataTypeShownFor). Null for a Value of no class this knows (an enumeration
+     * value's), whose DataType it leaves as it is.
+     */
+    _followedDataType() {
+        const now = this._valueClass();
+        return now === null ? null : parameterDataTypeAfter(this._classFollowed ?? 'double', now, this.DataType);
+    }
+    // The MATLAB class of the Value this Parameter holds, as parameterDataTypeAfter names one: a
+    // logical's 'logical', a complex value's the class of its parts; null for an enumeration value.
+    _valueClass() {
+        const node = this._valueNode;
+        if (node) {
+            if (this._valueIsEnum()) {
+                return null;
+            }
+            // Not its _valueShape, which counts its elements, and a pasted struct's dims can be no count.
+            return node._isComplexValue?.() && node._complexClass ? node._complexClass() : node.className;
+        }
+        const v = this.Value;
+        if (typeof v === 'number' || v === undefined || v === null) {
+            return 'double';
+        }
+        if (typeof v === 'boolean') {
+            return 'logical';
+        }
+        if (typeof v === 'string') {
+            return 'char';
+        }
+        return Array.isArray(v) && v.length === 1 && typeof v[0] === 'string' ? 'string' : null;
     }
     // The Value's size, and its complexity by the rule its save follows
     // (MatlabVariableNode._isComplexValue), or null for a struct's, which MATLAB leaves as it
@@ -600,6 +661,14 @@ export default class ParameterNode extends DataNode {
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
     }
+    // MATLAB keeps a Parameter's Dimensions and Complexity as its Value's (_followValueShape): it
+    // refuses a Dimensions other than the Value's size (UDDData_CannotSetCustomDimensions) and a
+    // Complexity other than its complexity (UDDData_CannotSetComplexity), R2027a. Said as a MAT-file's
+    // save says it (McosEditRules).
+    _coWrittenWhy(propName) {
+        const property = ['Dimensions', 'Complexity'].find((p) => p.toLowerCase() === propName.toLowerCase());
+        return property ? { property, why: 'follows its Value, and is written only with it' } : null;
+    }
     // The refusal of the Value `stringValue` makes by this Parameter's source, which may write some
     // Values and not others (BaseNode.sourceValueRefusal: a MAT-file, whose save writes a Value into
     // the object's cell, refuses one MATLAB loads with a warning, 300 under a DataType of 'uint8').
@@ -777,6 +846,7 @@ export default class ParameterNode extends DataNode {
         if (props.Value && typeof props.Value === 'object' && !(Array.isArray(props.Value) && props.Value.length === 0)) {
             node._adoptValueNode(props.Value);
         }
+        node._classFollowed = node._valueClass() ?? undefined;
         return node;
     }
 }

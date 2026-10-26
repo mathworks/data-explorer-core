@@ -150,16 +150,11 @@ describe('a cell whose literal shows an element as a summary offers no in-cell e
       const result = c.setProperty('Value', c.displayValue);
       expect(result, venue).toMatchObject({ error: true });
       expect([c.children[0].isSparse, c.children.map((e: any) => e.className)], venue).toEqual([true, ['double', 'double']]);
-      // Its elements still edit, the sparse one through its row. In a text dictionary the
-      // sparse one is a MAT stream, which is shown and not edited (the C-012 ruling, 2026-10-15).
+      // Its elements still edit, the sparse one through its row: in a text dictionary a MAT stream,
+      // which MatWriter writes as it reads back (the C-012 ruling, revised 2026-10-24).
       expect(c.children[1].valueEditable, venue).toBe(true);
       expect(c.children[1].setProperty('Value', '[9 11]'), venue).toBe(true);
-      const sparseEdit = c.children[0].children[0].setProperty('Value', '4');
-      if (venue === 'text') {
-        expect(sparseEdit, venue).toMatchObject({ error: true });
-      } else {
-        expect(sparseEdit, venue).toBe(true);
-      }
+      expect(c.children[0].children[0].setProperty('Value', '4'), venue).toBe(true);
       expect(c.displayValue, venue).toBe('{<1x3 sparse double>, [9 11]}');
     }
   });
