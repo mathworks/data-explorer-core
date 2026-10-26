@@ -114,6 +114,10 @@ describe('a refused edit names its row', () => {
     expect(editRefusalText(row, 'Min', 'Minimum must be a finite real double scalar value. ')).toBe('Cannot edit "s.p": Minimum must be a finite real double scalar value.');
     expect(editRefusalText(row, 'Name', "'q' already names another member of s")).toBe('Cannot rename "s.p": \'q\' already names another member of s.');
     expect(editRefusalText({ name: 'x' }, 'Value', 'why?')).toBe('Cannot edit "x": why?');
+    // In time linear in the reason: a run of white space inside it is no slower (CodeQL's polynomial
+    // regular expression, of a pattern anchored at the end only).
+    const long = 'a' + '\t'.repeat(200_000) + 'b';
+    expect(editRefusalText({ name: 'x' }, 'Value', long)).toBe('Cannot edit "x": ' + long + '.');
   });
 
   it('an element of an array says what it takes and what was typed, quoted on one line and cut short', () => {

@@ -20,7 +20,13 @@ export function editRefusalText(node, key, reason) {
     if (NAMES_A_ROW.test(said)) {
         return said;
     }
-    const body = said.replace(/[\s.]+$/, '');
+    // Its closing full stops (and the space between them) dropped, one by one: a pattern anchored at
+    // the end only is tried from every place in the text, which is slow on a long run of spaces.
+    let end = said.length;
+    while (end > 0 && (said[end - 1] === '.' || said[end - 1].trim() === '')) {
+        end--;
+    }
+    const body = said.slice(0, end);
     const verb = isNameKey(node, key) ? 'rename' : 'edit';
     return `Cannot ${verb} "${node.matlabPath || node.name}": ${body}${/[!?]$/.test(body) ? '' : '.'}`;
 }

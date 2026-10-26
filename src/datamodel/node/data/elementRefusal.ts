@@ -57,7 +57,7 @@ function arrayPhrase(array: ElementArray): string {
 // The text typed, on one line, cut at QUOTED_MAX characters, in quotes no MATLAB text spells, so
 // that a char's 'x' and a string's "x" show as typed.
 function quoted(text: string): string {
-  const line = text.replace(/\s*[\r\n]+\s*/g, ' ');
+  const line = text.split(/[\r\n]+/).map((part) => part.trim()).join(' ');
   return '“' + (line.length > QUOTED_MAX ? line.slice(0, QUOTED_MAX - 1) + '…' : line) + '”';
 }
 
