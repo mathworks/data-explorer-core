@@ -287,8 +287,10 @@ function candidates(node: any, key: string): string[] {
     case 'Max':
       return ['9', '[]', '200'];
     case 'Description':
-    case 'Unit':
       return ['zz edited', '', 'Grüße 温度'];
+    // And a unit expression, which a ValueType's Unit takes, and no text of two words (unitExpression).
+    case 'Unit':
+      return ['zz edited', '', 'Grüße 温度', 'm/s^2'];
     case 'DataType':
       return ['double', 'int8', 'fixdt(1,16,4)', 'boolean', 'single'];
     case 'BaseType':

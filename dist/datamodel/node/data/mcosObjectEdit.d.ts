@@ -88,8 +88,9 @@ export declare function nodePropertyValue(node: BaseNode, property: string, fiel
 /**
  * Why `value`, a node built of the text an edit typed into `node`, a field of the struct Value of
  * the Parameter at `object` (or a row under one), is what such a field holds no cell of, as a
- * clause, or null: text, which MATLAB refuses in a Parameter's struct, and anything else the rules
- * do not write (McosEditRules.valueMemberRefusal).
+ * clause, or null: a string, which MATLAB takes there and a MAT-file holds as an object of the
+ * file, which a save writes into no object's Value; and anything else the rules do not write
+ * (McosEditRules.valueMemberRefusal).
  */
 export declare function memberRefusal(object: BaseNode, node: BaseNode, value: BaseNode): string | null;
 /**

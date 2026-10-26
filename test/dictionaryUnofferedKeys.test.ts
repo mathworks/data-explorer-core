@@ -64,10 +64,10 @@ describe('a key a dictionary row does not offer', () => {
     ['pInt8', 'StorageClass', 'ExportedGlobal', 'pInt8.StorageClass is not one this editor writes into a Simulink.Parameter.'],
     ['pInt8', 'dataType', 'single', 'pInt8.dataType is not one this editor writes into a Simulink.Parameter.'],
     ['pInt8', 'DocUnits', 'm', 'pInt8.DocUnits is not one this editor writes into a Simulink.Parameter.'],
-    ['pInt8', 'DataType', 'notAType!', 'the Data Type of pInt8 is read-only here.'],
-    ['pInt8', 'DataType', 'single', 'the Data Type of pInt8 is read-only here.'],
-    ['pInt8', 'Unit', 'm', 'the Unit of pInt8 is read-only here.'],
-    ['sig', 'DataType', 'single', 'the Data Type of sig is read-only here.'],
+    // A Parameter's DataType over a Value of another class than double, which a MAT-file offers no
+    // editor of either, refused in its words (dictObjectEdit).
+    ['pInt8', 'DataType', 'notAType!', 'pInt8.DataType follows its Value, of class int8: set to another, MATLAB converts the Value to double, with a warning on every load.'],
+    ['pInt8', 'DataType', 'single', 'pInt8.DataType follows its Value, of class int8: set to another, MATLAB converts the Value to double, with a warning on every load.'],
     ['sig', 'Bogus', 'x', 'sig.Bogus is not one this editor writes into a Simulink.Signal.'],
     ['sig', 'InitialValue', '1', 'sig.InitialValue is not one this editor writes into a Simulink.Signal.'],
     ['bus', 'Bogus', 'x', 'bus.Bogus is not one this editor writes into a Simulink.Bus.'],
@@ -90,7 +90,8 @@ describe('a key a dictionary row does not offer', () => {
   it('an offered key of the same rows is still taken and saved', () => {
     for (const file of ['test/fixtures/edit-bash/r2027a/values_text.sldd', 'test/fixtures/edit-bash/r2027a/values_binary.sldd']) {
       const o = opened(file);
-      for (const [path, key, text] of [['pInt8', 'storageClass', 'ExportedGlobal'], ['pInt8', 'Min', '0'], ['pInt8', 'Description', 'gain'], ['sig', 'complexity', 'complex']]) {
+      // And a Unit and a DataType, which a dictionary takes as a MAT-file does (dictObjectEdit).
+      for (const [path, key, text] of [['pInt8', 'storageClass', 'ExportedGlobal'], ['pInt8', 'Min', '0'], ['pInt8', 'Description', 'gain'], ['sig', 'complexity', 'complex'], ['pInt8', 'Unit', 'm'], ['sig', 'DataType', 'single']]) {
         expect(o.edit(nodeAt(o.root, path), key, text), file + ' ' + path + '.' + key).toBe(true);
       }
       const back = opened(file);
@@ -101,6 +102,7 @@ describe('a key a dictionary row does not offer', () => {
       expect(nodeAt(root, 'pInt8').toRow().storageClass.text, file).toBe('ExportedGlobal');
       expect(nodeAt(root, 'pInt8').toRow().Description, file).toBe('gain');
       expect(nodeAt(root, 'sig').toRow().complexity.text, file).toBe('complex');
+      expect([nodeAt(root, 'pInt8').Unit, nodeAt(root, 'sig').DataType], file).toEqual(['m', 'single']);
       expect(nodeAt(back.root, 'pInt8').toRow().storageClass.text, file).toBe('Auto');
     }
   });

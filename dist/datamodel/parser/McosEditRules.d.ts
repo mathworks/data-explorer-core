@@ -45,8 +45,8 @@ export declare function propertyEditRefusal(held: McosObjectHeld, property: stri
  */
 export declare function propertyValueRefusal(className: string, property: string, value: MatVariable, path: string): string | null;
 /**
- * What a member of a struct Value, `value`, is that the rules write no cell of (`a char`), or
- * null: a struct field of a Parameter holds what its Value may, but text.
+ * What a member of a struct Value, `value`, is that the rules write no cell of (`a string`), or
+ * null: a struct field of a Parameter holds what its Value may, and a char of any shape.
  */
 export declare function valueMemberRefusal(value: MatVariable): string | null;
 /**

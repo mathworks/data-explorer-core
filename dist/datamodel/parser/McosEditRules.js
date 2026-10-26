@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { classPhrase } from './MatWriter.js';
-import { parameterDataTypeAfter } from './McosPropertyRules.js';
+import { heldChar, parameterDataTypeAfter } from './McosPropertyRules.js';
 const PARAMETER = 'Simulink.Parameter';
 const SIGNAL = 'Simulink.Signal';
 // The properties each class takes an edit of, and the name each is saved under. Measured on
@@ -165,8 +165,8 @@ export function propertyValueRefusal(className, property, value, path) {
     return typeof written === 'string' ? written : null;
 }
 /**
- * What a member of a struct Value, `value`, is that the rules write no cell of (`a char`), or
- * null: a struct field of a Parameter holds what its Value may, but text.
+ * What a member of a struct Value, `value`, is that the rules write no cell of (`a string`), or
+ * null: a struct field of a Parameter holds what its Value may, and a char of any shape.
  */
 export function valueMemberRefusal(value) {
     return valueClassRefusal(value, true);
@@ -304,9 +304,9 @@ function cellValueFor(className, saved, value, named) {
  * Why a Value of `v` is not one a cell swap writes into a Simulink.Parameter, as what it would be
  * (`a cell`), or null where it is: a numeric array of any class, real or complex, of any size, an
  * empty and an N-D one included; a real logical; a char row, which MATLAB loads as a string scalar;
- * and a struct whose every field holds one of those but text, at any depth (MATLAB refuses a char
- * field of a Parameter's struct). Not a cell, a sparse array (not measured), an object, a function
- * handle or a value this package could not write.
+ * and a struct whose every field holds one of those, or a char of any shape, at any depth (heldChar).
+ * Not a cell, a sparse array (not measured), an object (a string among them: a MAT-file holds one as
+ * an object of the file), a function handle or a value this package could not write.
  */
 function valueClassRefusal(v, inStruct) {
     if (v._unwritable) {
@@ -325,7 +325,10 @@ function valueClassRefusal(v, inStruct) {
     if (cls === 'logical') {
         return v.isComplex ? 'a complex logical' : null;
     }
-    if (cls === 'char' && !inStruct) {
+    if (cls === 'char' && inStruct) {
+        return heldChar(v);
+    }
+    if (cls === 'char') {
         const d = v.dimensions ?? [];
         return d.length === 2 && d[0] === 1 && d[1] >= 1 && textOf(v) !== null && !loneSurrogate(textOf(v)) ? null : 'a char that is not one row of text';
     }

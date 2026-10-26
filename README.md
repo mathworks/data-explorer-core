@@ -108,6 +108,18 @@ save gate has to check for itself. `readEntryFragment(fragment,
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.
 
+The properties of an object a MAT-file's object takes an edit of (below) take
+one in a text and a binary dictionary too, held to the same rules and refused in
+the same words: a `Simulink.Parameter`'s DataType and Unit; a `Simulink.Signal`'s
+DataType, Unit, Dimensions, InitialValue, SampleTime and SamplingMode; a
+`Simulink.BusElement`'s and a `Simulink.ValueType`'s DataType, Unit and
+Dimensions; a `Simulink.Bus`'s DataScope, HeaderFile, Alignment and
+PreserveElementDimensions; a `Simulink.AliasType`'s DataScope and HeaderFile;
+and a `Simulink.NumericType`'s DataTypeMode, Signedness, WordLength,
+FractionLength, Slope, Bias, DataTypeOverride, IsAlias, DataScope and
+HeaderFile, with what MATLAB's setter changes beside it (a NumericType set to
+`Single` is 32 bits, unscaled). The save writes each as MATLAB writes it.
+
 A host that writes one entry of a text dictionary itself writes the entry's
 `serialize()` record with `textDictionaryJson(value, indent?)`, not
 `JSON.stringify`: its numbers are spelled as MATLAB writes them (`1000000.0`,
@@ -190,7 +202,9 @@ These take a rename and a delete and nothing else:
 A `Simulink.Parameter` or a `Simulink.Signal`, at the top of the file, in a
 struct field or a cell, or an element of an object array, takes an edit of each
 property the file holds a value for: a Parameter's Value (and a row of it, and a
-field of a struct Value), Min, Max, Description and Unit, a Signal's Min, Max,
+field of a struct Value, a char of any shape included, which MATLAB keeps a char
+there; a string there is refused, as a MAT-file holds one as an object of the
+file), Min, Max, Description and Unit, a Signal's Min, Max,
 Description, Unit and DataType. The save writes it into the value cell of the
 file's objects that holds it, and every other byte of them and of the variable
 that holds the object as it was read. The cells MATLAB's own edit of the property

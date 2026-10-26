@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import { withArticle } from '../BaseNode.js';
+import { dictOfferedEditor, dictOfferedRestorer, dictSetOffered } from '../data/dictObjectEdit.js';
 // Not a static import of NodeClassMap: NodeRegistry is the deliberately
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
@@ -167,6 +168,19 @@ export default class SectionNode extends ContainerNode {
             }
         }
         return names;
+    }
+    // The editors a dictionary offers of an object's properties a MAT-file's object takes an edit of
+    // (a Signal's Dimensions, a BusElement's DataType, a Bus's HeaderFile), its source's
+    // (BaseNode.sourceOfferedEditor, sourceSetOffered, sourceRestorerFor): judged by the rules a
+    // MAT-file's save holds them to, and written into the object's bag (dictObjectEdit).
+    _offeredEditor(entry, node, key) {
+        return dictOfferedEditor(entry, node, key);
+    }
+    _setOffered(entry, node, key, text) {
+        return dictSetOffered(entry, node, key, text);
+    }
+    _offeredRestorer(entry, node, key) {
+        return dictOfferedRestorer(entry, node, key);
     }
     // How many entries named `name` share this section's namespace: how many times
     // _namespaceEntryNames would list it, and the question an entry rename asks

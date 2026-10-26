@@ -287,9 +287,9 @@ describe("a Signal's Complexity and DimensionsMode are dropdowns over the Signal
                 'Other.LoggingInfo.MaxPoints',
               ],
         );
-        // Dimensions is not part of the ruling: it stays a label.
-        expect(cell(node, 'dimensions')).toBe('-1');
-        expect(piRow(node, 'dimensions').editable).toBe(false);
+        // Dimensions is not part of the ruling: a text box, as a MAT-file's (dictObjectEdit).
+        expect(cell(node, 'dimensions')).toMatchObject({ text: '-1', editable: true, editor: 'text' });
+        expect(piRow(node, 'dimensions').editable).toBe(true);
       });
     });
 

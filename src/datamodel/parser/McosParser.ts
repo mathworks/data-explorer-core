@@ -26,6 +26,8 @@ import {
   formatNumLiteral,
   isExactToken,
   transposeToColumnMajorND,
+  charNeedsShape,
+  formatMxCharSerial,
 } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
@@ -752,6 +754,14 @@ function resolveValue(
     return bag;
   }
   if (cls === 'char') {
+    // A char that is no row (a two-row char a struct Value's field holds, say) in its shaped form,
+    // MATLAB's mxchar literal of its codes, as a text dictionary holds it and the binary reader
+    // hands one over (BinarySlddParser.charValue): its text alone is column-major, which read as a
+    // row showed ['ab'; 'cd'] as 'acbd'. An empty one stays as it was.
+    const dims = cell.dimensions ?? [];
+    if (typeof val === 'string' && val !== '' && dims.length >= 2 && !dims.includes(0) && charNeedsShape(dims)) {
+      return { _type: 'mxchar', _value: formatMxCharSerial(val, dims) };
+    }
     return typeof val === 'string' ? val : '';
   }
   // A sparse array, before every arm below: each of them spells a full array, so a

@@ -290,7 +290,8 @@ describe("inside a stream, an allow-listed property the stream stores a value fo
     expect(nodeAt(fresh, 'sPh').setProperty('Name', 'sPhRenamed')).toBe(true);
     expect(nodeAt(fresh, 'plainP').setProperty('Description', 'still XML')).toBe(true);
     expect(nodeAt(fresh, 'plainS.x').setProperty('Value', '2')).toBe(true);
-    expect(offered(nodeAt(fresh, 'plainP'))).toEqual(['Name', 'Value', 'Min', 'Max', 'Description', 'storageClass']);
+    // An XML entry takes what a MAT-file's object takes, its DataType and Unit among them (dictObjectEdit).
+    expect(offered(nodeAt(fresh, 'plainP'))).toEqual(['Name', 'Value', 'DataType', 'Min', 'Max', 'Unit', 'Description', 'storageClass']);
   });
 });
 
@@ -599,7 +600,7 @@ describe('what the rules refuse is refused before it is made, and the dictionary
     ['sPh.p', 'Max', '-1', /^Cannot edit "sPh": sPh\.p\.Min \(0\) would be greater than its Max \(-1\)/],
     ['pSp', 'Value', '[1 2]', /^Cannot edit "pSp": pSp\.Value is a sparse double, which this editor does not write into a Simulink\.Parameter\.$/],
     ['pSp.Value(1,2)', 'Value', '8', /^Cannot edit "pSp": pSp\.Value is a sparse double/],
-    ['pStruct.p.Value.a', 'Value', "'x'", /^Cannot edit "pStruct": pStruct\.p\.Value\.a would be a char, which this editor does not write into a Simulink\.Parameter's Value\.$/],
+    ['pStruct.p.Value.a', 'Value', '"x"', /^Cannot edit "pStruct": pStruct\.p\.Value\.a would be a string, which a MAT-file holds as an object of the file, and this package writes no object into a Simulink\.Parameter's Value: type the text in single quotes to make it a char\.$/],
     ['sigH.sig', 'DataType', 'Inherit: auto', /^Cannot edit "sigH": sigH\.sig\.DataType would be 'Inherit: auto'/],
     ['sTh.t', 'Description', 'x', /^Cannot edit "sTh": sTh\.t\.Description is at its class default/],
     ['cPh{1}', 'Min', '0', /^Cannot edit "cPh": cPh\{1\}\.Min is at its class default/],

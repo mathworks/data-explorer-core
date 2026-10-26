@@ -8,8 +8,9 @@
 //
 // The same objects, written by MATLAB into a text dictionary, a binary one and a MAT-file
 // (fixtures/shown-saved/make_shown_saved.m): every row of each is shown alike in the three files,
-// and as MATLAB shows it. In a dictionary those rows are read-only, an edit of one refused saying
-// why; a MAT-file offers an editor of them that writes the saved keys (matOfferedEdits.test.ts).
+// and as MATLAB shows it. A NumericType's take an edit in a dictionary as in a MAT-file, which
+// writes the saved keys (matOfferedEdits.test.ts, dictObjectEdit.test.ts); a CoderInfo's Identifier
+// is read-only in a dictionary, an edit of it refused saying why.
 // And copied from either file into the other, as a host copies and pastes, an object shows every
 // row it showed where it was copied from, before a save and after.
 import { describe, it, expect } from 'vitest';
@@ -39,12 +40,17 @@ const NAMES = Object.keys(MATLAB_SHOWS);
 
 // The rows a dictionary shows of what is saved under another name, and the refusal of an edit of each.
 const SHOWN_OF_SAVED: [string, string, string][] = [
-  ['ntBp', 'signedness', 'ntBp.Signedness is read-only here, shown of the SignednessBool MATLAB saves'],
-  ['ntBp', 'fractionLength', 'ntBp.FractionLength is read-only here, shown of the FixedExponent MATLAB saves'],
-  ['ntSb', 'slope', 'ntSb.Slope is read-only here, shown of the SlopeAdjustmentFactor and FixedExponent MATLAB saves'],
-  ['ntAuto', 'signedness', 'ntAuto.Signedness is read-only here, shown of the SignednessBool MATLAB saves'],
   ['pId', 'identifier', 'pId.CoderInfo.Identifier is read-only here, shown of the CoderInfo.Alias MATLAB saves'],
   ['sId', 'identifier', 'sId.CoderInfo.Identifier is read-only here, shown of the CoderInfo.Alias MATLAB saves'],
+];
+
+// A NumericType's rows shown of what it saves under other names, each typed over.
+const NUMERIC_TYPE_EDITS: [string, string, string][] = [
+  ['ntBp', 'signedness', 'Unsigned'],
+  ['ntBp', 'signedness', 'Auto'],
+  ['ntBp', 'fractionLength', '4'],
+  ['ntSb', 'slope', '4'],
+  ['ntAuto', 'signedness', 'Unsigned'],
 ];
 
 /** `path` opened through a session, as a host opens it, and its entries by name. */
@@ -91,7 +97,25 @@ describe('what MATLAB saves under other names, shown alike in a text dictionary,
     }
   });
 
-  it('in a dictionary, read-only: an edit of one is refused saying why, and nothing is changed', () => {
+  it("a NumericType's, edited in a dictionary, shows what the same edit shows in a MAT-file, and reopens so", () => {
+    for (const [name, key, typed] of NUMERIC_TYPE_EDITS) {
+      const mat = opened(MAT);
+      mat.session.setActive(mat.root, mat.by(name));
+      expect(mat.session.editProperty(mat.by(name).id, key, typed), 'MAT ' + name + '.' + key).toBe(true);
+      for (const file of DICTIONARIES) {
+        const { session, root, by } = opened(file);
+        session.setActive(root, by(name));
+        expect(session.editProperty(by(name).id, key, typed), file + ' ' + name + '.' + key).toBe(true);
+        expect(shownOf(by(name)), file + ' ' + name + '.' + key + ' = ' + typed).toEqual(shownOf(mat.by(name)));
+        const out: Any = session.serializeSource(root.name);
+        const back: Any = ingest(createSession(), out.kind === 'text' ? out.text : out.bytes, { filename: file.split('/').pop()! });
+        const again = back.flatten().find((n: Any) => n.name === name && !n.isContainer);
+        expect(shownOf(again), file + ' ' + name + '.' + key + ' = ' + typed + ', reopened').toEqual(shownOf(mat.by(name)));
+      }
+    }
+  });
+
+  it('in a dictionary, a CoderInfo Identifier is read-only: an edit of it is refused saying why, and nothing is changed', () => {
     for (const file of DICTIONARIES) {
       for (const [name, key, why] of SHOWN_OF_SAVED) {
         const { session, root, by } = opened(file);

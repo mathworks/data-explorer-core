@@ -6,7 +6,7 @@ import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
 import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, formatNumLiteral, isExactToken, transposeToColumnMajorND, } from './XmlUtils.js';
+import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, formatNumLiteral, isExactToken, transposeToColumnMajorND, charNeedsShape, formatMxCharSerial, } from './XmlUtils.js';
 const MI_MATRIX = 14;
 const MAX_RECURSION_DEPTH = 32;
 // How many times one variable's decode lays out an object it has already laid out, before it
@@ -538,6 +538,14 @@ function resolveValue(cell, ctx, path, depth, owner, propName) {
         return bag;
     }
     if (cls === 'char') {
+        // A char that is no row (a two-row char a struct Value's field holds, say) in its shaped form,
+        // MATLAB's mxchar literal of its codes, as a text dictionary holds it and the binary reader
+        // hands one over (BinarySlddParser.charValue): its text alone is column-major, which read as a
+        // row showed ['ab'; 'cd'] as 'acbd'. An empty one stays as it was.
+        const dims = cell.dimensions ?? [];
+        if (typeof val === 'string' && val !== '' && dims.length >= 2 && !dims.includes(0) && charNeedsShape(dims)) {
+            return { _type: 'mxchar', _value: formatMxCharSerial(val, dims) };
+        }
         return typeof val === 'string' ? val : '';
     }
     // A sparse array, before every arm below: each of them spells a full array, so a

@@ -102,9 +102,16 @@ export declare function isCoWritten(className: string, property: string): boolea
 /**
  * What a Simulink.Parameter's Value `v` is that these rules write none of (`a cell`, `a sparse
  * double`), or null where they take it: a member of a struct Value where `inStruct`, which holds
- * what a Value may but text.
+ * what a Value may, and a char of any shape (heldChar).
  */
 export declare function parameterValueRefusal(v: MatVariable, inStruct: boolean): string | null;
+/**
+ * Why `v`, a char a field of a Parameter's struct Value holds, is not one the rules write, or null:
+ * a non-empty char of any 2-D shape, which MATLAB keeps a char there (measured, R2027a and R2023b:
+ * `p.Value.a = 'abc'` and `= ['ab';'cd']` stay char, and `= ''` is refused, "A valid structure must
+ * be numeric", by the Parameter's own rule, ParameterNode).
+ */
+export declare function heldChar(v: MatVariable): string | null;
 /** MATLAB's DataType after `p.Value = v` of class `now` over a Value of class `old` under DataType `dt`, measured. */
 export declare function parameterDataTypeAfter(old: string, now: string, dt: string): string;
 /**
