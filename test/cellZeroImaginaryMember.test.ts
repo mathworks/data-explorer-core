@@ -217,10 +217,11 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
         const cell = root.children.find((v: any) => v.name === `z${k}`);
         const shown = String(cell.displayValue);
         const member = /^\{(.+), 5\}$/.exec(shown)?.[1];
-        // A member of a class other than double is spelled with it, `single(1+0i)` (MatlabVariableNode._classSpelled).
-        expect(member, label).toMatch(cls === 'double' ? /\+0i$/ : /^\w+\(.*\+0i\)$/);
+        // Of any class, as its text alone: no conversion spells it, as MATLAB reads `single(1+0i)` as
+        // the real single 1 (MatlabValueParser.classConversion, MatlabVariableNode._classSpelled).
+        expect(member, label).toMatch(/^[^(]*\+0i$/);
         // The member's own row shows its value alone.
-        const own = cls === 'double' ? member : member!.replace(/^\w+\((.*)\)$/, '$1');
+        const own = member;
         expect(cell.valueEditable, label).toBe(false);
         expect(cell.setProperty('Value', `{${member}, 6}`), label).toMatchObject({ error: true, reason: REASON });
         expect(cell.displayValue, label).toBe(shown);

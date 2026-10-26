@@ -17,7 +17,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
-import MatlabValueParser, { classCall, controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { classCall, classConversion, controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
@@ -108,7 +108,7 @@ import {
   isExactToken,
   needsExactInt,
   valueForClass,
-  complexForIntegerClass,
+  complexForClass,
   isIntegerClass,
   transposeToColumnMajorND,
   transposeFromColumnMajorND,
@@ -312,9 +312,16 @@ function noteMatrixSpellings(rawVal: Record<string, unknown>, type: string, elem
   }
 }
 
-/** A node that rules on a Value edit made below it (MatlabVariableNode._valueHolderRefusal). */
+/**
+ * A node that rules on a Value edit made below it (MatlabVariableNode._valueHolderRefusal), or makes
+ * one made on its Value row itself (_setValueBelow), and then puts back what it holds for its undo
+ * (_restorerBelow).
+ */
 interface ValueHolder {
   _refuseValueBelow?: (node: MatlabVariableNode, parsed: ParsedValue, stringValue: string) => SetPropertyResult | null;
+  _setValueBelow?: (node: MatlabVariableNode, stringValue: string) => true | SetPropertyResult | null;
+  _restorerBelow?: (node: MatlabVariableNode) => (() => void) | null;
+  _assignsValueBelow?: (node: MatlabVariableNode) => boolean;
 }
 
 export default class MatlabVariableNode extends DataNode {
@@ -1442,13 +1449,18 @@ export default class MatlabVariableNode extends DataNode {
    * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell
    * holding one is not its literal: with only the 5 retyped, the literal set back wrote the
    * member nobody changed as a real 1, in both formats. Its elements are edited one at a time.
+   * And so is a complex array every imaginary part of which is 0, complex([1 2], [0 0]), which shows
+   * `[1+0i 2+0i]`, read back as the real [1 2].
    */
   _isZeroImaginaryComplex(): boolean {
-    if (this._scalarType !== 'complex' || typeof this._scalarValue !== 'string') {
-      return false;
+    const zero = (v: unknown): boolean => {
+      const parts = typeof v === 'string' ? parseComplexNum(v) : null;
+      return parts !== null && Number(parts.im) === 0;
+    };
+    if (this._kind === 'array') {
+      return !this._sparse && this._elements.length > 0 && this._elements.every(zero);
     }
-    const parts = parseComplexNum(this._scalarValue);
-    return parts !== null && Number(parts.im) === 0;
+    return this._scalarType === 'complex' && zero(this._scalarValue);
   }
 
   /** Does this cell hold such an element (_isZeroImaginaryComplex), itself or in a nested cell? */
@@ -1646,6 +1658,12 @@ export default class MatlabVariableNode extends DataNode {
       if (unoffered) {
         return unoffered;
       }
+      // Or the edit is made by what holds this value, as it makes one typed into its own Value: a
+      // Simulink.Parameter's, of text typed into its Value row (ParameterNode._setValueBelow).
+      const made = (this.parent as ValueHolder | null)?._setValueBelow?.(this, stringValue);
+      if (made) {
+        return made;
+      }
       if (this._isConstrainedChild()) {
         return this._setStreamElement(stringValue);
       }
@@ -1743,14 +1761,81 @@ export default class MatlabVariableNode extends DataNode {
    *
    * Every own field but the node's place (name, parent) and the entry's bookkeeping
    * (status, metadata), which an undo leaves as any other edit does: Modified, and stamped.
-   * Not for an element of an array, whose edit also writes into the array
-   * (_setConstrainedValue), and whose text is the scalar it holds.
+   * Of an element of an array, whose edit also writes into the array (_setConstrainedValue), the
+   * array's (_elementRestorer).
    */
   _restorerFor(propName: string): (() => void) | null {
-    if (propName !== 'Value' || this._isConstrainedChild()) {
+    if (propName !== 'Value') {
       return null;
     }
-    return this._ownStateRestorer(RESTORE_LEAVES);
+    if (this._isConstrainedChild()) {
+      return this._elementRestorer();
+    }
+    const own = this._ownStateRestorer(RESTORE_LEAVES);
+    // And what holds it, where that may make the edit (_setValueBelow): first, as it puts this node
+    // back in its place.
+    const holder = (this.parent as ValueHolder | null)?._restorerBelow?.(this) ?? null;
+    return holder
+      ? () => {
+          holder();
+          own();
+        }
+      : own;
+  }
+
+  /**
+   * What puts back the array this element is of, and every element of it, as they are now: for the
+   * undo of an edit of this element, and for its redo, asked after it (DataModel.editProperty). The
+   * edit changes the array in place (_syncElementFromChild), and may change every element's
+   * complexity with it (_settleComplexity), which the text this element showed does not put back:
+   * `1+0i` set back over the real array an edit of complex([1 2], [0 0]) left is the real 1, as
+   * MATLAB reads the literal, and the array came back real. The array's own state is held whole
+   * (DataNode._ownStateRestorer), what it was read from with it, so that one undone is saved as read.
+   *
+   * Its element list and a sparse array's parts are put back in place, into the very lists they are:
+   * an edit writes into them in place, and what the array was read as may be the same list (a text
+   * dictionary's row is its `_rawInput` and its `serial`), which an undo that put back another list
+   * left holding the edit, and wrote it.
+   */
+  _elementRestorer(): () => void {
+    const array = this.parent as MatlabVariableNode;
+    const restore = array._ownStateRestorer(RESTORE_LEAVES);
+    const list = array._elements;
+    const elements = list.slice();
+    const sparse = array._sparse;
+    const parts = sparse ? cloneSparse(sparse) : null;
+    const im = sparse?.im ?? null;
+    const rows = array.children.map((c) => {
+      const row = c as MatlabVariableNode;
+      return { row, type: row._scalarType, value: row._scalarValue, elements: row._elements?.slice() };
+    });
+    return () => {
+      restore();
+      list.length = elements.length;
+      elements.forEach((e, k) => {
+        list[k] = e;
+      });
+      array._elements = list;
+      if (sparse && parts) {
+        sparse.re.set(parts.re);
+        if (im && parts.im) {
+          im.set(parts.im);
+        }
+        sparse.im = im;
+        array._sparse = sparse;
+      }
+      for (const { row, type, value, elements: own } of rows) {
+        row._scalarType = type;
+        row._scalarValue = value;
+        if (own) {
+          row._elements = own.slice();
+        }
+      }
+      // What holds the array follows it as it now is, as it does an edit (_elementEdited): a
+      // Simulink.Parameter's Complexity, which the restore above told of the array before its
+      // elements were back.
+      array.parent?.childStructureChanged(array);
+    };
   }
 
   /**
@@ -2202,7 +2287,7 @@ export default class MatlabVariableNode extends DataNode {
 
   /**
    * The shape Add or a removal would leave (DataNode._shapeAfterChildEdit): a struct one field
-   * more (_addStructField); an untyped `[]` a struct of one field (_convertToStructAndAddField);
+   * more (_addStructField); an empty of numbers a struct of one field (_convertToStructAndAddField);
    * an array or a string array one element more or fewer, shaped as _updateDimsForCount shapes
    * it, or as the collapse to one element does. Not a cell's: a Parameter refuses a cell Value
    * whole, and does not judge what is in one, a value edit there included.
@@ -2212,7 +2297,7 @@ export default class MatlabVariableNode extends DataNode {
       const fields = this.children.map((c) => c.name);
       return op === 'add' ? { cls: 'struct', complex: false, dims: [1, 1], fields: [...fields, newFieldName(fields)] } : null;
     }
-    if (this._kind === 'array' && op === 'add' && this._elements.length === 0) {
+    if (op === 'add' && this._takesFieldOnAdd()) {
       return { cls: 'struct', complex: false, dims: [1, 1], fields: ['field'] };
     }
     if (this._kind === 'array' || this._kind === 'string') {
@@ -2229,11 +2314,11 @@ export default class MatlabVariableNode extends DataNode {
     const listDims = Array.isArray(value) && value.length !== 1 ? parsed.dims! : [1, 1];
     switch (parsed.type) {
       case 'double':
-        return { cls: classAfterEdit(this._scalarType, 'double'), complex: false, dims: listDims };
+        return { cls: this._numericClassAfter(parsed), complex: false, dims: listDims };
       case 'logical':
         return { cls: 'logical', complex: false, dims: listDims };
       case 'complex':
-        return { cls: 'double', complex: true, dims: [1, 1] };
+        return { cls: this._numericClassAfter(parsed), complex: true, dims: listDims };
       case 'string':
         return { cls: 'string', complex: false, dims: [1, 1] };
       case 'string-array':
@@ -2242,6 +2327,26 @@ export default class MatlabVariableNode extends DataNode {
       default:
         return { cls: parsed.type, complex: false, dims: parsed.dims ?? [1, 1] };
     }
+  }
+
+  /**
+   * The class a number or a complex number typed in whole is held as (_applyParsed): the one its
+   * conversion spells (`int8(5)`, `double(5)`: MatlabValueParser.classConversion), or else the
+   * integer class or single this value is of, a complex scalar's included (_complexClass),
+   * whatever the text, as MATLAB's cast(<text>, class(old)) keeps it (the D11 ruling); or double.
+   * A Simulink.Parameter's Value keeps none: it is `p.Value = v`.
+   */
+  _numericClassAfter(parsed: ParsedValue): string {
+    if (parsed.cls !== undefined) {
+      return parsed.cls;
+    }
+    // Not a Simulink.Parameter's Value, which is what MATLAB's `p.Value = v` makes of the text
+    // (ParameterNode._assignsValueBelow): a double.
+    if ((this.parent as ValueHolder | null)?._assignsValueBelow?.(this)) {
+      return 'double';
+    }
+    const was = this._kind === 'scalar' && this._scalarType === 'complex' ? this._complexClass() : this._scalarType;
+    return classAfterEdit(was, 'double');
   }
 
   _isConstrainedChild(): boolean {
@@ -2332,13 +2437,13 @@ export default class MatlabVariableNode extends DataNode {
     // to retype the whole ARRAY to double, which an element editor cannot express, so
     // refusing is the honest one here.
     const isLogicalElement = isArrayElement && parent._scalarType === 'logical';
-    const parsed = MatlabValueParser.parse(stringValue);
-    // An element of a complex array takes a complex value too, held as every reader holds
-    // one: a 'complex' scalar whose value is its text (_isComplexValue reads the array's
-    // complexity off that text). Refused, `3+4i` typed into one went nowhere, and neither
-    // did the session's undo of any edit to one, which sets the element back to the text it
-    // showed (DataModel's readPropertyValue): `1+2i` was refused with nothing said, and the
-    // next save wrote the edit it was meant to undo.
+    // A conversion typed, `int8(300)`, `single(0.1)`, is the number it converts to, which the
+    // array's class then holds as MATLAB's x(k) = int8(300) does (classConversion).
+    const parsed = MatlabValueParser.parse(stringValue) ?? classConversion(stringValue);
+    // A complex number is taken into an element of any numeric array, as MATLAB's `x(k) = 3+4i`
+    // takes it: the whole array is complex then, of its class (_settleComplexity), its elements
+    // held as every reader holds a complex array's, 'complex' scalars whose value is their text.
+    // It was refused, "Array elements must be scalar numbers", in an array that was real.
     //
     // The element's own spelling is taken as written: it is what every reader stores and
     // every writer reads (XmlUtils.parseComplexNum), and what the element shows, so an undo
@@ -2347,17 +2452,12 @@ export default class MatlabVariableNode extends DataNode {
     // reads as complex is held as it makes it (`3i` is `0+3i`), as a complex scalar typed
     // whole is (_applyParsed). A real number goes on below, as it always has.
     //
-    // Not into a REAL array, for the reason a logical one takes only 0 and 1: MATLAB's
-    // answer to `x(1) = 3+4i` is to make the whole ARRAY complex, which an element editor
-    // cannot express. `_elementType` is the array's complexity as it was built, not
-    // _isComplexValue's reading of its elements now, so an array whose elements have all
-    // been set to real numbers still takes back the complex ones an undo restores.
-    //
-    // An integer class's element holds each part as MATLAB converts it to the class
-    // (XmlUtils.complexForIntegerClass): `70000+1i` and `3.7+4.2i` in an int16 array are
-    // 32767+1i and 4+4i. They were held as typed, and the writers wrapped and truncated
-    // them into 4464+1i and 3+4i. Text whose parts the class already holds stays as typed.
-    if (isArrayElement && parent._elementType === 'complex' && parsed?.type !== 'double') {
+    // An integer class's element holds each part as MATLAB converts it to the class, and a
+    // single's each the single it makes of it (XmlUtils.complexForClass): `70000+1i` and
+    // `3.7+4.2i` in an int16 array are 32767+1i and 4+4i. They were held as typed, and the
+    // writers wrapped and truncated them into 4464+1i and 3+4i. Text whose parts the class
+    // already holds stays as typed.
+    if (isArrayElement && parsed?.type !== 'double') {
       const typed = stringValue.trim();
       // A complex ARRAY (`[1i 2i]`) is no element's value, and is refused as a real array is.
       const text = parseComplexNum(typed, parent._scalarType)
@@ -2366,20 +2466,24 @@ export default class MatlabVariableNode extends DataNode {
           ? parsed.value
           : null;
       if (text !== null) {
-        const scalar = isIntegerClass(parent._scalarType) ? complexForIntegerClass(text, parent._scalarType) : text;
+        if (isLogicalElement) {
+          // MATLAB's own words (MATLAB:nologicalcomplex).
+          return { error: true, reason: 'Complex values cannot be converted to logicals.', invalidValue: stringValue, validValue: this.displayValue };
+        }
+        const scalar = complexForClass(text, parent._scalarType);
         // And what holds the array may not write it: a Simulink.Parameter's in a MAT-file
         // (DataNode._refuseSourceValue).
         const sourceRefusal = this._refuseSourceValue('Value', { element: this, scalar }, stringValue);
         if (sourceRefusal) {
           return sourceRefusal;
         }
+        // A sparse array that was real holds an imaginary part of each non-zero from here on.
+        if (parent._sparse && !parent._sparse.im) {
+          parent._sparse.im = new Float64Array(parent._sparse.re.length);
+        }
         this._scalarType = 'complex';
         this._scalarValue = scalar;
-        parent._syncElementFromChild(this);
-        parent._rawInput = undefined;
-        this._markModified();
-        parent.parent?.childStructureChanged(parent);
-        return true;
+        return this._elementEdited(parent);
       }
     }
     let accepted: boolean;
@@ -2432,7 +2536,14 @@ export default class MatlabVariableNode extends DataNode {
       // its own display and serialize paths read the text from _elements.
       this._elements = [parsed.value as string];
     }
+    return this._elementEdited(parent);
+  }
+
+  // The edit of this element, its value set, made in the array `parent`: the array's own copy of
+  // the element, and its complexity as the assignment leaves it (_settleComplexity).
+  private _elementEdited(parent: MatlabVariableNode): true {
     parent._syncElementFromChild(this);
+    parent._settleComplexity();
     parent._rawInput = undefined;
     this._markModified();
     // What holds the array is told, as it is of an Add or a removal (childEdit.ts): the array's
@@ -2441,6 +2552,75 @@ export default class MatlabVariableNode extends DataNode {
     // (ParameterNode._followValueShape). Nothing else reacts.
     parent.parent?.childStructureChanged(parent);
     return true;
+  }
+
+  /**
+   * This array's complexity as MATLAB's indexed assignment leaves it, after an element is edited,
+   * added or removed (measured, R2027a): complex while any element has an imaginary part that is
+   * not 0, and each real element then x+0i, as every reader holds a complex array's elements; real
+   * once none has, each element its real part. [1+2i 3-4i] with x(2) = 70000 is [1+2i 70000+0i],
+   * and with x(1) = 5 too the real [5 70000]; [1 2 3] with x(2) = 3+4i is [1+0i 3+4i 3+0i]; and
+   * complex([1 2], [0 0]), which a file can hold, is real after any of them. A NaN imaginary part
+   * is not 0, and -0 is. The edit showed a real element `70000` and an added one `0`, of class
+   * double, which the saved file showed opened again as `70000+0i` and `0+0i`, complex.
+   *
+   * A sparse array's complexity is whether it holds imaginary parts (SparseData.im): dropped where
+   * every one is 0, its rows real again.
+   */
+  _settleComplexity(): void {
+    if (this._kind !== 'array') {
+      return;
+    }
+    const s = this._sparse;
+    if (s) {
+      // A real one, real still, is as the edit left it.
+      if (!s.im) {
+        return;
+      }
+      if (!s.im.some((x) => x !== 0)) {
+        s.im = null;
+      }
+      this._settleRows(s.re.length, (k) => sparseEntry(s, k), s.im !== null);
+      return;
+    }
+    const cls = this._scalarType;
+    // Off the rows where they are the elements (_liveElements), and off `_elements` where the rows
+    // do not stand for them all.
+    const elements = this.children.length === this._elements.length ? this._liveElements() : this._elements;
+    // Each element's parts, or null of a real one.
+    const parts = elements.map((e) => (typeof e === 'string' ? parseComplexNum(e, cls) : null));
+    // A real one, real still, is as the edit left it, and is written as it always was.
+    if (this._elementType !== 'complex' && parts.every((p) => p === null)) {
+      return;
+    }
+    const complex = parts.some((p) => p !== null && Number(p.im) !== 0);
+    const settled = elements.map((e, k) => {
+      const p = parts[k];
+      if (complex) {
+        return p ? e : complexElement(e as number | string, 0);
+      }
+      return p ? p.re : e;
+    });
+    this._elements = settled;
+    this._settleRows(settled.length, (k) => settled[k], complex);
+    // A real array is written from its serial (_serializeArray), which a complex one's is not.
+    if (!complex) {
+      this._syncArraySerial();
+    }
+  }
+
+  // The first `count` element rows of this array set to the elements `elementAt` gives, each of
+  // type 'complex' where `complex` says so and of the array's real element class otherwise, and the
+  // array's element type with them (_settleComplexity).
+  private _settleRows(count: number, elementAt: (k: number) => unknown, complex: boolean): void {
+    const type = complex ? 'complex' : elementClass(this._scalarType);
+    this.children.forEach((child, k) => {
+      if (child instanceof MatlabVariableNode && k < count) {
+        child._scalarValue = elementAt(k);
+        child._scalarType = type;
+      }
+    });
+    this._elementType = type;
   }
 
   // Every edit routes through _markModified (DataNode), so this is the one place
@@ -2512,7 +2692,13 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
-  _applyParsed(parsed: { type: string; value: unknown; dims?: number[] }): void {
+  _applyParsed(parsed: ParsedValue): void {
+    // The class a number typed in is held as (_numericClassAfter). A numeric edit re-states the
+    // VALUE, not the class, so the class this node had survives the parser's 'double' default
+    // (classAfterEdit). Read before any arm overwrites it, and before what a complex scalar's class
+    // is read off is dropped below: int8(3+4i) is an int8, which its type, 'complex', does not say,
+    // and every number typed over one made a double.
+    const numeric = this._numericClassAfter(parsed);
     this.children = [];
     this._matVar = null;
     // A value typed in whole is built with all its rows, whatever the file's node ceiling did.
@@ -2520,7 +2706,8 @@ export default class MatlabVariableNode extends DataNode {
     // Nor is it the empty struct array it may have been (_emptyStructFields).
     delete this._emptyStructFields;
     this._rawInput = undefined;
-    // Nor is it what a removal left of a complex array any more (_complexClass).
+    // Nor is it what a removal left of a complex array any more (_complexClass); a complex scalar
+    // typed sets the class it keeps below.
     this._collapsedClass = null;
     // A value typed in whole is the full array MATLAB makes of the same literal; only an
     // element edit leaves the array sparse.
@@ -2528,10 +2715,6 @@ export default class MatlabVariableNode extends DataNode {
     // And it is a value, not a reader's placeholder for one: left set, a char typed over
     // a value too large to decode displayed without its quotes.
     this._undecoded = false;
-    // The class this node had going in. A numeric edit re-states the VALUE, not the
-    // class, so classAfterEdit lets it survive the parser's 'double' default — see
-    // its comment. Read before any arm overwrites it.
-    const prevType = this._scalarType;
     // valueForClass, not the parser's token as-is: MatlabValueParser hands back exact
     // decimal TEXT for an integer a double cannot hold (defect 42 — typing intmax('uint64')
     // used to store 18446744073709552000), and this is the one edit path that knows the
@@ -2544,14 +2727,13 @@ export default class MatlabVariableNode extends DataNode {
     // Hence _scalarType is computed FIRST here.
     if (parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 1) {
       this._kind = 'scalar';
-      this._scalarType = classAfterEdit(prevType, 'double');
+      this._scalarType = numeric;
       this._scalarValue = valueForClass(parsed.value[0], this._scalarType);
       this._dims = [1, 1];
       this.serial = {};
     } else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
       this._kind = 'array';
-      // The class the text spells of itself (`zeros(1,0,'int8')`), else the one the value keeps.
-      this._scalarType = (parsed as { cls?: string }).cls ?? classAfterEdit(prevType, 'double');
+      this._scalarType = numeric;
       this._elements = parsed.value.map((v) => valueForClass(v, this._scalarType));
       this._dims = parsed.dims!;
       this._syncArraySerial();
@@ -2581,12 +2763,11 @@ export default class MatlabVariableNode extends DataNode {
       // A complex array typed in whole (`[1+i 2i]`, MatlabValueParser.complexArray), held as every
       // reader holds one (_parseCdataText): an array whose elements are complex scalars, each its
       // text, and whose `_scalarType` is its class. The class goes on as a real array's does
-      // (classAfterEdit), and under an integer class each part is the integer MATLAB converts it
-      // to, as an element typed into one is (complexForIntegerClass).
+      // (classAfterEdit), and under an integer class or single each part is what MATLAB converts it
+      // to, as an element typed into one is (complexForClass).
       this._kind = 'array';
-      this._scalarType = classAfterEdit(prevType, 'double');
-      const cls = this._scalarType;
-      this._elements = (parsed.value as string[]).map((t) => (isIntegerClass(cls) ? complexForIntegerClass(t, cls) : t));
+      this._scalarType = numeric;
+      this._elements = (parsed.value as string[]).map((t) => complexForClass(t, numeric));
       this._dims = parsed.dims!;
       this.serial = {};
       this._buildArrayChildren('complex');
@@ -2603,13 +2784,23 @@ export default class MatlabVariableNode extends DataNode {
       this._scalarType = 'double';
       this.serial = { _dimensions: parsed.dims, _mw_element_type: 'MATLABArray' };
       this._buildCellChildren(parsed.value as unknown[]);
+    } else if (parsed.type === 'complex') {
+      // A complex scalar, of the class kept (`numeric`), each part what MATLAB converts it to
+      // (complexForClass), the class held where _complexClass reads it: 3.5+4.5i over an int8 is
+      // int8(4+5i). It was a complex double.
+      this._kind = 'scalar';
+      this._scalarType = 'complex';
+      this._scalarValue = complexForClass(parsed.value as string, numeric);
+      this._collapsedClass = numeric === 'double' ? null : numeric;
+      this._dims = [1, 1];
+      this.serial = {};
     } else {
       this._kind = 'scalar';
-      this._scalarType = classAfterEdit(prevType, parsed.type);
+      // Any other type states its class itself (classAfterEdit keeps a class only under a number).
+      this._scalarType = parsed.type === 'double' ? numeric : parsed.type;
       // The bare-scalar arm (`5`, `18446744073709551615`) shares this branch with char,
-      // string, logical and complex, so the exact-token narrowing is gated on the parsed
-      // TYPE: a char value can be all digits ('123'), and valueForClass would turn it
-      // into a number.
+      // string and logical, so the exact-token narrowing is gated on the parsed TYPE: a
+      // char value can be all digits ('123'), and valueForClass would turn it into a number.
       this._scalarValue = parsed.type === 'double' ? valueForClass(parsed.value, this._scalarType) : parsed.value;
       // A char is the one scalar-KIND value that can be bigger than 1x1: it is stored
       // as one string, so ['ab'; 'cd'] arrives here as the 4-character 'acbd' with
@@ -2826,6 +3017,11 @@ export default class MatlabVariableNode extends DataNode {
     if (this._kind === 'scalar') {
       return no(() => 'is shown whole (' + this._shapePhrase() + '), with no rows of its own' + this._typeOverAdvice());
     }
+    // Nor an empty of objects or of an enumeration, which MATLAB gives no field (_emptyAddRefusal).
+    const empty = this._emptyAddRefusal(describe);
+    if (empty) {
+      return empty;
+    }
     // Nor anything but a vector, at any rank: MATLAB's end+1 grows a vector along its one
     // dimension past 1 (1x1x3 to 1x1x4), and refuses a 2x3 or a 1x2x2 (indexed_matrix_cannot_be_resized).
     if (this._isMatrixShaped()) {
@@ -2905,6 +3101,42 @@ export default class MatlabVariableNode extends DataNode {
     return ofChild ? ': type the whole value of "' + this.matlabPath + '" instead' : ': type the whole value over it instead';
   }
 
+  /**
+   * Does Add make a struct of this empty, its first field `field` (_convertToStructAndAddField)? Of
+   * an empty of numbers or logicals, of any class, size and rank, as MATLAB's `x.field = 0` makes a
+   * 1x1 struct of every one, `[]`, int8(zeros(1,0)), zeros(0,3), zeros(0,0,2), false(1,0), a complex
+   * one (R2027a). Not of a sparse one, nor of an empty of objects or of an enumeration
+   * (_emptyAddRefusal).
+   */
+  _takesFieldOnAdd(): boolean {
+    if (this._kind !== 'array' || this._elements.length !== 0 || this._sparse) {
+      return false;
+    }
+    const cls = this._isComplexValue() ? this._complexClass() : this.className;
+    return cls === 'double' || cls === 'logical' || TYPED_NUMERIC_CLASS.test(cls);
+  }
+
+  /**
+   * Why Add makes nothing of this empty array, as a clause (UNWORDED without `describe`), or null for
+   * one it makes a struct of (_takesFieldOnAdd) and for every value that is not an empty array: an
+   * empty of objects or of an enumeration (a bus's 0x0 Elements, `Simulink.Parameter.empty`), which
+   * MATLAB gives no field (`x.field = 0` is MATLAB:emptyObjectDotAssignment) and of which an Add
+   * makes no element.
+   */
+  _emptyAddRefusal(describe = true): string | null {
+    if (this._kind !== 'array' || this._elements.length !== 0 || this._sparse || this._takesFieldOnAdd()) {
+      return null;
+    }
+    if (!describe) {
+      return UNWORDED;
+    }
+    const cls = this.className;
+    return (
+      'it is an empty ' + effectiveDims(this._dims).join('x') + ' ' + cls + ' array, to which MATLAB gives no field, ' +
+      'and an Add makes no new ' + cls + ' element here'
+    );
+  }
+
   // An Add, a removal and its undo each tell what holds this value that its shape changed
   // (_shapeChanged), at the node, whichever way the edit is made.
   addChildNode(): BaseNode | null {
@@ -2918,7 +3150,7 @@ export default class MatlabVariableNode extends DataNode {
   // The Add itself, as this value's kind makes it: the row added, or null where none is.
   _addChildNow(): BaseNode | null {
     if (this._kind === 'array' && this._elements.length === 0) {
-      return this._convertToStructAndAddField();
+      return this._takesFieldOnAdd() ? this._convertToStructAndAddField() : null;
     }
     if (this._kind === 'scalar' && this._scalarType === 'struct') {
       return this._addStructField();
@@ -2947,7 +3179,7 @@ export default class MatlabVariableNode extends DataNode {
     this.parent?.childStructureChanged(this);
   }
 
-  // Turn an untyped `[]` into an empty 1x1 struct. Kept separate from
+  // Turn an empty of numbers into an empty 1x1 struct. Kept separate from
   // _convertToStructAndAddField so execAddChild's redo can re-apply the
   // conversion around the ORIGINAL field node instead of a fresh one.
   private _becomeStruct(): void {
@@ -2984,6 +3216,10 @@ export default class MatlabVariableNode extends DataNode {
     this._elements.push(0);
     this._updateDimsForCount(this._elements.length);
     this._syncArraySerial();
+    // And complex where the array still is, as x(end+1) = 0 of [1+2i 3-4i] leaves it: 0+0i
+    // (_settleComplexity). It was a real 0 of class double, which the file showed opened again as
+    // 0+0i.
+    this._settleComplexity();
     this._markModified();
     return child;
   }
@@ -3095,6 +3331,9 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   _updateArrayAfterRemove(): void {
+    // What is left is complex while an element of it has an imaginary part that is not 0, as
+    // x(k) = [] leaves it (_settleComplexity): [1+2i 3] without its first element is the real 3.
+    this._settleComplexity();
     if (this._elements.length <= 1) {
       if (this._elements.length === 1) {
         // Down to one element, so this is a scalar now — which means dropping the
@@ -3214,6 +3453,9 @@ export default class MatlabVariableNode extends DataNode {
       this._elements.splice(index, 0, val);
       this._updateDimsForCount(this._elements.length);
       this._syncArraySerial();
+      // Complex again where the element put back is (_settleComplexity), as its removal left the
+      // rest real.
+      this._settleComplexity();
     } else if (this._kind === 'cell') {
       // The shape it had before the element was removed, where that holds as many as it holds now.
       const before = this._cellDimsBefore?.get(child);
@@ -3277,24 +3519,21 @@ export default class MatlabVariableNode extends DataNode {
   // the undo stack's node reference went stale: a following undo removed a node
   // that was no longer in the tree, and each undo/redo cycle left one more orphan
   // field behind.
+  //
+  // The undo is the value's own state, held before the conversion (DataNode._ownStateRestorer),
+  // and the marks the edit sets up to its entry (_editMarks): what it was read from with it, so
+  // the empty undone is the one read, and is saved as it was read. It put back a 0x0 double,
+  // whatever the empty had been: an int8 1x0, which Add took then, came back a double.
   private _addFirstStructField(): ChildAddEdit {
-    const prevSerial = { ...this.serial };
-    // The empty it was, of its class and size: put back whole by the undo, as a save then writes it.
-    const prevType = this._scalarType;
-    const prevDims = this._dims.slice();
+    const restore = this._ownStateRestorer(RESTORE_LEAVES);
+    const marks = this._editMarks();
     const child = this._convertToStructAndAddField();
     const self = this;
     return {
       node: child,
       undo() {
-        self.removeChild(child);
-        self._kind = 'array';
-        self._scalarType = prevType;
-        self._scalarValue = undefined;
-        self._elements = [];
-        self._dims = prevDims.slice();
-        self.serial = prevSerial;
-        self._markModified();
+        restore();
+        marks();
       },
       redo() {
         self._becomeStruct();
@@ -3547,8 +3786,9 @@ export default class MatlabVariableNode extends DataNode {
    * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
    * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
    * clears `_rawInput` (_markModified), and an int16 vector with one element left is
-   * still an int16. A value edit clears all three (_applyParsed), and an edited complex
-   * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+   * still an int16. A value edit clears all three (_applyParsed), and holds in
+   * `_collapsedClass` the class it keeps, an integer class or single (the D11 ruling), or the
+   * one a conversion typed spells (`int8(3+4i)`); else it is a double. Not `_var`: a rename
    * marks the snapshot stale without changing the value, and the rebuilt variable is
    * where this class is needed, not where it is read.
    */
@@ -3889,12 +4129,16 @@ export default class MatlabVariableNode extends DataNode {
    * binary dictionary, and an entry or a property in a text one, showed its class and was saved,
    * and reopened, as a double.
    *
-   * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes, in MATLAB's
-   * own spelling of one (a binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling).
+   * The classes classAfterEdit keeps and logical, at any rank-2 size: MATLAB writes its int8 1x0 so,
+   * and its false(1,0), false(0,3) and false(0) as `{"_type": "logical", "_value": "[]"}`, each read
+   * back as the 0x0 of the class (R2027a; the edit-bash fixtures' i8Empty1x0). A logical 0x0 typed
+   * in (`false(0)`) was written `[]`, a double, and so was a shaped one, which a text dictionary
+   * now refuses typed in (SectionNode._valueRefusal) and is still given by a value made elsewhere.
+   * A binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling.
    */
   _serializeEmpty(): unknown {
     const d = effectiveDims(this._dims);
-    if (TYPED_NUMERIC_CLASS.test(this._scalarType) && d.length === 2 && d[0] === 0 && d[1] === 0) {
+    if ((TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical') && d.length === 2) {
       return { _type: this._scalarType, _value: '[]' };
     }
     return [];

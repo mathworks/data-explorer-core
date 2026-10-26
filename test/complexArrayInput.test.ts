@@ -164,7 +164,10 @@ describe('every complex array of every fixture, its shown text read back', () =>
     while (stack.length > 0) {
       const n: any = stack.pop();
       stack.push(...(n.children ?? []));
-      if (typeof n._isComplexValue === 'function' && n._kind === 'array' && n._isComplexValue() && n._elements.length > 0 && n.valueEditable) {
+      // Not one every imaginary part of which is 0 (fixtures/complex-zero-imag), whose text MATLAB reads
+      // as the real array it shows, as it reads `[1+0i 2]`; complexElementUndo.test.ts holds its edits.
+      const zeroImaginary = () => n._elements.every((e: unknown) => typeof e === 'string' && Number(parseComplexNum(e)?.im) === 0);
+      if (typeof n._isComplexValue === 'function' && n._kind === 'array' && n._isComplexValue() && n._elements.length > 0 && n.valueEditable && !zeroImaginary()) {
         shown.push({ where: f.slice(TEST.length) + ' ' + n.matlabPath, node: n });
       }
     }

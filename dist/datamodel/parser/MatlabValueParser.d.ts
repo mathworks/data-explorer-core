@@ -55,6 +55,20 @@ declare function parseCell(str: string): ParsedValue | null;
  * whose elements this package does not make) among it.
  */
 export declare function emptyConstructor(text: string): ParsedValue | null;
+/**
+ * MATLAB's conversion of a number, an array of numbers, a complex one, a logical or `[]` to a
+ * class, typed as a value: `int8(5)`, `single([1.5 NaN])`, `uint16(7)`, `int8(3+4i)`,
+ * `double(42)`, `logical([1 0 2])`. The value of its argument converted as MATLAB converts it
+ * (measured, R2027a): under an integer class each part rounded half away from zero and saturated,
+ * NaN 0 (int8([2.5 300 NaN]) is [3 127 0]); under single the float32 it is; under double as it is;
+ * under logical true where it is not 0, and none of NaN or a complex number, which MATLAB refuses.
+ * A complex number whose imaginary part is 0 is the real one MATLAB makes of the literal. And
+ * `cls`, the class it is of, which the value it is typed over does not keep (_applyParsed): typing
+ * double(42) over an int8 makes it a double. A numeric or logical empty spelled as its call
+ * (emptyConstructor) is that empty of the class: `int8(zeros(1,0))` is the int8 1x0. Null for any
+ * other text: a char, cell or string argument, or any other call in it (`int8(abs(-3))`).
+ */
+export declare function classConversion(text: string): ParsedValue | null;
 export declare function classCall(span: string): unknown | null;
 /**
  * A complex value typed in (a parsed 'complex'), as the bag a binary dictionary's reader gives

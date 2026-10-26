@@ -27,8 +27,12 @@ export default class ParameterNode extends DataNode {
     _valueIsEnum(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
     _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _setValueBelow(node: MatlabVariableNode, stringValue: string): true | SetPropertyResult | null;
+    _assignsValueBelow(node: MatlabVariableNode): boolean;
+    _restorerBelow(node: MatlabVariableNode): (() => void) | null;
     _refuseStructureBelow(container: DataNode, op: 'add' | 'remove'): string | null;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
+    _takeValueNode(valueNode: DataNode, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;
     childStructureRestorer(child: BaseNode): (() => void) | null;
@@ -56,6 +60,7 @@ export default class ParameterNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _clearForText(): void;
     _coWrittenWhy(propName: string): {
         property: string;
         why: string;

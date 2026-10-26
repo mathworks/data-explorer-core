@@ -553,10 +553,29 @@ function convertTo(value: unknown, r: IntegerRange): number | string {
 
 /**
  * One EDITED numeric token, stored as its class holds it: under an integer class as MATLAB
- * converts it (toIntegerClass), under any other as exactForClass narrows it.
+ * converts it (toIntegerClass), under single as the single MATLAB makes of it (singleValue),
+ * under any other as exactForClass narrows it.
  */
 export function valueForClass(value: unknown, type: string | null | undefined): unknown {
+    if (type === 'single') {
+        const narrowed = exactForClass(value, type);
+        return typeof narrowed === 'number' ? singleValue(narrowed) : narrowed;
+    }
     return isIntegerClass(type) ? toIntegerClass(value, type) : exactForClass(value, type);
+}
+
+/**
+ * The single MATLAB makes of `x`, as the decimal MATLAB writes that float32 with
+ * (floatDigits.matlabFloatText), which is how a single read from a .mat is held
+ * (MatParser.singleDigits, the same number for every float32): single(9007199254740993) is 2^53,
+ * written 9.00719925E+15, and single(3.14159265358979) is 3.14159274. Held as the double typed,
+ * an edited single showed 9007199254740992 and 3.14159265358979, and the file saved and opened
+ * again showed 9007199250000000 and 3.14159274. Past the largest single it is the infinity
+ * single() makes it; a zero, an infinity and a NaN are themselves.
+ */
+export function singleValue(x: number): number {
+    const f = Math.fround(x);
+    return Number.isFinite(f) && f !== 0 ? Number(matlabFloatText(f, 'single')) : f;
 }
 
 /**
@@ -571,12 +590,34 @@ export function valueForClass(value: unknown, type: string | null | undefined): 
  * element kept its text and was shown as `-0-0i`. Now it is `0+0i`.
  */
 export function complexForIntegerClass(text: string, type: string): string {
+    return complexPartsConverted(text, type, (part) => toIntegerClass(part, type));
+}
+
+/**
+ * One complex element's text as class `type` holds it: under an integer class as
+ * complexForIntegerClass converts it, under single each part the single MATLAB makes of it
+ * (singleValue), so `0.1+3.14159265358979i` is `0.1+3.14159274i`; under any other as it is. The
+ * text comes back as it was when neither part changes.
+ */
+export function complexForClass(text: string, type: string): string {
+    if (isIntegerClass(type)) {
+        return complexForIntegerClass(text, type);
+    }
+    if (type !== 'single') {
+        return text;
+    }
+    return complexPartsConverted(text, type, (part) => singleValue(Number(part)));
+}
+
+// One complex element's text with each part as `convert` makes it: the text as it was where neither
+// part changes (by Object.is) or it is no one element (parseComplexNum), else the converted parts.
+function complexPartsConverted(text: string, type: string, convert: (part: number | string) => number | string): string {
     const pair = parseComplexNum(text, type);
     if (!pair) {
         return text;
     }
-    const re = toIntegerClass(pair.re, type);
-    const im = toIntegerClass(pair.im, type);
+    const re = convert(pair.re);
+    const im = convert(pair.im);
     return Object.is(re, pair.re) && Object.is(im, pair.im) ? text : formatComplexNum(re, im);
 }
 

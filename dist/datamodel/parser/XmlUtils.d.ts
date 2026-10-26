@@ -271,9 +271,20 @@ export declare function toIntegerClass(value: unknown, type: string): number | s
 export declare function integerConversion(type: string): (value: unknown) => number | string;
 /**
  * One EDITED numeric token, stored as its class holds it: under an integer class as MATLAB
- * converts it (toIntegerClass), under any other as exactForClass narrows it.
+ * converts it (toIntegerClass), under single as the single MATLAB makes of it (singleValue),
+ * under any other as exactForClass narrows it.
  */
 export declare function valueForClass(value: unknown, type: string | null | undefined): unknown;
+/**
+ * The single MATLAB makes of `x`, as the decimal MATLAB writes that float32 with
+ * (floatDigits.matlabFloatText), which is how a single read from a .mat is held
+ * (MatParser.singleDigits, the same number for every float32): single(9007199254740993) is 2^53,
+ * written 9.00719925E+15, and single(3.14159265358979) is 3.14159274. Held as the double typed,
+ * an edited single showed 9007199254740992 and 3.14159265358979, and the file saved and opened
+ * again showed 9007199250000000 and 3.14159274. Past the largest single it is the infinity
+ * single() makes it; a zero, an infinity and a NaN are themselves.
+ */
+export declare function singleValue(x: number): number;
 /**
  * One complex element's text as integer class `type` holds it: each part converted on its
  * own (toIntegerClass). The text comes back as it was when neither part changes, so an
@@ -286,6 +297,13 @@ export declare function valueForClass(value: unknown, type: string | null | unde
  * element kept its text and was shown as `-0-0i`. Now it is `0+0i`.
  */
 export declare function complexForIntegerClass(text: string, type: string): string;
+/**
+ * One complex element's text as class `type` holds it: under an integer class as
+ * complexForIntegerClass converts it, under single each part the single MATLAB makes of it
+ * (singleValue), so `0.1+3.14159265358979i` is `0.1+3.14159274i`; under any other as it is. The
+ * text comes back as it was when neither part changes.
+ */
+export declare function complexForClass(text: string, type: string): string;
 export declare function formatDoubleXml(num: unknown): string;
 /**
  * A double or a single as a binary dictionary's XML holds it: MATLAB's own spelling of the

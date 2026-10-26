@@ -334,14 +334,16 @@ describe('cases.mat: an edit is written, and every record it did not touch is it
     expect(parsed.subsystemOffset).toBeLessThan(original.subsystemOffset);
   });
 
-  it('an edit undone: the value read, written fresh', () => {
+  it("an element's edit undone: the value read, and its bytes", () => {
+    // The undo puts back the array as it was, what it was read from with it
+    // (MatlabVariableNode._elementRestorer), so it is written as read.
     const { session, by, edit, save } = casesMat();
     expect(edit(by('mat2x3').children[0], 'Value', '9')).toBe(true);
     session.undo();
-    expect(by('mat2x3')._valueEdited).toBe(true);
+    expect(by('mat2x3')._valueEdited).toBeFalsy();
     const { parsed } = reopened(save());
     expect(variableOf(parsed, 'mat2x3')).toMatchObject({ dimensions: [2, 3], value: [1, 2, 3, 4, 5, 6] });
-    expectKept(original, parsed, { was: ['mat2x3'], is: ['mat2x3'] });
+    expectKept(original, parsed);
   });
 
   it('a variable added, after the last one and before the subsystem', () => {

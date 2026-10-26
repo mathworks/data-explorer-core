@@ -91,8 +91,10 @@ describe('what a copy is refused for', () => {
   it("an empty of a class or a size a MAT-file's copy does not spell, which would paste as a double 0x0", () => {
     const m = open('test/fixtures/display/dispcat.mat');
     for (const [name, what] of [
-      ['dx_int8_0x3', 'its class reads back as double where int8 was written'],
-      ['dx_logical_1x0', 'its class reads back as double where logical was written'],
+      // The `[]` of its class, as MATLAB's text dictionary spells an int8 or a logical empty, which
+      // keeps the class.
+      ['dx_int8_0x3', 'its size reads back as 0x0 where 0x3 was written'],
+      ['dx_logical_1x0', 'its size reads back as 0x0 where 1x0 was written'],
       ['dx_double_1x0', 'its size reads back as 0x0 where 1x0 was written'],
       ['dx_char_0x2', 'its size reads back as 0x0 where 0x2 was written'],
     ]) {

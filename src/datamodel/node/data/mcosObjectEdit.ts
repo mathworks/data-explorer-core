@@ -407,13 +407,26 @@ function elementEditValue(node: BaseNode, edit: ElementEdit): MatVariable | stri
   if (k < 0 || k >= values.length) {
     return now;
   }
+  // The elements as the variable holds them: a list, or the one element bare.
+  const shaped = (list: unknown[]): unknown => (Array.isArray(now.value) ? list : list[0]);
   const s = edit.scalar;
-  values[k] = !now.isComplex
-    ? s
-    : typeof s === 'number' || isExactToken(s)
-      ? { re: s, im: 0 }
-      : parseComplexNum(String(s), now.className) ?? { re: 0, im: 0 };
-  return { ...now, value: values.length === 1 && !Array.isArray(now.value) ? values[0] : values };
+  const real = typeof s === 'number' || isExactToken(s);
+  if (!now.isComplex && real) {
+    values[k] = s;
+    return { ...now, value: shaped(values) };
+  }
+  // Complex while an element has an imaginary part that is not 0, real once none has, as the
+  // assignment leaves the array (MatlabVariableNode._settleComplexity): a complex element makes a
+  // real array complex.
+  const edited = real ? { re: s, im: 0 } : parseComplexNum(String(s), now.className) ?? { re: 0, im: 0 };
+  const parts = values.map((v, j) => {
+    if (j === k) {
+      return edited;
+    }
+    return now.isComplex ? (v as { re: unknown; im: unknown }) : { re: v, im: 0 };
+  });
+  const isComplex = parts.some((p) => Number(p.im) !== 0);
+  return { ...now, isComplex, value: shaped(isComplex ? parts : parts.map((p) => p.re)) };
 }
 
 // A Parameter's Value node, or the node it would make of a Value it holds bare (a number, a logical,

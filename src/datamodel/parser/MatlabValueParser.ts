@@ -1,12 +1,13 @@
 // Copyright 2026 The MathWorks, Inc.
-import { parseExactNum, formatComplexNum, parseComplexNum, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, toIntegerClass } from './XmlUtils.js';
+import { parseExactNum, formatComplexNum, parseComplexNum, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, toIntegerClass, singleValue, complexForClass } from './XmlUtils.js';
 
 export interface ParsedValue {
     type: string;
     value: unknown;
     dims?: number[];
-    // The class a text spells of itself, `zeros(1,0,'int8')` (emptyConstructor); absent for every
-    // other text, whose class the value it is typed over may keep.
+    // The class a text spells of itself: a conversion, `int8(5)`, `double(5)` (classConversion),
+    // or an empty, `zeros(1,0,'int8')` (emptyConstructor); absent for every other text, whose class
+    // the value it is typed over may keep.
     cls?: string;
 }
 
@@ -23,6 +24,11 @@ let typedRead: { bareWord: string | null } | null = null;
  * other caller of parse, is read as before.
  */
 export function parseTyped(text: string): { parsed: ParsedValue } | { why: string } | null {
+    // A conversion to a numeric class, `int8(5)`, `double([1 2])`, typed as the whole Value.
+    const converted = classConversion(text);
+    if (converted) {
+        return { parsed: converted };
+    }
     const outer = typedRead;
     const read: { bareWord: string | null } = { bareWord: null };
     typedRead = read;
@@ -934,41 +940,114 @@ function emptyBag(empty: ParsedValue): unknown {
 }
 
 // A call of a numeric class's conversion, `int8(...)`: the class, and the text of its argument.
-const CLASS_CALL = /^(u?int(?:8|16|32|64)|single)\((.*)\)$/s;
+const CLASS_CALL = /^(u?int(?:8|16|32|64)|single|double|logical)\((.*)\)$/s;
 
-// MATLAB's conversions of a real number or array to a numeric class other than double, which a cell's
-// member is spelled as (`int8(3)`, `uint64(18446744073709551615)`, `single([1.5 NaN])`), as the bag
-// each reader gives such a member (`{_type: 'int8', _value: '3'}`, an unsigned one's `7U`, a single's
-// `2.5F`), the integers converted as MATLAB converts them (rounded half away, saturated: int8(300)
-// is 127), and a complex one as the complex-text bag of its class. Null for any other text, or a
-// class of an empty or N-D value, which no member's text here spells.
-export function classCall(span: string): unknown | null {
-    const m = CLASS_CALL.exec(span.trim());
+/**
+ * MATLAB's conversion of a number, an array of numbers, a complex one, a logical or `[]` to a
+ * class, typed as a value: `int8(5)`, `single([1.5 NaN])`, `uint16(7)`, `int8(3+4i)`,
+ * `double(42)`, `logical([1 0 2])`. The value of its argument converted as MATLAB converts it
+ * (measured, R2027a): under an integer class each part rounded half away from zero and saturated,
+ * NaN 0 (int8([2.5 300 NaN]) is [3 127 0]); under single the float32 it is; under double as it is;
+ * under logical true where it is not 0, and none of NaN or a complex number, which MATLAB refuses.
+ * A complex number whose imaginary part is 0 is the real one MATLAB makes of the literal. And
+ * `cls`, the class it is of, which the value it is typed over does not keep (_applyParsed): typing
+ * double(42) over an int8 makes it a double. A numeric or logical empty spelled as its call
+ * (emptyConstructor) is that empty of the class: `int8(zeros(1,0))` is the int8 1x0. Null for any
+ * other text: a char, cell or string argument, or any other call in it (`int8(abs(-3))`).
+ */
+export function classConversion(text: string): ParsedValue | null {
+    const m = CLASS_CALL.exec(text.trim());
     if (!m) { return null; }
     const cls = m[1];
-    const parsed = parse(m[2]);
-    const convert = (v: unknown): unknown => (cls === 'single' ? v : toIntegerClass(v, cls));
-    // A complex one, `int16([3+4i 5-6i])`: the complex-text bag of a binary dictionary's reader,
-    // of the class, each part converted.
-    if (parsed && parsed.type === 'complex') {
-        const many = Array.isArray(parsed.value);
-        const texts = many ? (parsed.value as string[]) : [parsed.value as string];
+    // MATLAB keeps every digit of an integer past 2^53 only where the argument is the bare literal of
+    // one, a minus sign before it at most: int64(9007199254740993) and int64(-9007199254740993) are
+    // exact, and int64([9007199254740993 1]), int64(+9007199254740993), int64(9007199254740993e0) and
+    // int64(9007199254740993+1i) take the double the literal is first, 9007199254740992 (measured,
+    // R2027a). The parser's exact token is kept for the first, and is that double for the rest.
+    const bare = /^(-\s*)?\d+$/.test(m[2].trim());
+    const arg = parse(bare ? m[2].replace(/\s+/g, '') : m[2]);
+    if (!arg) { return null; }
+    const convert = (v: unknown): unknown => {
+        if (typeof v === 'boolean') { v = Number(v); }
+        if (!bare && typeof v === 'string') { v = Number(v); }
+        if (cls === 'double') { return typeof v === 'string' ? Number(v) : v; }
+        if (cls === 'single') { return Math.fround(Number(v)); }
+        return toIntegerClass(v, cls);
+    };
+    let value = arg.value;
+    let type = arg.type;
+    // A complex scalar whose imaginary part is 0 is a real number, as MATLAB reads `3+0i`.
+    if (type === 'complex' && !Array.isArray(value)) {
+        const parts = parseComplexNum(value as string);
+        if (parts && Number(parts.im) === 0) {
+            type = 'double';
+            value = parts.re;
+        }
+    }
+    if (type !== 'double' && type !== 'logical' && type !== 'complex') { return null; }
+    if (cls === 'logical') {
+        if (type === 'complex') { return null; }
+        // True where it is not 0; null of a NaN, which MATLAB refuses.
+        const truth = (v: unknown): boolean | null => {
+            if (typeof v === 'boolean') { return v; }
+            return Number.isNaN(Number(v)) ? null : Number(v) !== 0;
+        };
+        if (!Array.isArray(value)) {
+            const t = truth(value);
+            return t === null ? null : { type: 'logical', value: t };
+        }
+        const truths = (value as unknown[]).map(truth);
+        return truths.includes(null) ? null : { type: 'logical', value: truths.map((t) => (t ? 1 : 0)), dims: arg.dims };
+    }
+    if (type === 'complex') {
+        const texts = Array.isArray(value) ? (value as string[]) : [value as string];
         const converted: string[] = [];
         for (const t of texts) {
             const parts = parseComplexNum(t, cls);
             if (!parts) { return null; }
-            converted.push(formatComplexNum(convert(parts.re), convert(parts.im)));
+            converted.push(cls === 'double' ? t : formatComplexNum(convert(parts.re), convert(parts.im)));
         }
-        return { ...complexBag({ ...parsed, value: many ? converted : converted[0] }), _class: cls };
+        return { type: 'complex', value: Array.isArray(value) ? converted : converted[0], dims: arg.dims, cls };
     }
-    if (!parsed || parsed.type !== 'double') { return null; }
-    if (!Array.isArray(parsed.value)) {
-        return { _type: cls, _value: formatNumLiteral(convert(parsed.value), cls) };
+    return Array.isArray(value)
+        ? { type: 'double', value: (value as unknown[]).map(convert), dims: arg.dims, cls }
+        : { type: 'double', value: convert(value), cls };
+}
+
+// MATLAB's conversion of a real number or array to a numeric class (classConversion), which a cell's
+// member is spelled as (`int8(3)`, `uint64(18446744073709551615)`, `single([1.5 NaN])`), as the bag
+// each reader gives such a member (`{_type: 'int8', _value: '3'}`, an unsigned one's `7U`, a single's
+// `2.5F`), and a complex one as the complex-text bag of its class; a double's or a logical's as the
+// member typed bare is held (cellElementRaw); an empty's as the empty of its class (emptyBag). Null for
+// any other text, or a class of an N-D value, which no member's text here spells.
+export function classCall(span: string): unknown | null {
+    const converted = classConversion(span);
+    if (!converted) { return null; }
+    // A conversion of an empty, `int8(zeros(1,0))`: the empty of the class, at its size, as one
+    // spelled `zeros(1,0,'int8')` is held (emptyBag).
+    if (Array.isArray(converted.value) && converted.value.length === 0 && converted.type !== 'complex') {
+        return emptyBag({ ...converted, dims: converted.dims ?? [0, 0] });
     }
-    const values = parsed.value as unknown[];
-    const dims = parsed.dims ?? [1, values.length];
-    if (dims.length > 2 || values.length === 0) { return null; }
-    return { _type: cls, _value: formatMatrixSerial(values.map(convert), dims, cls) };
+    const cls = converted.cls;
+    if (cls === undefined || cls === 'double') {
+        return cellElementRaw(converted);
+    }
+    // A complex one, `int16([3+4i 5-6i])`: the complex-text bag of a binary dictionary's reader,
+    // of the class, each part converted, a single's as the decimal MATLAB writes it.
+    if (converted.type === 'complex') {
+        const texts = Array.isArray(converted.value) ? (converted.value as string[]) : [converted.value as string];
+        const spelled = texts.map((t) => complexForClass(t, cls));
+        return { ...complexBag({ ...converted, value: Array.isArray(converted.value) ? spelled : spelled[0] }), _class: cls };
+    }
+    // A single as the decimal MATLAB writes it (singleValue), not the float32's double.
+    const spell = (v: unknown): unknown => (cls === 'single' ? singleValue(v as number) : v);
+    if (!Array.isArray(converted.value)) {
+        return { _type: cls, _value: formatNumLiteral(spell(converted.value), cls) };
+    }
+    const values = converted.value as unknown[];
+    const dims = converted.dims ?? [1, values.length];
+    if (dims.length > 2) { return null; }
+    return { _type: cls, _value: formatMatrixSerial(values.map(spell), dims, cls) };
 }
 
 // The bare member of a row of a bracketed or braced literal that starts at `i`: its span, where

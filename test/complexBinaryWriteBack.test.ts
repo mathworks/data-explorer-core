@@ -168,10 +168,11 @@ describe('the writers state what the value is', () => {
     expect(xmlOf({ _type: 'cdata', _value: '1+2i 3-4i', _dimensions: [1, 2] })).toBe(
       '<P Name="Value" Class="double" IsComplex="1" Dimension="1*2">1.0+2.0i 3.0-4.0i</P>',
     );
-    // An edited scalar is a double, as the literal typed for it is in MATLAB.
+    // An edited scalar keeps its class, as a number typed over it does (the D11 ruling): of int8,
+    // int8(5+6i). double(5+6i) makes it a double.
     const edited: any = NodeRegistry.parseValue({ _type: 'cdata', _value: '3-4i', _class: 'int8' }, 'Value', null);
     expect(edited.setProperty('Value', '5+6i')).toBe(true);
-    expect(edited.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="double" IsComplex="1">5.0+6.0i</P>');
+    expect(edited.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="int8" IsComplex="1">5+6i</P>');
   });
 
   it('every writer signs a NaN imaginary part, the one spelling of it MATLAB reads back', () => {

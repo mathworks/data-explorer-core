@@ -200,6 +200,8 @@ export default class MatlabVariableNode extends DataNode {
      * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell
      * holding one is not its literal: with only the 5 retyped, the literal set back wrote the
      * member nobody changed as a real 1, in both formats. Its elements are edited one at a time.
+     * And so is a complex array every imaginary part of which is 0, complex([1 2], [0 0]), which shows
+     * `[1+0i 2+0i]`, read back as the real [1 2].
      */
     _isZeroImaginaryComplex(): boolean;
     /** Does this cell hold such an element (_isZeroImaginaryComplex), itself or in a nested cell? */
@@ -278,10 +280,25 @@ export default class MatlabVariableNode extends DataNode {
      *
      * Every own field but the node's place (name, parent) and the entry's bookkeeping
      * (status, metadata), which an undo leaves as any other edit does: Modified, and stamped.
-     * Not for an element of an array, whose edit also writes into the array
-     * (_setConstrainedValue), and whose text is the scalar it holds.
+     * Of an element of an array, whose edit also writes into the array (_setConstrainedValue), the
+     * array's (_elementRestorer).
      */
     _restorerFor(propName: string): (() => void) | null;
+    /**
+     * What puts back the array this element is of, and every element of it, as they are now: for the
+     * undo of an edit of this element, and for its redo, asked after it (DataModel.editProperty). The
+     * edit changes the array in place (_syncElementFromChild), and may change every element's
+     * complexity with it (_settleComplexity), which the text this element showed does not put back:
+     * `1+0i` set back over the real array an edit of complex([1 2], [0 0]) left is the real 1, as
+     * MATLAB reads the literal, and the array came back real. The array's own state is held whole
+     * (DataNode._ownStateRestorer), what it was read from with it, so that one undone is saved as read.
+     *
+     * Its element list and a sparse array's parts are put back in place, into the very lists they are:
+     * an edit writes into them in place, and what the array was read as may be the same list (a text
+     * dictionary's row is its `_rawInput` and its `serial`), which an undo that put back another list
+     * left holding the edit, and wrote it.
+     */
+    _elementRestorer(): () => void;
     /**
      * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
      * text dictionary and is shown and not edited there (_streamLocked), or null.
@@ -456,7 +473,7 @@ export default class MatlabVariableNode extends DataNode {
     _valueShape(): ValueShape;
     /**
      * The shape Add or a removal would leave (DataNode._shapeAfterChildEdit): a struct one field
-     * more (_addStructField); an untyped `[]` a struct of one field (_convertToStructAndAddField);
+     * more (_addStructField); an empty of numbers a struct of one field (_convertToStructAndAddField);
      * an array or a string array one element more or fewer, shaped as _updateDimsForCount shapes
      * it, or as the collapse to one element does. Not a cell's: a Parameter refuses a cell Value
      * whole, and does not judge what is in one, a value edit there included.
@@ -464,6 +481,14 @@ export default class MatlabVariableNode extends DataNode {
     _shapeAfterChildEdit(op: 'add' | 'remove'): ValueShape | null;
     /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
     _shapeAfter(parsed: ParsedValue): ValueShape;
+    /**
+     * The class a number or a complex number typed in whole is held as (_applyParsed): the one its
+     * conversion spells (`int8(5)`, `double(5)`: MatlabValueParser.classConversion), or else the
+     * integer class or single this value is of, a complex scalar's included (_complexClass),
+     * whatever the text, as MATLAB's cast(<text>, class(old)) keeps it (the D11 ruling); or double.
+     * A Simulink.Parameter's Value keeps none: it is `p.Value = v`.
+     */
+    _numericClassAfter(parsed: ParsedValue): string;
     _isConstrainedChild(): boolean;
     /**
      * _setConstrainedValue, of an element of a value at or under one a text dictionary read from a MAT
@@ -484,14 +509,26 @@ export default class MatlabVariableNode extends DataNode {
      */
     _streamReadAgain(): Record<string, unknown> | null;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
+    private _elementEdited;
+    /**
+     * This array's complexity as MATLAB's indexed assignment leaves it, after an element is edited,
+     * added or removed (measured, R2027a): complex while any element has an imaginary part that is
+     * not 0, and each real element then x+0i, as every reader holds a complex array's elements; real
+     * once none has, each element its real part. [1+2i 3-4i] with x(2) = 70000 is [1+2i 70000+0i],
+     * and with x(1) = 5 too the real [5 70000]; [1 2 3] with x(2) = 3+4i is [1+0i 3+4i 3+0i]; and
+     * complex([1 2], [0 0]), which a file can hold, is real after any of them. A NaN imaginary part
+     * is not 0, and -0 is. The edit showed a real element `70000` and an added one `0`, of class
+     * double, which the saved file showed opened again as `70000+0i` and `0+0i`, complex.
+     *
+     * A sparse array's complexity is whether it holds imaginary parts (SparseData.im): dropped where
+     * every one is 0, its rows real again.
+     */
+    _settleComplexity(): void;
+    private _settleRows;
     _markModified(edit?: 'value' | 'name'): void;
     _editMarks(): () => void;
     _syncElementFromChild(child: BaseNode): void;
-    _applyParsed(parsed: {
-        type: string;
-        value: unknown;
-        dims?: number[];
-    }): void;
+    _applyParsed(parsed: ParsedValue): void;
     _buildMatrixString(dims: number[], elements: (number | string)[], type?: string): string;
     _buildArrayChildren(elementType?: string): void;
     private _buildSparseChildren;
@@ -505,6 +542,22 @@ export default class MatlabVariableNode extends DataNode {
     _streamHolderWhy(holder: MatlabVariableNode): string;
     _shapePhrase(): string;
     _typeOverAdvice(ofChild?: boolean): string;
+    /**
+     * Does Add make a struct of this empty, its first field `field` (_convertToStructAndAddField)? Of
+     * an empty of numbers or logicals, of any class, size and rank, as MATLAB's `x.field = 0` makes a
+     * 1x1 struct of every one, `[]`, int8(zeros(1,0)), zeros(0,3), zeros(0,0,2), false(1,0), a complex
+     * one (R2027a). Not of a sparse one, nor of an empty of objects or of an enumeration
+     * (_emptyAddRefusal).
+     */
+    _takesFieldOnAdd(): boolean;
+    /**
+     * Why Add makes nothing of this empty array, as a clause (UNWORDED without `describe`), or null for
+     * one it makes a struct of (_takesFieldOnAdd) and for every value that is not an empty array: an
+     * empty of objects or of an enumeration (a bus's 0x0 Elements, `Simulink.Parameter.empty`), which
+     * MATLAB gives no field (`x.field = 0` is MATLAB:emptyObjectDotAssignment) and of which an Add
+     * makes no element.
+     */
+    _emptyAddRefusal(describe?: boolean): string | null;
     addChildNode(): BaseNode | null;
     _addChildNow(): BaseNode | null;
     /**
@@ -562,8 +615,9 @@ export default class MatlabVariableNode extends DataNode {
      * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
      * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
      * clears `_rawInput` (_markModified), and an int16 vector with one element left is
-     * still an int16. A value edit clears all three (_applyParsed), and an edited complex
-     * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+     * still an int16. A value edit clears all three (_applyParsed), and holds in
+     * `_collapsedClass` the class it keeps, an integer class or single (the D11 ruling), or the
+     * one a conversion typed spells (`int8(3+4i)`); else it is a double. Not `_var`: a rename
      * marks the snapshot stale without changing the value, and the rebuilt variable is
      * where this class is needed, not where it is read.
      */
@@ -680,8 +734,12 @@ export default class MatlabVariableNode extends DataNode {
      * binary dictionary, and an entry or a property in a text one, showed its class and was saved,
      * and reopened, as a double.
      *
-     * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes, in MATLAB's
-     * own spelling of one (a binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling).
+     * The classes classAfterEdit keeps and logical, at any rank-2 size: MATLAB writes its int8 1x0 so,
+     * and its false(1,0), false(0,3) and false(0) as `{"_type": "logical", "_value": "[]"}`, each read
+     * back as the 0x0 of the class (R2027a; the edit-bash fixtures' i8Empty1x0). A logical 0x0 typed
+     * in (`false(0)`) was written `[]`, a double, and so was a shaped one, which a text dictionary
+     * now refuses typed in (SectionNode._valueRefusal) and is still given by a value made elsewhere.
+     * A binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling.
      */
     _serializeEmpty(): unknown;
     _serializeArray(): unknown;

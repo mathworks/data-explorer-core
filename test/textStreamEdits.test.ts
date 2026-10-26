@@ -458,9 +458,9 @@ describe('an Add or a Remove of an element of a stream value', () => {
     expect(variableDifference(z._var, back, 'zRow')).toBeNull();
     // The NaN MatWriter writes, as for an element edited (above).
     expect(bitsOf((back.value as Any)[1].re)).toBe('7ff8000000000000');
-    // The element Add makes is 0, which a reopen spells 0+0i, as it does a real number typed into
-    // an element of a complex array.
-    expect([shown, entry(opened(o.save()).root, 'zRow').displayValue]).toEqual(['[3+0i NaN+4i 0]', '[3+0i NaN+4i 0+0i]']);
+    // The element Add makes is 0+0i, as x(end+1) = 0 of a complex array makes it and a reopen
+    // spells it (MatlabVariableNode._settleComplexity).
+    expect([shown, entry(opened(o.save()).root, 'zRow').displayValue]).toEqual(['[3+0i NaN+4i 0+0i]', '[3+0i NaN+4i 0+0i]']);
     o.session.setActive(o.root, z);
     o.session.undo();
     o.session.undo();
