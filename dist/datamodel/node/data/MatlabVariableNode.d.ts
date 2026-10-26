@@ -36,6 +36,14 @@ export default class MatlabVariableNode extends DataNode {
     _readFromStream?: true;
     _streamLockVerdict?: boolean;
     _streamRead?: Record<string, unknown>;
+    _spelledAs?: {
+        key: string;
+        same: boolean;
+    };
+    _classSpelledAs?: {
+        key: string;
+        exact: boolean;
+    };
     _streamChildVerdicts?: Partial<Record<'add' | 'remove', {
         rows: BaseNode[];
         count: number;
@@ -83,14 +91,61 @@ export default class MatlabVariableNode extends DataNode {
      * it counted as the one character it is (controlsAsOneChar). A summary is itself.
      */
     _guardText(): string;
+    /**
+     * A cell's member of a numeric class other than double, spelled as a cell's literal spells it: as
+     * the class's conversion of what it shows, `int8(3)`, `uint16([1 2])`, `single(2.5)`, where that
+     * text read back (MatlabValueParser.classCall) is this member exactly, class, size and every value.
+     * Shown as the number alone, as it was, the text typed back made it a double. Null where it is not
+     * (a -0 shown as 0, a complex one whose imaginary part is 0, an N-D or an empty array), which is
+     * shown as it was and leaves its cell no editor of its text (_classUnspelled), and for every other
+     * member, which spells itself. Kept for the text and the value it was judged of: a single 0 and
+     * -0 show the same text.
+     */
+    _classSpelled(): string | null;
+    _valueKey(): string;
+    /**
+     * Whether this, a cell's member, is of a numeric class other than double whose class its text does
+     * not spell exactly (_classSpelled): shown as it was, a -0 as 0, a complex one whose imaginary part
+     * is 0 as `1+0i`, and so no text its cell takes would keep it as it is (_literalRoundTrips).
+     */
+    _classUnspelled(): boolean;
+    _typedNumericClass(): string | null;
+    /**
+     * Whether this cell holds no object but strings, itself or in a cell it holds: what spells its
+     * strings by their text (_cellLiteralElement). A struct is its summary whatever it holds.
+     */
+    _spellsStrings(): boolean;
+    /**
+     * The text a string's Value is typed as that makes this string, a scalar or a 2-D array, whatever
+     * its length (its displayValue is a summary past the display's budget); or why there is none: an
+     * N-D or an empty array, which no literal spells, or an element `<missing>`, which none does. What
+     * a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's stand-ins).
+     */
+    _stringLiteral(): {
+        text: string;
+    } | {
+        why: string;
+    };
+    _stringTexts(): unknown[] | null;
+    /**
+     * Whether this, a `string` decoded out of a MAT-file's objects (or one an edit made there), is
+     * spelled exactly by the text it shows: that text read back (MatlabValueParser) is a string of
+     * the same size holding the same text in each element. Not a summary (an empty or N-D array, one
+     * past the char budget), nor `<missing>`, which no text read back is. Kept for the text and the
+     * elements it was judged of.
+     */
+    _spellsItself(): boolean;
     /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
     _formatScalar(asMeasured?: boolean): string;
     _textDims(text: string): number[];
     _formatArray(): string;
     _formatEmptyArray(): string;
-    /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
-    _formatCell(asMeasured?: boolean): string;
-    _cellLiteralElement(child: BaseNode, asMeasured?: boolean): string;
+    /**
+     * `asMeasured`: the text the length guard measures (_guardText), not the one shown.
+     * `summarized`: a MAT-file's strings in it spelled by their summaries (_cellLiteralElement).
+     */
+    _formatCell(asMeasured?: boolean, summarized?: boolean): string;
+    _cellLiteralElement(child: BaseNode, asMeasured?: boolean, summarized?: boolean): string;
     /**
      * Is this cell's one-line literal its value written out? Not when an element's token in
      * it is a summary — a sparse array's `<1x3 sparse double>` at any size, a large array's

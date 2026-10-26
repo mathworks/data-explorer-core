@@ -64,7 +64,7 @@ export declare function admittedTypesOf(mat: MatNode): string[];
  * string at any depth (a MAT-file holds one only as an object), a function handle, a value the reader
  * did not decode.
  */
-export declare function matVariableOfNode(node: BaseNode, name: string): MatVariable | {
+export declare function matVariableOfNode(node: BaseNode, name: string, strings?: Map<MatVariable, string>): MatVariable | {
     why: string;
 };
 /**

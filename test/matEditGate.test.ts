@@ -545,25 +545,21 @@ describe('what each kind of variable of a .mat takes', () => {
     expect([root.dirty, sameBytes(save(), original)]).toEqual([false, true]);
   });
 
-  it("a value typed in that a save cannot write, a string, is refused before it is made", () => {
+  it('a value typed in that holds strings is taken, its strings made objects; a string into an array element is refused', () => {
     const { root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
     const original = new Uint8Array(fileBytes(CASES));
-    // Inside a variable, a string inside a value typed in. A whole variable's Value, a struct field
-    // or a cell element typed as a string makes it a string (MatNode._retype; matRetypeString and
-    // matStringMember.test.ts).
-    for (const [node, typed, why] of [
-      [by('cellFlat').children[0], '{1, "a"}', 'Cannot edit "cellFlat": cellFlat{1} would hold a string, which this package cannot write into a MAT-file.'],
-      [by('structScalar').children[0], '{"x"}', 'Cannot edit "structScalar": structScalar.a would hold a string, which this package cannot write into a MAT-file.'],
-    ] as [any, string, string][]) {
-      const was = shownAs(node);
-      expect(edit(node, 'Value', typed), typed).toEqual({ error: true, reason: why, invalidValue: typed, validValue: node.displayValue });
-      expect(shownAs(node), typed).toEqual(was);
+    // A string into an element of a numeric array, which holds numbers only: refused, nothing changed.
+    const element = by('cellFlat').children[2].children[0];
+    const was = shownAs(element);
+    expect(edit(element, 'Value', '"a"')).toMatchObject({ error: true, reason: 'Array elements must be scalar numbers' });
+    expect([shownAs(element), root.dirty, sameBytes(save(), original)]).toEqual([was, false, true]);
+    // Inside a variable, a string inside a value typed in: made the objects a save writes
+    // (MatNode._retype, _makeStringsIn; matCellStrings.test.ts), as a whole Value, a struct field or a
+    // cell element typed as a string is (matRetypeString and matStringMember.test.ts).
+    for (const [name, typed] of [['cellFlat', '{1, "a"}'], ['structScalar', '{"x"}']] as const) {
+      expect(edit(by(name).children[0], 'Value', typed), typed).toBe(true);
+      expect(readBack(save(), root.children.indexOf(by(name)))).toEqual(shownAs(by(name)));
     }
-    // Nothing was edited: the file is not dirty, and saves as itself.
-    expect([root.dirty, by('kp').status, sameBytes(save(), original)]).toEqual([false, '', true]);
-    // A char is a value a save writes.
-    expect(edit(by('kp'), 'Value', "'abc'")).toBe(true);
-    expect(readBack(save(), root.children.indexOf(by('kp')))).toEqual(shownAs(by('kp')));
   });
 
   it('a variable holding a container read short, at any depth: renamed and deleted, nothing in it edited', () => {

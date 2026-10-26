@@ -105,11 +105,9 @@ describe('a value the file takes no variable of', () => {
     expectOneRefused(copied(MAT_CASES, 'obj2x3x2'), /: it is a 2x3x2 array of Simulink\.Parameter objects/);
   });
 
-  it('a struct or a cell holding an object, or a string', () => {
+  it('a struct or a cell holding an object (one holding a string is pasted: matCellStrings.test.ts)', () => {
     expectOneRefused(copied('test/fixtures/cellarr_text.sldd', 'sObjArr'), /: sObjArr\.f is a Simulink\.Parameter object, and a value pasted into a MAT-file holds no object but at its top/);
     expectOneRefused(copied('test/fixtures/cellarr_binary.sldd', 'cObj'), /: cObj\{1\} is a Simulink\.Parameter object/);
-    expectOneRefused(copied('test/fixtures/cellstr_text.sldd', 'cStr'), /: cStr\{1\} is a string, which a MAT-file holds only as an object/);
-    expectOneRefused(copied('test/fixtures/cellstr_binary.sldd', 'sStr'), /: sStr\.f is a string/);
     expectOneRefused(copied('test/fixtures/text_empty_readback_binary.sldd', 's_Params0'), /: s_Params0\.f is an empty array of Simulink\.Parameter objects/);
   });
 

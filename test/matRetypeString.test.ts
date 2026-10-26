@@ -173,12 +173,12 @@ describe('a MAT-file string variable retyped by its Value as another value', () 
     expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
   });
 
-  it('is refused, and changes nothing, where the value typed holds a string a plain variable cannot', () => {
+  it('becomes a cell holding a new string, where the value typed holds one (matCellStrings.test.ts)', () => {
     const bytes = pvBasic();
-    const { root, by, edit, save } = opened(bytes, 'pv_basic.mat');
-    expect(edit(by('str'), 'Value', '{1, "a"}')).toMatchObject({ error: true, reason: 'Cannot edit "str": str would hold a string, which this package cannot write into a MAT-file.' });
-    expect([by('str').className, by('str').displayValue, root.dirty]).toEqual(['string', '"hello"', false]);
-    expect(sameBytes(save(), new Uint8Array(bytes))).toBe(true);
+    const before = shown(new Uint8Array(bytes));
+    const { by, edit, save } = opened(bytes, 'pv_basic.mat');
+    expect(edit(by('str'), 'Value', '{1, "a"}')).toBe(true);
+    expect(shown(save())).toEqual(before.map((r) => (r.startsWith('str ') ? 'str cell [1,2] {1, "a"}' : r)));
   });
 });
 

@@ -90,6 +90,10 @@ import { admittedTypesOf, pasteInto, pasteRefusalOf, type PasteMade, type PasteR
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> &
   Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 
+// An object merged into the creations' records (MatNode._mergeInto): the node of the variable
+// holding it, the object, the append session after it, and the ids of the object rows it appended.
+type MergedObject = { node: BaseNode; obj: McosNewObject; session: McosAppendSession; rows: number[] };
+
 export default class MatNode extends ContainerNode {
   header: string;
   dirty: boolean;
@@ -174,6 +178,13 @@ export default class MatNode extends ContainerNode {
   // Each variable an edit put another in place of (_retype), and that one: what a save follows to
   // write the variable in place of the record it replaced (_replacementOf).
   _replaced = new Map<BaseNode, BaseNode>();
+  // The value a retype is setting, whose strings it then makes objects of (_retype, _valueRefusal).
+  _makingStrings: BaseNode | undefined;
+  // Where each row was last found among its parent's rows (_holds).
+  _rowAt = new WeakMap<BaseNode, number>();
+  // The creations in the tree, found once for the save, gate or edit running (_inLiveScope), and
+  // the count of creations they were found among.
+  _liveMemo: { live: BaseNode[]; size: number } | undefined;
 
   constructor(name: string) {
     super(name, null);
@@ -257,10 +268,12 @@ export default class MatNode extends ContainerNode {
     }
   }
 
+  // A variable added or taken out changes which creations are in the tree too (_inLiveScope).
   addChild(child: BaseNode, index?: number): BaseNode {
     super.addChild(child, index);
     this._valueVerdicts.delete(child);
     this._entriesMoved(null, child.name);
+    this._liveChanged();
     return child;
   }
 
@@ -270,6 +283,7 @@ export default class MatNode extends ContainerNode {
     if (this.children.length < before) {
       this._valueVerdicts.delete(child);
       this._entriesMoved(child.name, null);
+      this._liveChanged();
     }
   }
 
@@ -346,6 +360,11 @@ export default class MatNode extends ContainerNode {
    *     which the tree did not show.
    */
   _editRefusal(entry: BaseNode, node: BaseNode, key: string, describe = true): string | null {
+    return this._inLiveScope(() => this._editRefusalNow(entry, node, key, describe));
+  }
+
+  // _editRefusal, in a scope of the creations found once (_inLiveScope).
+  _editRefusalNow(entry: BaseNode, node: BaseNode, key: string, describe = true): string | null {
     const file = this._fileRefusal();
     if (file) {
       return file;
@@ -619,6 +638,11 @@ export default class MatNode extends ContainerNode {
    * taken, rather than taken and then refused by the save.
    */
   _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null {
+    return this._inLiveScope(() => this._editValueRefusalNow(entry, node, key, value));
+  }
+
+  // _editValueRefusal, in a scope of the creations found once (_inLiveScope).
+  _editValueRefusalNow(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null {
     const object = objectNodeAt(entry, node);
     if (!object) {
       return null;
@@ -961,6 +985,11 @@ export default class MatNode extends ContainerNode {
    * (mcosObjectEdit.memberRefusal).
    */
   _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null {
+    return this._inLiveScope(() => this._valueRefusalNow(entry, node, value));
+  }
+
+  // _valueRefusal, in a scope of the creations found once (_inLiveScope).
+  _valueRefusalNow(entry: BaseNode, node: BaseNode, value: BaseNode): string | null {
     const object = objectNodeAt(entry, node);
     // A `string` of the file, typed over whole: a string it takes, written into its payload; a value
     // of another class would be another variable, which the save writes only as it was read. An
@@ -984,7 +1013,8 @@ export default class MatNode extends ContainerNode {
         return cannotEdit(entry.name, refused);
       }
     }
-    const unwritable = unwritableIn(value);
+    // The value a retype puts in place, whose strings it makes the objects a save writes (_retype).
+    const unwritable = unwritableIn(value, node === this._makingStrings);
     if (!unwritable) {
       return null;
     }
@@ -1293,6 +1323,26 @@ export default class MatNode extends ContainerNode {
    * merge refuses.
    */
   _createObject(className: string, name: string): BaseNode | null {
+    const c = this._creationOf(className);
+    if (!c) {
+      return null;
+    }
+    // Merged into a copy, which becomes the records only once the object's node is made: a merge
+    // or a read refused leaves the records, and the session, as they were. Never into the records
+    // in place, which what is found of them is kept by (matObjectEdit's counts of a cell's users).
+    const records = cloneSubsystem(c.records);
+    const made = this._mergeInto(records, c.session, className, name);
+    if (!made) {
+      return null;
+    }
+    c.records = records;
+    this._keepCreations([made]);
+    return made.node;
+  }
+
+  // The file's creations (_creation), begun of its subsystem, or of one from nothing for a file
+  // that holds none, where they were not; or null where the file's objects do not read.
+  _creationOf(className: string): NonNullable<MatNode['_creation']> | null {
     if (!this._creation) {
       const objects = this._subsystemRecord() ? this._mcosSubsystem() : null;
       if (typeof objects === 'string') {
@@ -1301,14 +1351,21 @@ export default class MatNode extends ContainerNode {
       const original = objects ? objects.records : createTemplateSubsystem(className);
       this._creation = { records: cloneSubsystem(original), original, session: createAppendSession(), created: new Map(), rows: new Map() };
     }
-    // Merged into a copy, which becomes the records only once the object's node is made: a merge
-    // or a read refused leaves the records, and the session, as they were.
-    const c = this._creation;
-    const records = cloneSubsystem(c.records);
-    const session = { classes: new Map(c.session.classes) };
+    return this._creation;
+  }
+
+  /**
+   * MATLAB's default object of `className` merged into `records`, in place, after the append
+   * session `session`, and the node of the variable `name` holding it, as a file holding it shows
+   * it; its session after, and the ids of the object rows the merge appended. Null where the merge
+   * refuses or the object does not read. Kept among the creations by _keepCreations.
+   */
+  _mergeInto(records: McosSubsystemRecords, session: McosAppendSession, className: string, name: string): MergedObject | null {
+    const before = records.blob.objects.length;
+    const next = { classes: new Map(session.classes) };
     let obj: McosNewObject;
     try {
-      obj = mergeTemplateObject(records, className, { session });
+      obj = mergeTemplateObject(records, className, { session: next });
     } catch (e) {
       if (e instanceof MatWriteError) {
         this._addRefused = cannotAdd(this, className, e.message);
@@ -1343,11 +1400,21 @@ export default class MatNode extends ContainerNode {
     }
     variable.mcosHandle = named.mcosHandle;
     placeString(node);
-    c.rows.set(node, rowsAdded(c.records.blob.objects.length, records));
-    c.records = records;
-    c.session = session;
-    c.created.set(node, obj);
-    return node;
+    return { node, obj, session: next, rows: rowsAdded(before, records) };
+  }
+
+  // Objects merged into the creations' records (_mergeInto), kept as created, in order, the session
+  // the last of them was merged after the creations' own.
+  _keepCreations(made: readonly MergedObject[]): void {
+    const c = this._creation!;
+    for (const m of made) {
+      c.rows.set(m.node, m.rows);
+      c.created.set(m.node, m.obj);
+    }
+    if (made.length > 0) {
+      c.session = made[made.length - 1].session;
+    }
+    this._liveChanged();
   }
 
   /**
@@ -1396,7 +1463,7 @@ export default class MatNode extends ContainerNode {
     const c = this._creation!;
     const live = this._liveCreations();
     const kept = this._rebuilt;
-    if (kept && kept.from === c.records && kept.live.length === live.length && kept.live.every((n, i) => n === live[i])) {
+    if (kept && kept.from === c.records && (kept.live === live || (kept.live.length === live.length && kept.live.every((n, i) => n === live[i])))) {
       return kept.made;
     }
     let made: ReturnType<MatNode['_liveCreation']>;
@@ -1454,7 +1521,67 @@ export default class MatNode extends ContainerNode {
 
   /** The objects created in this file that are in the tree now: variables, and members of a cell or a struct (_retype). */
   _liveCreations(): BaseNode[] {
-    return [...(this._creation?.created.keys() ?? [])].filter((n) => this._entryOf(n) !== null);
+    const memo = this._liveMemo;
+    const size = this._creation?.created.size ?? 0;
+    if (memo && memo.size === size) {
+      return memo.live;
+    }
+    const live = [...(this._creation?.created.keys() ?? [])].filter((n) => this._holds(n));
+    if (memo) {
+      memo.live = live;
+      memo.size = size;
+    }
+    return live;
+  }
+
+  /**
+   * `fn`, with the creations in the tree found once (_liveCreations) for as long as it runs, and
+   * again only where a creation is made or a row swapped (_liveChanged): a save, a gate, a retype or a
+   * paste, each of which asks of them for each member of each container it writes or judges
+   * (_createdElement). Asked again of each, a paste and the save of a cell of 2000 strings took
+   * seconds. Nothing that runs in one changes the tree otherwise.
+   */
+  _inLiveScope<T>(fn: () => T): T {
+    if (this._liveMemo) {
+      return fn();
+    }
+    this._liveMemo = { live: [], size: -1 };
+    try {
+      return fn();
+    } finally {
+      this._liveMemo = undefined;
+    }
+  }
+
+  // The creations in the tree are to be found again (_inLiveScope): a row was swapped, or one made.
+  _liveChanged(): void {
+    if (this._liveMemo) {
+      this._liveMemo.size = -1;
+    }
+  }
+
+  // Whether `node` is in this file's tree: a row of each node above it, to the file. Not its parent
+  // pointer alone: a value typed over in place keeps its old rows' pointers (_applyParsed), and an
+  // undo puts a cell's old rows back the same way (MatlabVariableNode._ownStateRestorer).
+  // Each row's place among its parent's rows is kept (_rowAt), so that a row found where it was
+  // is found at once: a cell of 2000 strings looked each up among them, for each of them, at each
+  // ask of the creations a save makes several times for each member (_createdElement).
+  _holds(node: BaseNode): boolean {
+    for (let n: BaseNode = node; n !== this; n = n.parent!) {
+      const parent = n.parent;
+      if (!parent) {
+        return false;
+      }
+      const at = this._rowAt.get(n);
+      if (at === undefined || parent.children[at] !== n) {
+        const found = parent.children.indexOf(n);
+        if (found < 0) {
+          return false;
+        }
+        this._rowAt.set(n, found);
+      }
+    }
+    return true;
   }
 
   // Not a name any variable of the file holds (_nameTaken).
@@ -1509,6 +1636,11 @@ export default class MatNode extends ContainerNode {
    * (_memberHolder).
    */
   _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null {
+    return this._inLiveScope(() => this._retypeNow(entry, node, key, text));
+  }
+
+  // _retype, in a scope of the creations found once (_inLiveScope).
+  _retypeNow(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null {
     if (key !== 'Value' || !(node instanceof MatlabVariableNode) || !node.valueEditable || this._entryOf(node) !== entry) {
       return null;
     }
@@ -1521,8 +1653,10 @@ export default class MatNode extends ContainerNode {
     if (object && !isString) {
       return null;
     }
+    // A value holding strings in a cell (`{1, "a"}`) is a plain value whose strings are made as a
+    // string is, over a value of any kind (_makeStringsIn).
     const typed = typedKind(text);
-    if (typed === null || (typed === 'string') === isString || (typed === 'string' && this._classRefusal('string'))) {
+    if (typed === null || (typed !== 'strings' && (typed === 'string') === isString) || (typed !== 'other' && this._classRefusal('string'))) {
       return null;
     }
     // What puts the file's creations back as they are, for a string's creation the edit does not
@@ -1545,6 +1679,7 @@ export default class MatNode extends ContainerNode {
         to._subscript = from._subscript;
       }
       this.dirty = true;
+      this._liveChanged();
     };
     const unmark = container?._editMarks();
     // In its place first, as the edit of its Value judges it there; and put back, the file as it
@@ -1555,8 +1690,19 @@ export default class MatNode extends ContainerNode {
     swap(node, made);
     try {
       container?._markModified();
+      // Its strings judged as the objects they are made (_valueRefusal), once it holds them.
+      this._makingStrings = typed === 'strings' ? made : undefined;
       set = (made as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', text);
+      this._makingStrings = undefined;
+      if (set === true && typed === 'strings') {
+        set = this._makeStringsIn(made as MatlabVariableNode);
+        // Refused of the row typed into, the text typed and the value it shows.
+        if (set !== true) {
+          set = { ...set, invalidValue: text, validValue: node.displayValue };
+        }
+      }
     } finally {
+      this._makingStrings = undefined;
       if (set !== true) {
         swap(made, node);
         unmark?.();
@@ -1584,6 +1730,99 @@ export default class MatNode extends ContainerNode {
         remark?.();
       },
     };
+  }
+
+  /**
+   * Each string `value` holds in a cell or a struct, at any depth, as a value typed in makes one
+   * (MatlabValueParser's `{1, "a"}`: a plain `string` row, which no MAT-file writer writes), made
+   * the object a member typed as a string is (_retype): MATLAB's default string merged into the
+   * file's subsystem (_createObject), of the member's name, in its place, set to its text. A string
+   * array is one object, as MATLAB saves one. True, or the refusal of a string's text, in which case
+   * _retype puts the file back as it was.
+   */
+  _makeStringsIn(value: MatlabVariableNode): SourceSetResult {
+    const strings: { node: BaseNode; text: string }[] = [];
+    const stack: BaseNode[] = [...value.children];
+    while (stack.length > 0) {
+      const n = stack.pop()!;
+      if (n instanceof MatlabVariableNode && !n._isOpaque && n._scalarType === 'string') {
+        // Its text whatever its length, and not its displayValue, a summary past the display's budget.
+        const literal = n._stringLiteral();
+        if ('why' in literal) {
+          return { error: true, reason: cannotEdit(this._entryOf(value)?.name ?? value.name, n.matlabPath + ' would be a string, but ' + literal.why), invalidValue: n.displayValue, validValue: n.displayValue };
+        }
+        strings.push({ node: n, text: literal.text });
+      } else {
+        stack.push(...n.children);
+      }
+    }
+    return this._makeStrings(strings);
+  }
+
+  /**
+   * Each of `strings`, a member of a cell or a struct in this file's tree, made a string holding
+   * `text`, typed as a string's Value is typed (MatlabVariableNode._formatString's literal): the
+   * object _createObject makes, of the member's name and subscript, in its place. For a value typed
+   * in (_makeStringsIn), and for one pasted, whose strings a MAT reader's variable holds as stand-ins
+   * (matPaste.makeOne). True, or the refusal of a string's text.
+   */
+  _makeStrings(strings: readonly { node: BaseNode; text: string }[]): SourceSetResult {
+    return this._inLiveScope(() => this._makeStringsNow(strings));
+  }
+
+  // _makeStrings, in a scope of the creations found once (_inLiveScope).
+  _makeStringsNow(strings: readonly { node: BaseNode; text: string }[]): SourceSetResult {
+    if (strings.length === 0) {
+      return true;
+    }
+    const cannot = (plain: BaseNode, text: string): SourceSetResult => ({
+      error: true,
+      reason: cannotEdit(this._entryOf(plain)?.name ?? plain.name, plain.matlabPath + ' would be a string, which could not be made in this file'),
+      invalidValue: text,
+      validValue: text,
+    });
+    // Every string merged first, into one copy of the records, which become the creations' only
+    // once all of them are made: a copy for each of 2000 strings was a paste of seconds. A refusal
+    // leaves the records as they were, and its caller the file (MatNode._retype, matPaste).
+    const c = this._creationOf('string');
+    if (!c) {
+      return cannot(strings[0].node, strings[0].text);
+    }
+    const records = cloneSubsystem(c.records);
+    let session = c.session;
+    const made: MergedObject[] = [];
+    for (const { node: plain, text } of strings) {
+      const m = this._mergeInto(records, session, 'string', plain.name);
+      if (!m) {
+        return cannot(plain, text);
+      }
+      session = m.session;
+      made.push(m);
+    }
+    c.records = records;
+    this._keepCreations(made);
+    strings.forEach(({ node: plain, text }, i) => {
+      const holder = plain.parent!;
+      const string = made[i].node;
+      const at = holder.children.indexOf(plain);
+      holder.removeChild(plain);
+      holder.addChild(string, at);
+      this._liveChanged();
+      if (plain._subscript) {
+        string._subscript = plain._subscript;
+      }
+      // The container holding it, and each above it, edited whatever its text sets: a text that is
+      // the made string's own (`""`, MATLAB's default) sets nothing, and a container a paste read
+      // its stand-in into would be written as the variable it was read as, the stand-in in it.
+      (holder as DataNode)._markModified();
+    });
+    for (let i = 0; i < strings.length; i++) {
+      const set = (made[i].node as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', strings[i].text);
+      if (set !== true) {
+        return set;
+      }
+    }
+    return true;
   }
 
   /**
@@ -1800,14 +2039,21 @@ function placeString(n: BaseNode): boolean {
 // What `text`, typed in as a Value, makes: a string or another value, as an edit applies it
 // (MatlabVariableNode _applyParsed) and as _valueRefusal tells a string; or null, for text that is
 // no value at all, which the variable's own setter refuses.
-function typedKind(text: string): 'string' | 'other' | null {
-  const parsed = MatlabValueParser.parse(text);
-  if (!parsed) {
+function typedKind(text: string): 'string' | 'strings' | 'other' | null {
+  // As the variable's own setter reads it (MatlabValueParser.parseTyped), which refuses what this calls null.
+  const read = MatlabValueParser.parseTyped(text);
+  if (!read || 'why' in read) {
     return null;
   }
+  const parsed = read.parsed;
   const value = new MatlabVariableNode('', null, {});
   value._applyParsed(parsed);
-  return value._kind === 'string' || (value._kind === 'scalar' && value._scalarType === 'string') ? 'string' : 'other';
+  if (value._kind === 'string' || (value._kind === 'scalar' && value._scalarType === 'string')) {
+    return 'string';
+  }
+  // A cell holding a string at any depth.
+  const holds = (n: BaseNode): boolean => n.children.some((c) => (c as MatlabVariableNode)._scalarType === 'string' || holds(c));
+  return value._kind === 'cell' && holds(value) ? 'strings' : 'other';
 }
 
 // The ids of the object rows `after` holds past the `before` it held before a merge appended to it:

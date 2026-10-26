@@ -107,6 +107,11 @@ const MI_COMPRESSED = 15;
  * for tests, which cannot make a file a gigabyte past it.
  */
 export function serializeMatFile(matNode: MatNode, check: MatCheckOptions = {}): Uint8Array {
+  // The objects created since the read that are in the tree, found once for the whole save.
+  return matNode._inLiveScope(() => serializeMatFileNow(matNode, check));
+}
+
+function serializeMatFileNow(matNode: MatNode, check: MatCheckOptions): Uint8Array {
   const file = matNode.name;
   const unsavable = unsavableRefusal(matNode);
   if (unsavable) {
@@ -837,20 +842,29 @@ function freshElement(node: MatlabVariableNode): Uint8Array {
  * it was read as (MatlabVariableNode._var), so that variable is what is asked of it, and not its
  * rows, which _matWritable would find none of to refuse: a cell of function handles, cut, said
  * nothing, and its edit was refused by MatWriter at the save.
+ *
+ * `stringsMade`: a string a cell or a struct under `at` holds is none of these, for a value whose
+ * strings the edit makes the objects a save writes as such (MatNode._retype, _makeStringsIn).
  */
-export function unwritableIn(at: BaseNode): { path: string; what: string; why?: string } | null {
-  const found = unwritableAt(at);
+export function unwritableIn(at: BaseNode, stringsMade = false): { path: string; what: string; why?: string } | null {
+  const found = unwritableAt(at, stringsMade);
   if (found) {
     return found;
   }
   const node = valueNodeOf(at)!;
-  return writableBeside(node) ? null : { path: node.matlabPath, what: 'a value MatWriter has no variable for' };
+  return writableBeside(node, stringsMade) ? null : { path: node.matlabPath, what: 'a value MatWriter has no variable for' };
+}
+
+// A string a cell or a struct holds, which an edit making its strings makes an object of
+// (unwritableIn's `stringsMade`): not one decoded out of a file, which is opaque.
+function madeString(node: MatlabVariableNode, stringsMade: boolean): boolean {
+  return stringsMade && !node._isOpaque && node._scalarType === 'string';
 }
 
 // MatlabVariableNode._matWritable, with an MCOS object held in a cell or a struct written as the
 // element it was read as (freshElement), which only a MAT-file's save writes: so this, and not
 // that, is the rule of a variable a save writes fresh.
-function writableBeside(node: MatlabVariableNode): boolean {
+function writableBeside(node: MatlabVariableNode, stringsMade: boolean): boolean {
   if (node._isOpaque || node._undecoded || node._scalarType === 'string' || node._scalarType === 'function_handle') {
     return false;
   }
@@ -861,7 +875,7 @@ function writableBeside(node: MatlabVariableNode): boolean {
         return 'element' in object;
       }
       const value = valueNodeOf(c);
-      return !!value && writableBeside(value);
+      return !!value && (madeString(value, stringsMade) || writableBeside(value, stringsMade));
     });
   }
   return true;
@@ -910,7 +924,7 @@ export function objectElementOf(v: MatVariable, path: string): { element: Uint8A
   return { element: raw };
 }
 
-function unwritableAt(at: BaseNode): { path: string; what: string; why?: string } | null {
+function unwritableAt(at: BaseNode, stringsMade: boolean): { path: string; what: string; why?: string } | null {
   const node = valueNodeOf(at);
   if (!node) {
     return { path: at.matlabPath, what: classPhrase(String((at as DataNode).className || 'object')) };
@@ -939,7 +953,11 @@ function unwritableAt(at: BaseNode): { path: string; what: string; why?: string 
         }
         continue;
       }
-      const below = unwritableAt(child);
+      const member = valueNodeOf(child);
+      if (member && madeString(member, stringsMade)) {
+        continue;
+      }
+      const below = unwritableAt(child, stringsMade);
       if (below) {
         return below;
       }

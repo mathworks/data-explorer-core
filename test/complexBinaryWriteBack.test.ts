@@ -251,7 +251,8 @@ describe('the writers state what the value is', () => {
       `<P Name="Description" Class="char">d</P></Element></P>\n    </Object>\n</DataSource>`;
     const root: any = createSession().addDataSource('mem://complexCell', parseBinarySlddParts(xml, {}), { path: 'c.sldd' });
     const entry = root.getSection('design').children[0];
-    expect(entry.displayValue).toBe('{1+2i, [3+4i 5-6i]}');
+    // Its int16 member spelled with its class, so that the text typed back keeps it (MatlabVariableNode._classSpelled).
+    expect(entry.displayValue).toBe('{1+2i, int16([3+4i 5-6i])}');
     // As a save writes it, which for an unedited entry is its bytes, and as the writer does.
     for (const out of [serializeEntryToXml(entry), regenerateEntryXml(entry)]) {
       expect(out).not.toContain('Class="cdata"');

@@ -11,6 +11,12 @@ import { type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
 import { MatSpotVerdicts, type MatObjectState, type MatObjectsWritten, type MatSharing } from '../data/matObjectEdit.js';
 import { type PasteMade, type PasteRefused } from './matPaste.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
+type MergedObject = {
+    node: BaseNode;
+    obj: McosNewObject;
+    session: McosAppendSession;
+    rows: number[];
+};
 export default class MatNode extends ContainerNode {
     header: string;
     dirty: boolean;
@@ -69,6 +75,12 @@ export default class MatNode extends ContainerNode {
         };
     } | undefined;
     _replaced: Map<BaseNode, BaseNode>;
+    _makingStrings: BaseNode | undefined;
+    _rowAt: WeakMap<BaseNode, number>;
+    _liveMemo: {
+        live: BaseNode[];
+        size: number;
+    } | undefined;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added
@@ -120,6 +132,7 @@ export default class MatNode extends ContainerNode {
      *     which the tree did not show.
      */
     _editRefusal(entry: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
+    _editRefusalNow(entry: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
     /**
      * Whether the fields of `struct`, `entry` or a node under it, take a rename
      * (BaseNode.sourceRenamesFields): where `struct` holds fields (MatlabVariableNode._holdsFields) a
@@ -193,6 +206,7 @@ export default class MatNode extends ContainerNode {
      * taken, rather than taken and then refused by the save.
      */
     _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
+    _editValueRefusalNow(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
     /**
      * The rows of `node`'s Property Inspector this file offers in its property groups
      * (BaseNode.sourceInspectorRows), where `node` is an object's or a row under one: its Name; where
@@ -281,6 +295,7 @@ export default class MatNode extends ContainerNode {
      * (mcosObjectEdit.memberRefusal).
      */
     _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
+    _valueRefusalNow(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
     /**
      * Why `node`, a variable of this file, cannot be renamed, or null where it can: its record is not
      * one whole element whose name a save can replace (MatFileWriter.renameWhy), which only a damaged
@@ -392,6 +407,15 @@ export default class MatNode extends ContainerNode {
      * merge refuses.
      */
     _createObject(className: string, name: string): BaseNode | null;
+    _creationOf(className: string): NonNullable<MatNode['_creation']> | null;
+    /**
+     * MATLAB's default object of `className` merged into `records`, in place, after the append
+     * session `session`, and the node of the variable `name` holding it, as a file holding it shows
+     * it; its session after, and the ids of the object rows the merge appended. Null where the merge
+     * refuses or the object does not read. Kept among the creations by _keepCreations.
+     */
+    _mergeInto(records: McosSubsystemRecords, session: McosAppendSession, className: string, name: string): MergedObject | null;
+    _keepCreations(made: readonly MergedObject[]): void;
     /**
      * The properties a child row added at `node` (of `entry`) starts with (BaseNode.sourceNewChildProperties):
      * of a Bus of the file's objects, MATLAB's default Simulink.BusElement, as this package reads one
@@ -423,6 +447,16 @@ export default class MatNode extends ContainerNode {
     };
     /** The objects created in this file that are in the tree now: variables, and members of a cell or a struct (_retype). */
     _liveCreations(): BaseNode[];
+    /**
+     * `fn`, with the creations in the tree found once (_liveCreations) for as long as it runs, and
+     * again only where a creation is made or a row swapped (_liveChanged): a save, a gate, a retype or a
+     * paste, each of which asks of them for each member of each container it writes or judges
+     * (_createdElement). Asked again of each, a paste and the save of a cell of 2000 strings took
+     * seconds. Nothing that runs in one changes the tree otherwise.
+     */
+    _inLiveScope<T>(fn: () => T): T;
+    _liveChanged(): void;
+    _holds(node: BaseNode): boolean;
     _uniqueName(baseName: string): string;
     _nameTaken(): (name: string) => boolean;
     execRemoveEntry(node: BaseNode): {
@@ -449,6 +483,31 @@ export default class MatNode extends ContainerNode {
      * (_memberHolder).
      */
     _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    _retypeNow(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /**
+     * Each string `value` holds in a cell or a struct, at any depth, as a value typed in makes one
+     * (MatlabValueParser's `{1, "a"}`: a plain `string` row, which no MAT-file writer writes), made
+     * the object a member typed as a string is (_retype): MATLAB's default string merged into the
+     * file's subsystem (_createObject), of the member's name, in its place, set to its text. A string
+     * array is one object, as MATLAB saves one. True, or the refusal of a string's text, in which case
+     * _retype puts the file back as it was.
+     */
+    _makeStringsIn(value: MatlabVariableNode): SourceSetResult;
+    /**
+     * Each of `strings`, a member of a cell or a struct in this file's tree, made a string holding
+     * `text`, typed as a string's Value is typed (MatlabVariableNode._formatString's literal): the
+     * object _createObject makes, of the member's name and subscript, in its place. For a value typed
+     * in (_makeStringsIn), and for one pasted, whose strings a MAT reader's variable holds as stand-ins
+     * (matPaste.makeOne). True, or the refusal of a string's text.
+     */
+    _makeStrings(strings: readonly {
+        node: BaseNode;
+        text: string;
+    }[]): SourceSetResult;
+    _makeStringsNow(strings: readonly {
+        node: BaseNode;
+        text: string;
+    }[]): SourceSetResult;
     /**
      * The cell or the struct that holds `node`, a member of `entry` at any depth, where a save writes
      * it fresh with a member of another kind in `node`'s place (_retype): a plain container, and each
@@ -490,4 +549,5 @@ export default class MatNode extends ContainerNode {
  * (MatNode.getAllowedTypes, which a host's Add gallery is to read, per file).
  */
 export declare const MAT_CREATABLE_CLASSES: readonly string[];
+export {};
 //# sourceMappingURL=MatNode.d.ts.map

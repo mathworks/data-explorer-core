@@ -93,6 +93,10 @@ export function cheapRefusal(mat, payload) {
  * as it was, and the refusal says which entry and why.
  */
 export function pasteInto(mat, payloads) {
+    // The objects created in the tree found once for the paste, again after each made (MatNode._inLiveScope).
+    return mat._inLiveScope(() => pasteIntoNow(mat, payloads));
+}
+function pasteIntoNow(mat, payloads) {
     const state = fileState(mat);
     const before = new Set(mat.children);
     const made = [];
@@ -222,11 +226,15 @@ function makeOne(mat, payload) {
     }
     const kind = classOf(p.value);
     if (kind.kind === 'plain') {
-        const built = plainVariableIn(mat, source, unique);
+        const strings = new Map();
+        const built = plainVariableIn(mat, source, unique, strings);
         if (typeof built === 'string') {
             return refuse(cannotPaste(mat, name, built));
         }
-        return mat._attachNew(built);
+        if (strings.size === 0) {
+            return mat._attachNew(built);
+        }
+        return withStringsMade(mat, built, strings, (why) => refuse(cannotPaste(mat, name, why)));
     }
     // A string or an object: cheapRefusal refused every other kind.
     const carried = carryObject(mat, source, madeClassOf(kind), unique);
@@ -234,9 +242,12 @@ function makeOne(mat, payload) {
 }
 // The node of the plain value `source` (a node of a dictionary's reader, of the copied value) as a
 // variable `name` of `mat`, unattached, or why none is written: what the value holds that a save of
-// a MAT-file cannot write fresh, said by the save's own rule (MatFileWriter.freshWriteRefusal).
-function plainVariableIn(mat, source, name) {
-    const variable = matVariableOfNode(source, name);
+// a MAT-file cannot write fresh, said by the save's own rule (MatFileWriter.freshWriteRefusal). With
+// `strings`, a string a cell or a struct of it holds is a stand-in char, its text kept there by its
+// variable, for withStringsMade to make the object it is once the variable is in the file. In a file
+// that makes no string (MatNode._classRefusal), such a string is refused, and no stand-in made.
+function plainVariableIn(mat, source, name, strings) {
+    const variable = matVariableOfNode(source, name, mat._classRefusal('string') ? undefined : strings);
     if ('why' in variable) {
         return variable.why;
     }
@@ -255,6 +266,56 @@ function plainVariableIn(mat, source, name) {
     return refused ? writerWhy(refused) : node;
 }
 /**
+ * `built`, a plain variable a paste makes whose cells and structs hold `strings` (plainVariableIn's
+ * stand-ins, by their variables), put in `mat` and each stand-in made the string it stands for, as
+ * the strings of a value typed in are (MatNode._makeStrings); then held to the save's own rule, the
+ * strings now the objects a save writes. What takes it out and back, or the refusal `refuse` makes
+ * of why not, which the paste's taking back undoes (pasteInto).
+ */
+function withStringsMade(mat, built, strings, refuse) {
+    const attached = mat._attachNew(built);
+    const standIns = [];
+    const stack = [built];
+    while (stack.length > 0) {
+        const n = stack.pop();
+        const text = n instanceof MatlabVariableNode && n._matVar ? strings.get(n._matVar) : undefined;
+        if (text !== undefined) {
+            standIns.push({ node: n, text });
+        }
+        else {
+            stack.push(...n.children);
+        }
+    }
+    if (standIns.length !== strings.size) {
+        return refuse('its strings could not be found in the variable made of it');
+    }
+    // A variable a paste makes is new, whatever the making of its strings marks it.
+    const status = built.status;
+    const set = mat._makeStrings(standIns);
+    built.status = status;
+    if (set !== true) {
+        return refuse(set.reason.replace(/^Cannot edit "[^"]*": /, '').replace(/\.$/, ''));
+    }
+    // None of the stand-ins is in the variable a save writes of it now: each is the string it stood for.
+    if (holdsAny(built._var, strings)) {
+        return refuse('its strings could not be made in the variable written of it');
+    }
+    const refused = freshWriteRefusal(built, mat.headerBytes);
+    return refused ? refuse(writerWhy(refused)) : attached;
+}
+// Whether `v` is, or holds at any depth, one of `variables`.
+function holdsAny(v, variables) {
+    if (!v) {
+        return false;
+    }
+    if (variables.has(v)) {
+        return true;
+    }
+    const members = Array.isArray(v.value) && v.className === 'cell' ? v.value : [];
+    const fields = v.fields ? Object.values(v.fields).flatMap((f) => (Array.isArray(f) ? f : [f])) : [];
+    return [...members, ...fields].some((m) => holdsAny(m, variables));
+}
+/**
  * The variable the MAT reader would hand over for `node`, a node of a plain MATLAB value as any
  * reader of this package makes one (a dictionary's StructNode, a MatlabVariableNode, a ConstantNode),
  * named `name`; or why there is none, as a clause naming what stands in the way by its MATLAB path.
@@ -265,12 +326,12 @@ function plainVariableIn(mat, source, name) {
  * string at any depth (a MAT-file holds one only as an object), a function handle, a value the reader
  * did not decode.
  */
-export function matVariableOfNode(node, name) {
-    return variableOf(node, name, name);
+export function matVariableOfNode(node, name, strings) {
+    return variableOf(node, name, name, strings);
 }
-function variableOf(node, name, path) {
+function variableOf(node, name, path, strings) {
     if (node instanceof StructNode) {
-        return structVariableOf(node, name, path);
+        return structVariableOf(node, name, path, strings);
     }
     if (!(node instanceof MatlabVariableNode)) {
         const cls = String(node.className || 'object');
@@ -287,8 +348,20 @@ function variableOf(node, name, path) {
     }
     if (node._kind === 'string' || node._scalarType === 'string') {
         // A string at the top is made as an object (carryObject), of what a dictionary spells one as;
-        // one that reaches here is held in another form, a binary dictionary's MAT stream.
+        // one that reaches here is held in another form, a binary dictionary's MAT stream. One a cell or
+        // a struct holds is a stand-in, with its text, where the string is to be made (withStringsMade).
         const top = heldAt(path) === 'it is ';
+        if (strings && !top) {
+            // Its text whatever its length (_stringLiteral); one no text spells (an empty or N-D array,
+            // <missing>) is refused, saying which.
+            const literal = node._stringLiteral();
+            if ('why' in literal) {
+                return { why: heldAt(path) + 'a string, which a paste makes anew of its text, and ' + literal.why };
+            }
+            const standIn = { name, className: 'char', dimensions: [1, 1], isComplex: false, isLogical: false, value: ' ', fields: null };
+            strings.set(standIn, literal.text);
+            return standIn;
+        }
         return {
             why: heldAt(path) + 'a string, which a MAT-file holds only as an object, and '
                 + (top ? 'this package makes a new one only of the text a dictionary spells a string in' : 'a paste writes no new object inside a struct or a cell'),
@@ -297,7 +370,7 @@ function variableOf(node, name, path) {
     if (node._kind === 'cell') {
         const members = [];
         for (let i = 0; i < node.children.length; i++) {
-            const member = variableOf(node.children[i], '', path + '{' + (i + 1) + '}');
+            const member = variableOf(node.children[i], '', path + '{' + (i + 1) + '}', strings);
             if ('why' in member) {
                 return member;
             }
@@ -306,7 +379,7 @@ function variableOf(node, name, path) {
         return { name, className: 'cell', dimensions: node._dims.slice(), isComplex: false, isLogical: false, value: members, fields: null };
     }
     if (node._scalarType === 'struct' && !node._unexpandedStruct()) {
-        return matlabStructVariableOf(node, name, path);
+        return matlabStructVariableOf(node, name, path, strings);
     }
     const v = node._var;
     if (v._unwritable) {
@@ -326,7 +399,7 @@ const PLAIN_CLASSES = new Set([
 // A MatlabVariableNode's struct, built of its members as MatlabVariableNode._buildVarObject builds
 // it of their variables: one element's fields its rows; an array's, the rows of its element rows,
 // every field any element holds, `[]` where one lacks it; one of no element, the fields it declares.
-function matlabStructVariableOf(node, name, path) {
+function matlabStructVariableOf(node, name, path, strings) {
     const count = elementCount(node._dims);
     const fields = {};
     if (count > 1) {
@@ -342,7 +415,7 @@ function matlabStructVariableOf(node, name, path) {
             const held = [];
             for (let e = 0; e < node.children.length; e++) {
                 const f = node.children[e].children.find((c) => c.name === field);
-                const member = f ? variableOf(f, field, path + '(' + (e + 1) + ').' + field) : emptyDouble();
+                const member = f ? variableOf(f, field, path + '(' + (e + 1) + ').' + field, strings) : emptyDouble();
                 if ('why' in member) {
                     return member;
                 }
@@ -358,7 +431,7 @@ function matlabStructVariableOf(node, name, path) {
             }
         }
         for (const child of node.children) {
-            const member = variableOf(child, child.name, path + '.' + child.name);
+            const member = variableOf(child, child.name, path + '.' + child.name, strings);
             if ('why' in member) {
                 return member;
             }
@@ -369,7 +442,7 @@ function matlabStructVariableOf(node, name, path) {
 }
 // A dictionary's struct (StructNode): one element's fields its rows, an array's the rows of each
 // element row, and the fields it declares (`_fields`), which is all a struct of no element holds.
-function structVariableOf(node, name, path) {
+function structVariableOf(node, name, path, strings) {
     const dims = node.dims;
     const count = elementCount(dims);
     const declared = node.serial._fields ?? [];
@@ -387,7 +460,7 @@ function structVariableOf(node, name, path) {
         const held = [];
         for (let e = 0; e < (count === 0 ? 0 : elements.length); e++) {
             const f = elements[e].children.find((c) => c.name === field);
-            const member = f ? variableOf(f, field, path + (count > 1 ? '(' + (e + 1) + ')' : '') + '.' + field) : emptyDouble();
+            const member = f ? variableOf(f, field, path + (count > 1 ? '(' + (e + 1) + ')' : '') + '.' + field, strings) : emptyDouble();
             if ('why' in member) {
                 return member;
             }
