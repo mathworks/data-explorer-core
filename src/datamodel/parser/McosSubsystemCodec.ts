@@ -1695,6 +1695,28 @@ export function objectReferenceElement(name: string, className: string, d: McosD
   return matrixElement([flagsElement(MX_OPAQUE), textElement(name), textElement('MCOS'), textElement(className), descriptorCell(d)]);
 }
 
+/**
+ * The class-17 element of an enumeration value of class `className` that a struct field or a cell
+ * holds (name ''), made of `element`, the one it was read as; or null where that is not one. Its
+ * fourth part is no handle but MATLAB's instance struct, EnumerationInstanceTag its first field
+ * (MatParser.enumerationInstanceOf), which names the class by row and each enumeral by its string
+ * and its object, all of the subsystem, which no edit here renumbers (APPEND ONLY): so the struct
+ * is kept as it was read, and the rest restated as objectReferenceElement writes it.
+ */
+export function enumerationReferenceElement(className: string, element: Uint8Array): Uint8Array | null {
+  const view = new DataView(element.buffer, element.byteOffset, element.byteLength);
+  const layer = layerAt(view, 0, element.length);
+  if (!layer || layer.end !== element.length || classOf(view, layer) !== MX_OPAQUE || layer.subs.length !== 5) {
+    return null;
+  }
+  const held = layer.subs[4];
+  const instance = element.subarray(held.at, held.end);
+  if (held.type !== MI_MATRIX || structFieldNames(instance)?.[0] !== 'EnumerationInstanceTag') {
+    return null;
+  }
+  return matrixElement([flagsElement(MX_OPAQUE), textElement(''), textElement('MCOS'), textElement(className), instance]);
+}
+
 const MISSING_TEXT = 0xffffffffffffffffn;
 
 /**

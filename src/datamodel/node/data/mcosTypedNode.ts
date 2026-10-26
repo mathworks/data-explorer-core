@@ -6,7 +6,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots, type McosDecodeIssue } from '../../parser/McosParser.js';
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
-import { setMcosPlace } from '../mcosPlace.js';
+import { setMcosEnumeration, setMcosPlace } from '../mcosPlace.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import { shortArrayMessage, type MatVariable } from '../../parser/MatParser.js';
@@ -401,7 +401,11 @@ export function modelOpaqueMcosVariable(
   }
   // An enumeration value is the node a binary dictionary's is: its bag is that reader's.
   if (decoded?.enumeration) {
-    return NodeRegistry.parseValue(decoded.enumeration, name, parent);
+    const node = NodeRegistry.parseValue(decoded.enumeration, name, parent);
+    if (node) {
+      setMcosEnumeration(node, variable);
+    }
+    return node;
   }
   if (!decoded && mcosRefused(variable)) {
     return null;

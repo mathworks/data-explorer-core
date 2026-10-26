@@ -31,3 +31,20 @@ export function setMcosPlace(node: object, variable: MatVariable, index: number)
 export function mcosPlaceOf(node: object): McosPlace | undefined {
   return placeByNode.get(node);
 }
+
+// Which enumeration value of the file a node was built of (mcosTypedNode.modelOpaqueMcosVariable):
+// the opaque variable whose class-17 element holds it in place of the handle every other object
+// has. Not a place: an enumeration value is no object of the subsystem whose properties an edit
+// writes, which a placed node is (mcosObjectEdit.objectNodeAt). Read by a MAT-file's save, which
+// writes it as the element it was read as beside the plain members of a struct or a cell it
+// writes fresh (MatlabVariableNode._objectMemberOf).
+const enumerationByNode = new WeakMap<object, MatVariable>();
+
+export function setMcosEnumeration(node: object, variable: MatVariable): void {
+  enumerationByNode.set(node, variable);
+}
+
+/** The variable of the enumeration value `node` was built of, or undefined for a node built of none. */
+export function mcosEnumerationOf(node: object): MatVariable | undefined {
+  return enumerationByNode.get(node);
+}

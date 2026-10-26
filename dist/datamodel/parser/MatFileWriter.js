@@ -82,7 +82,7 @@ import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatStre
 import { checkMatElement, violationsAddedBySplice } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
 import { cellValueAt, readMcosSubsystem } from './McosSubsystemEdit.js';
-import { objectReferenceElement, readDescriptor, verifySubsystem } from './McosSubsystemCodec.js';
+import { enumerationReferenceElement, objectReferenceElement, readDescriptor, verifySubsystem, } from './McosSubsystemCodec.js';
 import { elementValue } from './McosObjectWrite.js';
 import { validateMatlabName } from '../matlabName.js';
 const MI_MATRIX = 14;
@@ -813,19 +813,31 @@ function holdsObjects(v) {
  * repo's fixtures, 79 of 79 over 60 files, each is so, MATLAB's element byte for byte; and one
  * that is not is not passed through, rather than written as bytes this package cannot say name
  * the objects they named.
+ *
+ * An enumeration value holds no handle: its element is passed through where it is the one this
+ * package writes for it (McosSubsystemCodec.enumerationReferenceElement), the instance struct it
+ * holds in a handle's place as read, which names its class, enumerals and their objects in the
+ * subsystem; measured on every enumeration value the fixtures hold in a struct field or a cell,
+ * each is so.
  */
 export function objectElementOf(v, path) {
     const handle = v.mcosHandle;
     const named = path ? path + ' holds an object ' : 'an object ';
-    if (!handle) {
-        return { why: named + 'whose handle this package could not read, so a save could not write it as it is' };
-    }
+    const notOurs = named + 'whose element is not one this package writes back as it was read, so a save could not write it as it is';
     const raw = v._objectElement ?? v._rawBytes ?? opaqueElementOf(v);
+    if (!handle) {
+        // An enumeration value, which holds its instance struct in a handle's place.
+        const enumeration = raw ? enumerationReferenceElement(v.className, raw) : null;
+        if (!raw || !enumeration) {
+            return { why: named + 'whose handle this package could not read, so a save could not write it as it is' };
+        }
+        return sameBytes(enumeration, raw) ? { element: raw } : { why: notOurs };
+    }
     const d = raw ? readDescriptor(raw) : null;
     const same = !!d && d.dims.join(',') === handle.dims.join(',') && d.ids.join(',') === handle.ids.join(',');
     const ours = same ? objectReferenceElement('', v.className, d) : null;
     if (!raw || !ours || !sameBytes(ours, raw)) {
-        return { why: named + 'whose element is not one this package writes back as it was read, so a save could not write it as it is' };
+        return { why: notOurs };
     }
     return { element: raw };
 }

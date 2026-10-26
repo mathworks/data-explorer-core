@@ -5,7 +5,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
-import { setMcosPlace } from '../mcosPlace.js';
+import { setMcosEnumeration, setMcosPlace } from '../mcosPlace.js';
 import { shortArrayMessage } from '../../parser/MatParser.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 import { unbackedColumns } from '../../parser/SparseData.js';
@@ -346,7 +346,11 @@ name = variable.name) {
     }
     // An enumeration value is the node a binary dictionary's is: its bag is that reader's.
     if (decoded?.enumeration) {
-        return NodeRegistry.parseValue(decoded.enumeration, name, parent);
+        const node = NodeRegistry.parseValue(decoded.enumeration, name, parent);
+        if (node) {
+            setMcosEnumeration(node, variable);
+        }
+        return node;
     }
     if (!decoded && mcosRefused(variable)) {
         return null;
