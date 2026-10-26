@@ -173,20 +173,77 @@ export default class DataNode extends BaseNode {
      * object could be written for, and there is no property to write.
      */
     _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null;
+    /**
+     * Sets `propName` from the text `stringValue`, where this node's row offers an editor of it, by its
+     * class's setter (_setProperty); else refused, before anything changes (_offerRefusal). The setter
+     * every host calls, a dictionary's editor among them, as the session's editProperty does.
+     */
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
+     * Whether this node's row offers an editor of `propName`, as the table and the Property Inspector
+     * show it (getPropInfo, which both read): its Name and Value cells as toRow makes them (the Name
+     * cell's `editable`, `_valueEditable`), its Description as `_descriptionEditable` says, and any
+     * other key as a column or a Property Inspector row of it is shown editable.
+     */
+    _offers(propName: string): boolean;
+    _columnOf(propName: string): string;
+    _rowsShowing(propName: string): PropClass[];
+    _showsEditable(propName: string): boolean;
+    /**
+     * The refusal of an edit of `propName` this node's row offers no editor of (_offers), or null where
+     * it offers one: asked by setProperty before any class's setter, in every format, and by the
+     * session's editProperty before it asks the source to put a value of another kind in the node's
+     * place. So that what the API takes is what the row offers, and nothing else: a MAT-file's struct
+     * took a number typed over it, and an element of a struct array one its save wrote as fields named
+     * '1' and '2', or emptied; a bus took a Value its save then refused; a dictionary's N-D array, its
+     * sparse matrix, Signal, Bus and NumericType took a Value and wrote nothing (S9 of the 2026-10-26
+     * edit bash). Said as the setter would say it where it has words of its own: an encoded value, a
+     * Description the object has none of, or one its source would not write (_refuseEncodedEdit); an
+     * object held beside its class (_refuseInlineBagEdit); the source's reason for offering no editor
+     * now (sourceUnofferedRefusal); the class's own of a Value (_unofferedValueRefusal), and a schema's
+     * of its property (schemaEditRefusal: an Alignment under StorageClass 'Auto'). Else a Value as
+     * session.valueEditRefusal says why its cell takes no editor, `Cannot edit the Value of "<row>":
+     * <why>.` (editRefusal.valueTakesNoEditWhy), and another key as the row shows it: `Cannot edit
+     * "<entry>": the <Property> of <path> is read-only here.`
+     */
+    _offerRefusal(propName: string, stringValue: string): SetPropertyResult | null;
+    _valueNotOfferedRefusal(stringValue: string): SetPropertyResult;
+    /**
+     * Its class's own refusal of a Value its row offers no editor of, in its words, or null where it has
+     * none to say (_offerRefusal says it then as the row shows it): here, of a struct row of an
+     * object's Value, the words of the file's own gate (MatNode._editValueRefusal).
+     */
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult | null;
+    _noValueRefusal(stringValue: string): SetPropertyResult;
+    _nameNotEditedRefusal(stringValue: string): SetPropertyResult;
+    _descriptionNotWrittenRefusal(stringValue: string): SetPropertyResult;
+    /**
+     * The setter proper of `propName`, of this class: what setProperty asks once the row offers an
+     * editor of it (_offerRefusal). Called directly only where the edit is no user's of the row: an
+     * undo's or a redo's, a holder setting its value's node or a twin of it, a source setting the node
+     * it put in another's place.
+     */
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /**
      * The refusal of an edit of `propName` in a dictionary that no row of this node takes an edit of,
-     * or null: a key that is no column or Property Inspector row of it, or one that is shown read-only
-     * (getPropInfo, what the table and the Property Inspector both read). The tail of setProperty
-     * wrote any key as a field of the node and answered as if the edit were taken: a Simulink.Parameter
-     * took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of 'notAType!' and a
-     * `Unit`, both shown as labels, which it wrote, and `dataType` threw. Said as a MAT-file's save
-     * says it, `<path>.<Property> ...`, where the class has a reason of its own (_coWrittenWhy). The
-     * keys a setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an
-     * edit inside a MAT stream holding objects, whose own gate answered for every key already
-     * (BaseNode.sourceEditRefusal, mcosStream): it writes a Unit and a Signal's DataType.
+     * or null, asked by the tail of the setter as setProperty asks _offerRefusal of every key: here for
+     * a setter called directly (_setProperty), of a key that is no column or Property Inspector row of
+     * it, or one that is shown read-only (getPropInfo, what the table and the Property Inspector both
+     * read). The tail wrote any key as a field of the node and answered as if the edit were taken: a
+     * Simulink.Parameter took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of
+     * 'notAType!' and a `Unit`, both shown as labels, which it wrote, and `dataType` threw. The keys a
+     * setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an edit
+     * inside a MAT stream holding objects, whose own gate answered for every key already
+     * (BaseNode.sourceEditRefusal, mcosStream).
      */
     _unofferedKeyRefusal(propName: string, stringValue: string): SetPropertyResult | null;
+    /**
+     * The refusal of an edit of `propName`, a key no row of this node takes an edit of (_offerRefusal,
+     * _unofferedKeyRefusal). Said as a MAT-file's save says it, `<path>.<Property> ...`, where the class
+     * has a reason of its own (_coWrittenWhy); else of the row that shows it read-only, and of a key no
+     * row shows, that this editor writes no such property.
+     */
+    _keyNotOfferedRefusal(propName: string, stringValue: string): SetPropertyResult;
     /**
      * A property of this node's class that MATLAB keeps as its Value's and refuses set on its own,
      * named as MATLAB names it, with why, where `propName` names one in any case; or null. None but

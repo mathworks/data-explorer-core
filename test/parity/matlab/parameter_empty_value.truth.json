@@ -1,0 +1,391 @@
+{
+  "release": "(R2027a)",
+  "cases": [
+    {
+      "from": "[1+2i 3-4i]",
+      "to": "[]",
+      "dimensionsBefore": [
+        1,
+        2
+      ],
+      "dimensions": [
+        1,
+        2
+      ],
+      "complexityBefore": "complex",
+      "complexity": "complex"
+    },
+    {
+      "from": "[1+2i 3-4i]",
+      "to": "zeros(0,3)",
+      "dimensionsBefore": [
+        1,
+        2
+      ],
+      "dimensions": [
+        1,
+        2
+      ],
+      "complexityBefore": "complex",
+      "complexity": "complex"
+    },
+    {
+      "from": "[1+2i 3-4i]",
+      "to": "7",
+      "dimensionsBefore": [
+        1,
+        2
+      ],
+      "dimensions": [
+        1,
+        1
+      ],
+      "complexityBefore": "complex",
+      "complexity": "real"
+    },
+    {
+      "from": "5",
+      "to": "zeros(0,3)",
+      "dimensionsBefore": [
+        1,
+        1
+      ],
+      "dimensions": [
+        1,
+        1
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "5",
+      "to": "[]",
+      "dimensionsBefore": [
+        1,
+        1
+      ],
+      "dimensions": [
+        1,
+        1
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "[1 2 3]",
+      "to": "zeros(1,0)",
+      "dimensionsBefore": [
+        1,
+        3
+      ],
+      "dimensions": [
+        1,
+        3
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "zeros(0,3)",
+      "to": "[1 2]",
+      "dimensionsBefore": [
+        0,
+        3
+      ],
+      "dimensions": [
+        1,
+        2
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "[1+2i 3-4i]",
+      "to": "single([])",
+      "dimensionsBefore": [
+        1,
+        2
+      ],
+      "dimensions": [
+        1,
+        2
+      ],
+      "complexityBefore": "complex",
+      "complexity": "complex"
+    },
+    {
+      "from": "zeros(0,3)",
+      "to": "zeros(2,0)",
+      "dimensionsBefore": [
+        0,
+        3
+      ],
+      "dimensions": [
+        2,
+        0
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "zeros(1,0)",
+      "to": "[]",
+      "dimensionsBefore": [
+        1,
+        0
+      ],
+      "dimensions": [
+        0,
+        0
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "complex(zeros(0,3))",
+      "to": "[]",
+      "dimensionsBefore": [
+        0,
+        3
+      ],
+      "dimensions": [
+        0,
+        0
+      ],
+      "complexityBefore": "real",
+      "complexity": "real"
+    },
+    {
+      "from": "[1+2i 3-4i]",
+      "to": "false(1,0)",
+      "dimensionsBefore": [
+        1,
+        2
+      ],
+      "dimensions": [
+        1,
+        2
+      ],
+      "complexityBefore": "complex",
+      "complexity": "complex"
+    }
+  ],
+  "chains": [
+    {
+      "steps": [
+        "5",
+        "zeros(0,3)",
+        "[]"
+      ],
+      "reloaded": false,
+      "dimensions": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "5",
+        "zeros(0,3)",
+        "[]"
+      ],
+      "reloaded": true,
+      "dimensions": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "5",
+        "zeros(0,3)",
+        "zeros(2,0)"
+      ],
+      "reloaded": false,
+      "dimensions": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "5",
+        "zeros(0,3)",
+        "zeros(2,0)"
+      ],
+      "reloaded": true,
+      "dimensions": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "[1 2 3]",
+        "zeros(1,0)",
+        "[]"
+      ],
+      "reloaded": false,
+      "dimensions": [
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "[1 2 3]",
+        "zeros(1,0)",
+        "[]"
+      ],
+      "reloaded": true,
+      "dimensions": [
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "zeros(0,3)",
+        "[]",
+        "zeros(2,0)"
+      ],
+      "reloaded": false,
+      "dimensions": [
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    },
+    {
+      "steps": [
+        "zeros(0,3)",
+        "[]",
+        "zeros(2,0)"
+      ],
+      "reloaded": true,
+      "dimensions": [
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "complexity": [
+        "real",
+        "real",
+        "real"
+      ]
+    }
+  ]
+}

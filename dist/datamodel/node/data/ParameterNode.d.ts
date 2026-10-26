@@ -19,6 +19,7 @@ export default class ParameterNode extends DataNode {
     get dataType(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult | null;
     _editText(): string | null;
     _editTextWhy(): string | null;
     get descriptionEditable(): boolean;
@@ -48,14 +49,19 @@ export default class ParameterNode extends DataNode {
         dims: number[];
         complexity: string | null;
     } | null;
+    _emptyOverEmptyShape(sp: Record<string, unknown>): {
+        dims: number[];
+        complexity: string | null;
+    } | null;
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _coWrittenWhy(propName: string): {
         property: string;
         why: string;
     } | null;
     _refuseValueForSource(stringValue: string): SetPropertyResult | null;
+    _refuseValueForText(stringValue: string): SetPropertyResult | null;
     _refuseValueForStream(stringValue: string): SetPropertyResult | null;
     _valueMadeBy(stringValue: string): BaseNode | null;
     _restorerFor(propName: string): (() => void) | null;

@@ -35,9 +35,9 @@ export class FunctionElementNode extends BaseBusElementNode {
     // a host that rewrites the owning entry writes both fields. A Prototype in which the
     // function cannot be found unambiguously refuses the rename and changes neither field, so
     // a Name the Prototype contradicts is never written.
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         if (this._resolveProperty(propName) !== 'name' || stringValue === this.name) {
-            return super.setProperty(propName, stringValue);
+            return super._setProperty(propName, stringValue);
         }
         if (renamedPrototype(this.Prototype, this.name, stringValue) === null) {
             return {
@@ -49,7 +49,7 @@ export class FunctionElementNode extends BaseBusElementNode {
         }
         // The usual name checks (identifier, sibling uniqueness) still decide; the
         // Prototype moves only when the Name did (_rename).
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
     }
     // The rename itself (DataNode._rename), the function its Prototype declares renamed with it,
     // and the catalog told: what a rename the setter took makes, and its undo and redo too.

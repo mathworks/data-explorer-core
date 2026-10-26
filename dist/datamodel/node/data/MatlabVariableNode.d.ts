@@ -158,6 +158,14 @@ export default class MatlabVariableNode extends DataNode {
     _formatArray(): string;
     _formatEmptyArray(): string;
     /**
+     * This value, a numeric or logical empty of another class than double or another size than 0x0,
+     * as a binary dictionary's reader holds one (BinarySlddParser.emptyOf), which the dictionaries'
+     * writers spell as the empty it is; null for any other. Its JSON value (serializeValue) is `[]`,
+     * a 0x0 double, which a Simulink.Parameter's Value of it was written as
+     * (ParameterNode._getSerializedProperties).
+     */
+    _emptyHeader(): Record<string, unknown> | null;
+    /**
      * `asMeasured`: the text the length guard measures (_guardText), not the one shown.
      * `summarized`: a MAT-file's strings in it spelled by their summaries (_cellLiteralElement).
      */
@@ -243,7 +251,15 @@ export default class MatlabVariableNode extends DataNode {
         items: (typeof PropKind)[];
     }[];
     _ofMcosString(): boolean;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /**
+     * Why its Value takes none of the edits valueEditable withholds an editor of, where it says why
+     * (DataNode._offerRefusal), as its setter refuses them too for a caller that sets it directly: a
+     * value read from a MAT stream that is shown and not edited, a function handle, and a cell whose
+     * literal is not its value, whose text set back, recorded for an undo, read `<1x3 sparse double>`
+     * back as three char cells.
+     */
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult | null;
     /**
      * For DataModel.editProperty: what puts this value back exactly as it is now, for the
      * undo of an edit of `propName` about to be made — or null, where the text the property
@@ -363,6 +379,16 @@ export default class MatlabVariableNode extends DataNode {
      */
     _refuseStreamWrite(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
     _heldStreamRefusal(): MatWriteError | null;
+    /**
+     * A numeric, logical or char empty of another size than 0x0 that this value is, or holds in a
+     * cell or a struct at any depth, the first found, where a text dictionary would hold it as JSON;
+     * or null. MATLAB R2027a's own text dictionary reads each back as a 0x0 one of its class (a 0x3
+     * double, a 1x0 int8, a 1x0 logical, a 1x0 char: E4 of the 2026-10-26 edit bash), and core's save
+     * read back so too; a cell and a string array of any empty size it holds as they are, as it does
+     * a value held as a MAT stream (textDictionaryForm). Asked of a value typed in
+     * (SectionNode._valueRefusal: the D15 ruling).
+     */
+    _textDictionaryLostEmpty(): MatlabVariableNode | null;
     /**
      * Why an Add (`op` 'add') or a Remove ('remove') of an element is not made of this value, at or
      * under one read from a text dictionary's MAT stream that takes edits (_openStream), or null: the

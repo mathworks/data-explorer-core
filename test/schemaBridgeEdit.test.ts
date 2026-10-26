@@ -109,14 +109,15 @@ describe('trySetSchemaProperty — validating and writing', () => {
   it('reports a refusal when the write target is absent, rather than reporting success', () => {
     // writeSourcePath cannot create the intermediate CoderInfo bag, so an entry
     // parsed without one has nowhere to put StorageClass. Returning true here
-    // would show the new value in the UI while the file kept the old one.
+    // would show the new value in the UI while the file kept the old one. Said as the
+    // gate of what the row offers says it, which shows the cell read-only (schemaEditRefusal).
     const node = fakeNode({ Value: 1 });
     const result = trySet(node, 'storageClass', 'ExportedGlobal');
     expect(result).toEqual({
       error: true,
-      reason: 'Cannot set Storage Class (target property is absent)',
+      reason: expect.stringMatching(/ holds no CoderInfo for its Storage Class, and this editor makes none\.$/),
       invalidValue: 'ExportedGlobal',
-      validValue: '',
+      validValue: 'Auto',
     });
     expect(node.modified).toBe(0);
   });

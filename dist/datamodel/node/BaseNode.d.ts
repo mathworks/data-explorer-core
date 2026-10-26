@@ -270,6 +270,14 @@ export type SourceSetResult = true | {
  */
 export declare function sourceSetOffered(node: BaseNode, key: string, text: string): SourceSetResult | null;
 /**
+ * Why the source `node` is in offers no editor of `key` at `node` now, a property it offers one of in
+ * another state (sourceOfferedEditor), in its words, or null: a dictionary's Parameter's DataType
+ * over a Value of another class than double, say (a MAT-file says it as sourceEditRefusal). Asked
+ * of a row that offers no editor of `key` (DataNode._offerRefusal), as the source's setter refuses
+ * the edit.
+ */
+export declare function sourceUnofferedRefusal(node: BaseNode, key: string): string | null;
+/**
  * What puts `key` of `node` back as it stands now, where its source made the edit
  * (sourceSetOffered) and so keeps what it changed with it, or null: what an undo of such an edit
  * runs (DataModel.editProperty), as a node's own restorer is.

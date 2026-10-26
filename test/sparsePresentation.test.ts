@@ -243,9 +243,10 @@ describe('a sparse array typed over with a full value forgets where its rows wer
   it('its element rows are its elements again, and an edit lands on the one it names', () => {
     // A whole value typed in is the full array MATLAB makes of the literal, whose rows are
     // every element. A sparse array's rows are its non-zeros (_sparse); left set, the first
-    // row's edit went to the first NON-ZERO.
+    // row's edit went to the first NON-ZERO. Typed by its setter (_setProperty): its row shows its
+    // summary and offers no editor of it (DataNode._offerRefusal).
     const node = open([sparseVar({ name: 'r', dimensions: [1, 5], ir: [0, 0], jc: [0, 0, 1, 1, 2, 2], real: [2, 4] })]).children[0];
-    expect(node.setProperty('Value', '[1 2 3]')).toBe(true);
+    expect(node._setProperty('Value', '[1 2 3]')).toBe(true);
     expect([node.isSparse, rows(node)]).toEqual([false, [['r(1)', '1'], ['r(2)', '2'], ['r(3)', '3']]]);
     expect(node.children[0].setProperty('Value', '9')).toBe(true);
     // `_elements` is the copy that outlives the rows: a removal collapses the array to

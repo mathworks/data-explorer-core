@@ -1,0 +1,257 @@
+{
+  "release": "(R2027a)",
+  "cases": [
+    {
+      "text": "zeros(0,3)",
+      "typedClass": "double",
+      "typedSize": [
+        0,
+        3
+      ],
+      "class": "double",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "double",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "zeros(1,0)",
+      "typedClass": "double",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "double",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "double",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "zeros(1,0,'int8')",
+      "typedClass": "int8",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "int8",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "int8",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "zeros(0,3,'single')",
+      "typedClass": "single",
+      "typedSize": [
+        0,
+        3
+      ],
+      "class": "single",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "single",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "false(1,0)",
+      "typedClass": "logical",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "logical",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "logical",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "char(zeros(1,0))",
+      "typedClass": "char",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "char",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "char",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "cell(1,0)",
+      "typedClass": "cell",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "cell",
+      "size": [
+        1,
+        0
+      ],
+      "inCellClass": "cell",
+      "inCellSize": [
+        1,
+        0
+      ]
+    },
+    {
+      "text": "cell(0,3)",
+      "typedClass": "cell",
+      "typedSize": [
+        0,
+        3
+      ],
+      "class": "cell",
+      "size": [
+        0,
+        3
+      ],
+      "inCellClass": "cell",
+      "inCellSize": [
+        0,
+        3
+      ]
+    },
+    {
+      "text": "strings(0,3)",
+      "typedClass": "string",
+      "typedSize": [
+        0,
+        3
+      ],
+      "class": "string",
+      "size": [
+        0,
+        3
+      ],
+      "inCellClass": "string",
+      "inCellSize": [
+        0,
+        3
+      ]
+    },
+    {
+      "text": "strings(1,0)",
+      "typedClass": "string",
+      "typedSize": [
+        1,
+        0
+      ],
+      "class": "string",
+      "size": [
+        1,
+        0
+      ],
+      "inCellClass": "string",
+      "inCellSize": [
+        1,
+        0
+      ]
+    },
+    {
+      "text": "zeros(0,0)",
+      "typedClass": "double",
+      "typedSize": [
+        0,
+        0
+      ],
+      "class": "double",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "double",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "zeros(0,0,'int8')",
+      "typedClass": "int8",
+      "typedSize": [
+        0,
+        0
+      ],
+      "class": "int8",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "int8",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "cell(0,0)",
+      "typedClass": "cell",
+      "typedSize": [
+        0,
+        0
+      ],
+      "class": "cell",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "cell",
+      "inCellSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "text": "strings(0,0)",
+      "typedClass": "string",
+      "typedSize": [
+        0,
+        0
+      ],
+      "class": "string",
+      "size": [
+        0,
+        0
+      ],
+      "inCellClass": "string",
+      "inCellSize": [
+        0,
+        0
+      ]
+    }
+  ]
+}

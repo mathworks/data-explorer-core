@@ -112,16 +112,17 @@ describe('an edit of a row shown read-only that names nothing its node holds', (
 });
 
 describe('a row that takes an edit', () => {
-  it('still takes one where it is shown editable, or where it is shown read-only and writes what is typed', () => {
+  it('still takes one where it is shown editable, and none where it is shown read-only', () => {
     // An editable row of the schema (a Signal's Complexity) and one of the node (a Description).
     const signal = opened('test/fixtures/classes_r2027a_binary.sldd');
     const sig = signal.at('sigA');
     expect(signal.edit(sig, 'complexity', 'complex')).toBe(true);
     expect(signal.edit(sig, 'Description', 'zz')).toBe(true);
-    // A LookupTable's StorageClass, shown read-only and written all the same, as before.
+    // A LookupTable's StorageClass, shown read-only in its Property Inspector alone: written all the
+    // same before, and refused now, as every row a node shows read-only is (DataNode._offerRefusal).
     const lut = signal.at('lutD');
-    expect(signal.edit(lut, 'storageClass', 'ExportedGlobal')).toBe(true);
-    expect(rowsOf(lut)).toContain('storageClass = ExportedGlobal');
+    expect(signal.edit(lut, 'storageClass', 'ExportedGlobal')).toMatchObject({ error: true, reason: 'Cannot edit "lutD": the Storage Class of lutD is read-only here.' });
+    expect(rowsOf(lut)).toContain('storageClass = Auto');
   });
 });
 

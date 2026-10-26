@@ -1712,7 +1712,7 @@ export default class MatNode extends ContainerNode {
       container?._markModified();
       // Its strings judged as the objects they are made (_valueRefusal), once it holds them.
       this._makingStrings = typed === 'strings' ? made : undefined;
-      set = (made as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', text);
+      set = (made as unknown as { _setProperty: (key: string, text: string) => SourceSetResult })._setProperty('Value', text);
       this._makingStrings = undefined;
       if (set === true && typed === 'strings') {
         set = this._makeStringsIn(made as MatlabVariableNode);
@@ -1837,7 +1837,7 @@ export default class MatNode extends ContainerNode {
       (holder as DataNode)._markModified();
     });
     for (let i = 0; i < strings.length; i++) {
-      const set = (made[i].node as unknown as { setProperty: (key: string, text: string) => SourceSetResult }).setProperty('Value', strings[i].text);
+      const set = (made[i].node as unknown as { _setProperty: (key: string, text: string) => SourceSetResult })._setProperty('Value', strings[i].text);
       if (set !== true) {
         return set;
       }

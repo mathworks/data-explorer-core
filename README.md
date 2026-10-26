@@ -320,6 +320,18 @@ would read back as another value (a `-0`, which shows as `0`) carries none and t
 editor; its elements are edited one at a time. `session.valueEditRefusal(nodeId)` says why
 a row's Value takes no editor, naming the row, or `null` where it takes one.
 
+An edit is taken exactly where the row offers its editor: the Value cell `toRow()` marks
+editable (`_valueEditable`, a seeded summary's among them), the Name cell's `editable`,
+`_descriptionEditable`, and any other key a column or a Property Inspector row shows editable
+(`getPropInfo`). Any other edit, through `editProperty` or a node's own `setProperty`, in every
+format, is refused before anything changes, whatever its text, the text the row shows
+included: a Value in the words `valueEditRefusal` says of the row, `Cannot edit the Value of
+"s": it is a struct, whose fields are edited one at a time.`, another key naming the row and
+the property, `Cannot edit "p": the Storage Class of p is read-only here.` A text dictionary
+also refuses a numeric, logical or char empty of another size than 0x0, which MATLAB's own text
+format reads back as a 0x0 one: `Cannot edit "d": d would be a 0x3 double, which a text
+dictionary holds only as a 0x0 one.`
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a

@@ -114,6 +114,7 @@ import {
   transposeFromColumnMajorND,
   pad as xmlPad,
   BINARY_EMPTY_KEY,
+  binaryEmptyForm,
   isEnumBag,
   textEnumValueOf,
 } from '../../parser/XmlUtils.js';
@@ -1223,6 +1224,23 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
+   * This value, a numeric or logical empty of another class than double or another size than 0x0,
+   * as a binary dictionary's reader holds one (BinarySlddParser.emptyOf), which the dictionaries'
+   * writers spell as the empty it is; null for any other. Its JSON value (serializeValue) is `[]`,
+   * a 0x0 double, which a Simulink.Parameter's Value of it was written as
+   * (ParameterNode._getSerializedProperties).
+   */
+  _emptyHeader(): Record<string, unknown> | null {
+    const cls = this._scalarType;
+    const d = this._dims ?? [];
+    const numeric = cls === 'double' || cls === 'logical' || TYPED_NUMERIC_CLASS.test(cls);
+    if (this._isOpaque || this._kind === 'cell' || this._kind === 'string' || !numeric || d.length === 0 || elementCount(d) !== 0) {
+      return null;
+    }
+    return cls === 'double' && d.length === 2 && d[0] === 0 && d[1] === 0 ? null : binaryEmptyForm(cls, d);
+  }
+
+  /**
    * `asMeasured`: the text the length guard measures (_guardText), not the one shown.
    * `summarized`: a MAT-file's strings in it spelled by their summaries (_cellLiteralElement).
    */
@@ -1613,7 +1631,7 @@ export default class MatlabVariableNode extends DataNode {
   // are recording. The add/remove methods come in canX/xChildNode/execX triples:
   // the gate, the mutation, and the undo/redo wrapper the command stack calls.
 
-  setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+  _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
     // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
     if (this._isUnchangedCommit(propName, stringValue)) {
       return true;
@@ -1624,32 +1642,9 @@ export default class MatlabVariableNode extends DataNode {
       return encodedRefusal;
     }
     if (propName === 'Value') {
-      // The cell valueEditable withholds for a value read from a MAT stream that is shown and not
-      // edited is refused here too.
-      const streamRefusal = this._refuseStreamEdit(stringValue);
-      if (streamRefusal) {
-        return streamRefusal;
-      }
-      if (this._scalarType === 'function_handle') {
-        return {
-          error: true,
-          reason: 'A function handle is shown here but cannot be edited.',
-          invalidValue: stringValue,
-          validValue: this.displayValue,
-        };
-      }
-      // The editor valueEditable withholds, refused here too for a caller that asks
-      // directly — and so never recorded for an undo, which restores the text the cell
-      // displayed: `<1x3 sparse double>` read back as three char cells.
-      if (this._kind === 'cell' && !this._literalRoundTrips() && this._editText() === null) {
-        return {
-          error: true,
-          reason: this._holdsZeroImaginaryElement()
-            ? 'This cell holds a complex element whose imaginary part is 0, which its text sets as a real number. Edit the element instead.'
-            : 'This cell shows an element as a summary, which is not its value. Edit the element instead.',
-          invalidValue: stringValue,
-          validValue: this.displayValue,
-        };
+      const unoffered = this._unofferedValueRefusal(stringValue);
+      if (unoffered) {
+        return unoffered;
       }
       if (this._isConstrainedChild()) {
         return this._setStreamElement(stringValue);
@@ -1694,7 +1689,40 @@ export default class MatlabVariableNode extends DataNode {
       this.parent?.childStructureChanged(this);
       return true;
     }
-    return DataNode.prototype.setProperty.call(this, propName, stringValue);
+    return DataNode.prototype._setProperty.call(this, propName, stringValue);
+  }
+
+  /**
+   * Why its Value takes none of the edits valueEditable withholds an editor of, where it says why
+   * (DataNode._offerRefusal), as its setter refuses them too for a caller that sets it directly: a
+   * value read from a MAT stream that is shown and not edited, a function handle, and a cell whose
+   * literal is not its value, whose text set back, recorded for an undo, read `<1x3 sparse double>`
+   * back as three char cells.
+   */
+  _unofferedValueRefusal(stringValue: string): SetPropertyResult | null {
+    const streamRefusal = this._refuseStreamEdit(stringValue);
+    if (streamRefusal) {
+      return streamRefusal;
+    }
+    if (this._scalarType === 'function_handle') {
+      return {
+        error: true,
+        reason: 'A function handle is shown here but cannot be edited.',
+        invalidValue: stringValue,
+        validValue: this.displayValue,
+      };
+    }
+    if (this._kind === 'cell' && !this._literalRoundTrips() && this._editText() === null) {
+      return {
+        error: true,
+        reason: this._holdsZeroImaginaryElement()
+          ? 'This cell holds a complex element whose imaginary part is 0, which its text sets as a real number. Edit the element instead.'
+          : 'This cell shows an element as a summary, which is not its value. Edit the element instead.',
+        invalidValue: stringValue,
+        validValue: this.displayValue,
+      };
+    }
+    return super._unofferedValueRefusal(stringValue);
   }
 
   /**
@@ -1937,7 +1965,7 @@ export default class MatlabVariableNode extends DataNode {
     let why: string | null;
     try {
       const { copy, twin } = this._inStreamCopy(holder);
-      const set = twin ? twin.setProperty('Value', stringValue) : null;
+      const set = twin ? twin._setProperty('Value', stringValue) : null;
       if (set !== true && set?.error) {
         return { ...set, validValue: this.displayValue };
       }
@@ -1965,6 +1993,41 @@ export default class MatlabVariableNode extends DataNode {
       throw e;
     }
     return isMatCdata(held as Record<string, unknown>) ? streamWriteRefusal(this) : null;
+  }
+
+  /**
+   * A numeric, logical or char empty of another size than 0x0 that this value is, or holds in a
+   * cell or a struct at any depth, the first found, where a text dictionary would hold it as JSON;
+   * or null. MATLAB R2027a's own text dictionary reads each back as a 0x0 one of its class (a 0x3
+   * double, a 1x0 int8, a 1x0 logical, a 1x0 char: E4 of the 2026-10-26 edit bash), and core's save
+   * read back so too; a cell and a string array of any empty size it holds as they are, as it does
+   * a value held as a MAT stream (textDictionaryForm). Asked of a value typed in
+   * (SectionNode._valueRefusal: the D15 ruling).
+   */
+  _textDictionaryLostEmpty(): MatlabVariableNode | null {
+    let held: unknown;
+    try {
+      held = oneWrite(() => textDictionaryForm(this.serializeValue()));
+    } catch (e) {
+      if (e instanceof MatWriteError) {
+        return null;
+      }
+      throw e;
+    }
+    if (isMatCdata(held as Record<string, unknown>)) {
+      return null;
+    }
+    const d = this._dims ?? [];
+    if (this._kind !== 'cell' && this._kind !== 'string' && d.length > 0 && elementCount(d) === 0 && !(d.length === 2 && d[0] === 0 && d[1] === 0)) {
+      return this;
+    }
+    for (const child of this.children) {
+      const lost = child instanceof MatlabVariableNode ? child._textDictionaryLostEmpty() : null;
+      if (lost) {
+        return lost;
+      }
+    }
+    return null;
   }
 
   /**

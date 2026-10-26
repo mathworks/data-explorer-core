@@ -30,7 +30,7 @@ export declare class EnumTypeNode extends DataNode {
     getProperties(): PropClass[];
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
-    setProperty(propName: string, stringValue: string): ReturnType<DataNode['setProperty']>;
+    _setProperty(propName: string, stringValue: string): ReturnType<DataNode['setProperty']>;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
     _removeChildRefusal(child?: BaseNode, describe?: boolean): string | null;

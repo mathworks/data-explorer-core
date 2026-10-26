@@ -2522,9 +2522,12 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
-- **An EMPTY numeric or logical array of a class other than double, in an MCOS object, reads
-  as a double 0x0** (left out of C-033): `McosParser.resolveValue` hands it over as `[]`, but
-  a logical of rank 3 or more keeps its typed `Matrix(2,0,2)` (`mcosEmptyLogical.test.ts`).
+- **An EMPTY numeric or logical array of a class other than double, in an MCOS object, read as
+  a double 0x0** (left out of C-033), and so did one of a size other than 0x0; a logical of rank 3
+  or more kept its typed `Matrix(2,0,2)`. Each keeps its class and its size now, as the binary
+  reader's `{_type, _value: 'Matrix(0,3)'}` (`mcosEmptyLogical.test.ts`; R3 of the 2026-10-26 edit
+  bash: a Parameter whose Value is zeros(0,3) was read as a 0x0 double, which its MAT-file's gate
+  found was not the value the file holds).
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

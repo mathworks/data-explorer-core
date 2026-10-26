@@ -251,8 +251,8 @@ describe('a member retype the value put in place refuses', () => {
     const { root, at, edit, save } = opened(bytes);
     const was = at(path);
     const refusal = { error: true, reason: 'Cannot edit "x": refused for the test.', invalidValue: typed, validValue: was.displayValue };
-    const real = MatlabVariableNode.prototype.setProperty;
-    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementationOnce(function (this: MatlabVariableNode, key: string, text: string) {
+    const real = MatlabVariableNode.prototype._setProperty;
+    const spy = vi.spyOn(MatlabVariableNode.prototype, '_setProperty').mockImplementationOnce(function (this: MatlabVariableNode, key: string, text: string) {
       real.call(this, key, text);
       return refusal;
     });

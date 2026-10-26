@@ -99,7 +99,7 @@ export class BusElementNode extends BaseBusElementNode {
     // scalar" validator (verified error: "Minimum on element 'x' must be a finite
     // real double scalar value"). Without this override the edit falls through to
     // DataNode's generic numeric path, which wrongly accepts Inf/NaN.
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -116,7 +116,7 @@ export class BusElementNode extends BaseBusElementNode {
         if (notAnEnumeral) {
             return notAnEnumeral;
         }
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
     }
 
     _applyElementOverrides(props: Record<string, unknown>): void {

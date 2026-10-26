@@ -19,7 +19,7 @@ export default class ValueTypeNode extends SimulinkObjectNode {
     get valueEditable(): boolean;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _serializedOverrides(): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): ValueTypeNode;

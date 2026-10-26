@@ -211,11 +211,15 @@ export default class VariantBankNode extends SimulinkObjectNode {
             PropBankName, PropVariantConditions, PropAllChoicesCoderInfo, PropActiveChoiceCoderInfo,
         ];
     }
+    // Of a class with no Value, said as its setter says it (DataNode._offerRefusal).
+    _unofferedValueRefusal(stringValue) {
+        return this._noValueRefusal(stringValue);
+    }
     // PI layout: schema-driven "General" and "Variant Bank" groups (classes/variantBank.json).
     // A Value edit is refused rather than taken: DataNode's generic tail would keep the text,
     // mark the entry Modified and answer `true`, and the file would gain a key MATLAB ignores.
     // One still in the encoded stream it was read from keeps that refusal's own reason.
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         // One whose properties are held beside its class, which the save writes back as read, refuses
         // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
         const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
@@ -224,15 +228,10 @@ export default class VariantBankNode extends SimulinkObjectNode {
         }
         const resolved = this._resolveProperty(propName);
         if (resolved === 'Value') {
-            return (this._refuseEncodedEdit(propName, stringValue) ?? {
-                error: true,
-                reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
-                invalidValue: stringValue,
-                validValue: this.displayValue,
-            });
+            return this._refuseEncodedEdit(propName, stringValue) ?? this._noValueRefusal(stringValue);
         }
         if (!Object.prototype.hasOwnProperty.call(FIELDS, resolved)) {
-            return super.setProperty(propName, stringValue);
+            return super._setProperty(propName, stringValue);
         }
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf, inMcosStream, propNamed, refusalClause, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal, UNWORDED } from './BaseNode.js';
-import { trySetSchemaProperty } from './schemaBridge.js';
+import BaseNode, { encodedHolderOf, inMcosStream, propNamed, refusalClause, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceUnofferedRefusal, sourceValueRefusal, UNWORDED } from './BaseNode.js';
+import { schemaEditRefusal, trySetSchemaProperty } from './schemaBridge.js';
+import { valueTakesNoEditWhy } from './editRefusal.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
 import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
@@ -399,7 +400,8 @@ export default class DataNode extends BaseNode {
      * summary). That refusal changes nothing either.
      */
     _isUnchangedCommit(propName, stringValue) {
-        const prop = this._propFor(propName);
+        // A column's, or a row only the Property Inspector shows (a MAT-file's Signal's InitialValue).
+        const prop = this._propFor(propName) ?? this._piPropFor(propName);
         if (!prop) {
             return false;
         }
@@ -431,7 +433,148 @@ export default class DataNode extends BaseNode {
             validValue: '',
         };
     }
+    /**
+     * Sets `propName` from the text `stringValue`, where this node's row offers an editor of it, by its
+     * class's setter (_setProperty); else refused, before anything changes (_offerRefusal). The setter
+     * every host calls, a dictionary's editor among them, as the session's editProperty does.
+     */
     setProperty(propName, stringValue) {
+        return this._offerRefusal(propName, stringValue) ?? this._setProperty(propName, stringValue);
+    }
+    /**
+     * Whether this node's row offers an editor of `propName`, as the table and the Property Inspector
+     * show it (getPropInfo, which both read): its Name and Value cells as toRow makes them (the Name
+     * cell's `editable`, `_valueEditable`), its Description as `_descriptionEditable` says, and any
+     * other key as a column or a Property Inspector row of it is shown editable.
+     */
+    _offers(propName) {
+        const column = this._columnOf(propName);
+        if (column === 'Description') {
+            return this.descriptionApplies && this.descriptionEditable;
+        }
+        if (column === 'Name' || column === 'Value') {
+            const cell = this.getProperties().find((p) => p.column !== null && (p.column || p.key) === column);
+            if (cell) {
+                return this._rowShown(cell).editable;
+            }
+            return column === 'Name' ? this.nameEditable : this.valueEditable;
+        }
+        return this._showsEditable(propName);
+    }
+    // The column of the row `propName` names, as toRow keys it: its prop's column or key, or the name
+    // itself where no prop of this node is named so.
+    _columnOf(propName) {
+        const prop = this._propFor(propName);
+        if (prop) {
+            return prop.column || prop.key;
+        }
+        return propName === 'name' ? 'Name' : propName;
+    }
+    // The column and the Property Inspector row of this node that show `propName`, of those it has.
+    _rowsShowing(propName) {
+        return [this._propFor(propName), this._piPropFor(propName)].filter((p) => p !== undefined);
+    }
+    // Whether a column or a Property Inspector row of `propName` is shown editable (getPropInfo).
+    _showsEditable(propName) {
+        return this._rowsShowing(propName).some((p) => this._rowShown(p).editable);
+    }
+    /**
+     * The refusal of an edit of `propName` this node's row offers no editor of (_offers), or null where
+     * it offers one: asked by setProperty before any class's setter, in every format, and by the
+     * session's editProperty before it asks the source to put a value of another kind in the node's
+     * place. So that what the API takes is what the row offers, and nothing else: a MAT-file's struct
+     * took a number typed over it, and an element of a struct array one its save wrote as fields named
+     * '1' and '2', or emptied; a bus took a Value its save then refused; a dictionary's N-D array, its
+     * sparse matrix, Signal, Bus and NumericType took a Value and wrote nothing (S9 of the 2026-10-26
+     * edit bash). Said as the setter would say it where it has words of its own: an encoded value, a
+     * Description the object has none of, or one its source would not write (_refuseEncodedEdit); an
+     * object held beside its class (_refuseInlineBagEdit); the source's reason for offering no editor
+     * now (sourceUnofferedRefusal); the class's own of a Value (_unofferedValueRefusal), and a schema's
+     * of its property (schemaEditRefusal: an Alignment under StorageClass 'Auto'). Else a Value as
+     * session.valueEditRefusal says why its cell takes no editor, `Cannot edit the Value of "<row>":
+     * <why>.` (editRefusal.valueTakesNoEditWhy), and another key as the row shows it: `Cannot edit
+     * "<entry>": the <Property> of <path> is read-only here.`
+     */
+    _offerRefusal(propName, stringValue) {
+        if (this._offers(propName)) {
+            return null;
+        }
+        const refused = this._refuseEncodedEdit(propName, stringValue) ?? this._refuseInlineBagEdit(propName, stringValue);
+        if (refused) {
+            return refused;
+        }
+        const prop = this._propFor(propName);
+        const unoffered = sourceUnofferedRefusal(this, prop?.key ?? propName);
+        if (unoffered) {
+            return { error: true, reason: unoffered, invalidValue: stringValue, validValue: prop ? this._rowShown(prop).text : '' };
+        }
+        const column = this._columnOf(propName);
+        if (column === 'Name') {
+            return this._nameNotEditedRefusal(stringValue);
+        }
+        if (column === 'Description') {
+            return this._descriptionNotWrittenRefusal(stringValue);
+        }
+        if (column === 'Value') {
+            return this._unofferedValueRefusal(stringValue) ?? this._valueNotOfferedRefusal(stringValue);
+        }
+        return schemaEditRefusal(this, propName, stringValue) ?? this._keyNotOfferedRefusal(propName, stringValue);
+    }
+    // The refusal of a Value whose class says nothing of its own (_unofferedValueRefusal), as
+    // session.valueEditRefusal says why the row's cell takes no editor (editRefusal.valueTakesNoEditWhy).
+    _valueNotOfferedRefusal(stringValue) {
+        return {
+            error: true,
+            reason: 'Cannot edit the Value of "' + (this.matlabPath || this.name) + '": ' + valueTakesNoEditWhy(this) + '.',
+            invalidValue: stringValue,
+            validValue: this.displayValue,
+        };
+    }
+    /**
+     * Its class's own refusal of a Value its row offers no editor of, in its words, or null where it has
+     * none to say (_offerRefusal says it then as the row shows it): here, of a struct row of an
+     * object's Value, the words of the file's own gate (MatNode._editValueRefusal).
+     */
+    _unofferedValueRefusal(stringValue) {
+        return this.className === 'struct' ? this._refuseSourceValue('Value', stringValue, stringValue) : null;
+    }
+    // The refusal of a Value set on an object whose class has none (a Simulink.VariantBank), as MATLAB
+    // has no such property to set.
+    _noValueRefusal(stringValue) {
+        return {
+            error: true,
+            reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
+            invalidValue: stringValue,
+            validValue: this.displayValue,
+        };
+    }
+    // The refusal of a rename where the row's Name takes no editor (nameEditable), as the source says
+    // it where it is the source that refuses.
+    _nameNotEditedRefusal(stringValue) {
+        return {
+            error: true,
+            reason: sourceEditRefusal(this, 'Name') ?? 'Cannot rename "' + this.matlabPath + '": ' + (this._nameRefusal() ?? 'its name is shown and not edited here') + '.',
+            invalidValue: stringValue,
+            validValue: this.displayName,
+        };
+    }
+    // The refusal of a Description this node has nowhere to write (descriptionEditable).
+    _descriptionNotWrittenRefusal(stringValue) {
+        const entry = (this.owningEntry ?? this).name;
+        return {
+            error: true,
+            reason: `Cannot edit "${entry}": the Description of ${this.matlabPath} is shown here but not written.`,
+            invalidValue: stringValue,
+            validValue: this.Description || '',
+        };
+    }
+    /**
+     * The setter proper of `propName`, of this class: what setProperty asks once the row offers an
+     * editor of it (_offerRefusal). Called directly only where the edit is no user's of the row: an
+     * undo's or a redo's, a holder setting its value's node or a twin of it, a source setting the node
+     * it put in another's place.
+     */
+    _setProperty(propName, stringValue) {
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
         }
@@ -467,12 +610,7 @@ export default class DataNode extends BaseNode {
             // a MAT-file's variable stored after its subsystem), which _refuseEncodedEdit has asked
             // already for every class whose setter comes here first.
             if (!this.nameEditable) {
-                return {
-                    error: true,
-                    reason: sourceEditRefusal(this, 'Name') ?? 'Cannot rename "' + this.matlabPath + '": ' + (this._nameRefusal() ?? 'its name is shown and not edited here') + '.',
-                    invalidValue: stringValue,
-                    validValue: this.displayName,
-                };
+                return this._nameNotEditedRefusal(stringValue);
             }
             const error = validateMatlabName(stringValue);
             if (error) {
@@ -522,13 +660,7 @@ export default class DataNode extends BaseNode {
         // held until the file is read again. The generic tail below would otherwise write it, because
         // the FIELD exists on every node whether the object has the property or not.
         if (resolved === 'Description' && !this.descriptionEditable) {
-            const entry = (this.owningEntry ?? this).name;
-            return {
-                error: true,
-                reason: `Cannot edit "${entry}": the Description of ${this.matlabPath} is shown here but not written.`,
-                invalidValue: stringValue,
-                validValue: this.Description || '',
-            };
+            return this._descriptionNotWrittenRefusal(stringValue);
         }
         // In a dictionary, a key no row of this node takes an edit of (_unofferedKeyRefusal).
         const unoffered = this._unofferedKeyRefusal(propName, stringValue);
@@ -590,26 +722,34 @@ export default class DataNode extends BaseNode {
     }
     /**
      * The refusal of an edit of `propName` in a dictionary that no row of this node takes an edit of,
-     * or null: a key that is no column or Property Inspector row of it, or one that is shown read-only
-     * (getPropInfo, what the table and the Property Inspector both read). The tail of setProperty
-     * wrote any key as a field of the node and answered as if the edit were taken: a Simulink.Parameter
-     * took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of 'notAType!' and a
-     * `Unit`, both shown as labels, which it wrote, and `dataType` threw. Said as a MAT-file's save
-     * says it, `<path>.<Property> ...`, where the class has a reason of its own (_coWrittenWhy). The
-     * keys a setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an
-     * edit inside a MAT stream holding objects, whose own gate answered for every key already
-     * (BaseNode.sourceEditRefusal, mcosStream): it writes a Unit and a Signal's DataType.
+     * or null, asked by the tail of the setter as setProperty asks _offerRefusal of every key: here for
+     * a setter called directly (_setProperty), of a key that is no column or Property Inspector row of
+     * it, or one that is shown read-only (getPropInfo, what the table and the Property Inspector both
+     * read). The tail wrote any key as a field of the node and answered as if the edit were taken: a
+     * Simulink.Parameter took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of
+     * 'notAType!' and a `Unit`, both shown as labels, which it wrote, and `dataType` threw. The keys a
+     * setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an edit
+     * inside a MAT stream holding objects, whose own gate answered for every key already
+     * (BaseNode.sourceEditRefusal, mcosStream).
      */
     _unofferedKeyRefusal(propName, stringValue) {
         const format = this._ownerFormat();
         if ((format !== 'json' && format !== 'xml') || inMcosStream(this)) {
             return null;
         }
-        const rows = [this._propFor(propName), this._piPropFor(propName)].filter((p) => p !== undefined);
-        const shown = rows.map((p) => this._rowShown(p));
-        if (shown.some((s) => s.editable)) {
+        if (this._showsEditable(propName)) {
             return null;
         }
+        return this._columnOf(propName) === 'Value' ? this._valueNotOfferedRefusal(stringValue) : this._keyNotOfferedRefusal(propName, stringValue);
+    }
+    /**
+     * The refusal of an edit of `propName`, a key no row of this node takes an edit of (_offerRefusal,
+     * _unofferedKeyRefusal). Said as a MAT-file's save says it, `<path>.<Property> ...`, where the class
+     * has a reason of its own (_coWrittenWhy); else of the row that shows it read-only, and of a key no
+     * row shows, that this editor writes no such property.
+     */
+    _keyNotOfferedRefusal(propName, stringValue) {
+        const rows = this._rowsShowing(propName);
         const coWritten = this._coWrittenWhy(propName);
         let why;
         if (coWritten) {
@@ -619,10 +759,11 @@ export default class DataNode extends BaseNode {
             why = `the ${rows[0].displayName} of ${this.matlabPath} is read-only here`;
         }
         else {
-            why = `${this.matlabPath}.${propName} is not one this editor writes into ${classPhrase(this.className)}`;
+            why = `${this.matlabPath}.${propName} is not one this editor writes` + (this.className ? ` into ${classPhrase(this.className)}` : '');
         }
         const entry = (this.owningEntry ?? this).name;
-        return { error: true, reason: `Cannot edit "${entry}": ${why}.`, invalidValue: stringValue, validValue: shown[0]?.text ?? '' };
+        const shown = rows.length > 0 ? this._rowShown(rows[0]).text : '';
+        return { error: true, reason: `Cannot edit "${entry}": ${why}.`, invalidValue: stringValue, validValue: shown };
     }
     /**
      * A property of this node's class that MATLAB keeps as its Value's and refuses set on its own,

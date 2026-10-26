@@ -23,6 +23,10 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     // edit is refused (BaseNode.descriptionApplies). One was taken by DataNode's generic tail, which
     // kept the text on a field `_serializedOverrides` never writes, and was gone on the save.
     get descriptionApplies(): boolean { return false; }
+    // Of a class with no Value, said as its setter says it (DataNode._offerRefusal).
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult {
+        return this._noValueRefusal(stringValue);
+    }
     // PI layout: schema-driven "General" group (classes/variantConfigurationData.json).
     // MATLAB's Simulink.VariantConfigurations has no Value, as Simulink.VariantBank has none
     // (R2027a, test/parity/matlab/probe_variantconfigurations_value.m: under either name the
@@ -32,18 +36,14 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     // in VariantBankNode's words, rather than taken by DataNode's generic tail, which kept the
     // text, marked the entry Modified and had both save paths write it. One still in the encoded
     // stream it was read from keeps that refusal's own reason.
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         if (this._resolveProperty(propName) !== 'Value') {
-            return super.setProperty(propName, stringValue);
+            return super._setProperty(propName, stringValue);
         }
         return (
             this._refuseInlineBagEdit(propName, stringValue) ??
-            this._refuseEncodedEdit(propName, stringValue) ?? {
-                error: true,
-                reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
-                invalidValue: stringValue,
-                validValue: this.displayValue,
-            }
+            this._refuseEncodedEdit(propName, stringValue) ??
+            this._noValueRefusal(stringValue)
         );
     }
     // Nothing beside the envelope, or into a bag held with none: the bag is written as it was

@@ -89,7 +89,7 @@ export default class SignalNode extends DataNode {
     get descriptionEditable(): boolean { return !this._inlineObjectBag() && super.descriptionEditable; }
     getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']> { return this._inlineBagPropInfo(super.getPropInfo(PropClassRef)); }
 
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -118,7 +118,7 @@ export default class SignalNode extends DataNode {
                 return notAnEnumeral;
             }
         }
-        return DataNode.prototype.setProperty.call(this, propName, stringValue);
+        return DataNode.prototype._setProperty.call(this, propName, stringValue);
     }
 
     _getSerializedProperties(): Record<string, unknown> {

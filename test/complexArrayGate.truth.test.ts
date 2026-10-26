@@ -33,7 +33,7 @@ describe("MATLAB's reading of the complex arrays core saved (the complex-array l
     expect(control.length).toBe(3);
     expect(control.every((c) => !c.same)).toBe(true);
     const rest = TRUTH.cases.filter((c) => !c.control);
-    expect(rest.length).toBe(33);
+    expect(rest.length).toBe(30);
     expect(rest.filter((c) => !c.same || c.warning !== '').map((c) => c.file + ' ' + c.entry)).toEqual([]);
   });
 

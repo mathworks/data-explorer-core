@@ -72,17 +72,16 @@ export class BaseBusElementNode extends DataNode {
     // (ObjectNode.setProperty): DataNode's generic tail kept the text on a field nothing
     // writes, marked the bus Modified, pushed an undo step and answered `true`, and the save
     // dropped it. One still in the encoded stream it was read from keeps that refusal's own
-    // reason. Every subclass's setProperty reaches this one for a Value.
-    setProperty(propName, stringValue) {
+    // reason. Every subclass's setter reaches this one for a Value, and the gate of what the row
+    // offers says it so too (DataNode._offerRefusal).
+    _setProperty(propName, stringValue) {
         if (this._resolveProperty(propName) === 'Value') {
-            return (this._refuseEncodedEdit(propName, stringValue) ?? {
-                error: true,
-                reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
-                invalidValue: stringValue,
-                validValue: this.displayValue,
-            });
+            return this._refuseEncodedEdit(propName, stringValue) ?? this._noValueRefusal(stringValue);
         }
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
+    }
+    _unofferedValueRefusal(stringValue) {
+        return this._noValueRefusal(stringValue);
     }
     serializeValue() {
         const props = { ...this.serial._properties };
@@ -107,11 +106,11 @@ export class BaseBusNode extends DataNode {
     // A bus whose properties are held beside its class is shown as read, and takes an edit of its
     // name alone, which the save writes back as read (DataNode._inlineObjectBag, _refuseInlineBagEdit).
     get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
         }
-        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super._setProperty(propName, stringValue);
     }
     getProperties() { return [PropName, PropDataType, PropDescription]; }
     // PI layout is schema-driven (schema/classes/{bus,connectionBus,serviceBus}.json).

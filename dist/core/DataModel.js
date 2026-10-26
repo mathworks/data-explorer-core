@@ -24,10 +24,9 @@ import RowCellPool from '../datamodel/node/RowCellPool.js';
 import { propNamed, refusalClause, sourceEditRefusal, sourceMirrorTwins, sourceRestorerFor, sourceRetype, sourceTwinsOutside, withArticle } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 import { entryValuesChanged } from '../datamodel/node/valueGeneration.js';
-import { objectWhy } from '../datamodel/node/data/editText.js';
 import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
 import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
-import { editRefusalText, isNameKey } from '../datamodel/node/editRefusal.js';
+import { editRefusalText, isNameKey, valueTakesNoEditWhy } from '../datamodel/node/editRefusal.js';
 import { textDictionaryJson } from '../datamodel/parser/TextDictionaryJson.js';
 import * as NodeRegistry from '../datamodel/node/NodeRegistry.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
@@ -1766,8 +1765,11 @@ export function createSession(opts = {}) {
     // value as it stood): where it refuses, the step says why, thrown, and UndoManager keeps it where it
     // was, to be tried again. It did nothing then, and said nothing: a redo of 7 typed over a
     // Parameter's "abc" was refused by its DataType and left "abc", with no word.
+    // By the node's own setter, past the gate of what its row offers (DataNode._setProperty): the edit
+    // undone may have left a row that offers no editor of what it puts back.
     function setAgain(node, propertyName, text, step) {
-        const set = node.setProperty(propertyName, text);
+        const setter = node;
+        const set = typeof setter._setProperty === 'function' ? setter._setProperty(propertyName, text) : node.setProperty(propertyName, text);
         if (set === false || (set !== null && typeof set === 'object' && set.error)) {
             const reason = set === false ? 'it was not set again' : String(set.reason ?? 'it was refused');
             throw new Error('Cannot ' + step + ' the edit of ' + propertyName + ' of "' + rowNameOf(node) + '": ' + refusalClause(reason) + '.');
@@ -1778,15 +1780,22 @@ export function createSession(opts = {}) {
      * property shows, committed unchanged, is no edit, nor is the text its editor is seeded with where
      * that is another (a row's `_editText`: editProperty, DataNode._isUnchangedCommit). For a
      * host that sets a property through the node's own setter, as a dictionary's editor does, to ask
-     * first: true, and nothing is to be set, marked or recorded. False for any other text, and where
-     * no node of that id with a setter is open. Changes nothing.
+     * first: true, and nothing is to be set, marked or recorded. False for any other text, for a
+     * property the row offers no editor of (DataNode._offerRefusal), which its setter refuses whatever
+     * the text, and where no node of that id with a setter is open. Changes nothing.
      */
     function isUnchangedEdit(nodeId, key, text) {
         const node = resolveId(nodeId);
         if (!node || !node.setProperty || typeof text !== 'string') {
             return false;
         }
-        return text === readPropertyValue(node, key, undefined) || text === editTextOf(node, key);
+        return (text === readPropertyValue(node, key, undefined) || text === editTextOf(node, key)) && !offerRefusalOf(node, key, text);
+    }
+    // The refusal of an edit of `key` that the row of `node` offers no editor of (DataNode._offerRefusal),
+    // or null where it offers one, and of a node with no such gate.
+    function offerRefusalOf(node, key, text) {
+        const gated = node;
+        return typeof gated._offerRefusal === 'function' ? gated._offerRefusal(key, String(text)) : null;
     }
     function editProperty(nodeId, propertyName, newValue, oldValue) {
         const activeNode = getActiveNode();
@@ -1814,6 +1823,12 @@ export function createSession(opts = {}) {
         // captured value is in the shape setProperty round-trips; fall back to the passed
         // `oldValue` if this node does not project the property.
         const priorValue = readPropertyValue(node, propertyName, oldValue);
+        // Of a property the row offers no editor of, no edit at all, its shown text included, and before
+        // a source is asked to put a node of another kind in its place (DataNode._offerRefusal).
+        const notOffered = offerRefusalOf(node, propertyName, newValue);
+        if (notOffered) {
+            return namedRefusal(node, propertyName, notOffered);
+        }
         // The text the property shows, committed unchanged, is no edit: nothing is set, nothing is
         // published and no undo step is recorded, so the value keeps what it was read as
         // (`_rawInput`, and so its bytes). One text stands for many values: `[ ]` is every numeric
@@ -2682,39 +2697,13 @@ export function createSession(opts = {}) {
         }
         return 'Cannot edit the Value of "' + rowNameOf(node) + '": ' + valueWhy(node) + '.';
     }
-    // Why the Value of `node` takes no editor, as a clause: as editProperty and the node's setter refuse
-    // an edit of it, first of all its source (a MAT-file's object, one with another node of it),
-    // then, of a value shown as a summary, why its text written out whole is no seed.
+    // Why the Value of `node` takes no editor, as a clause: in no file this session edits, or as the
+    // node's setter refuses an edit of it (editRefusal.valueTakesNoEditWhy).
     function valueWhy(node) {
         if (!node.isEntry && !editableOwnerOf(node)) {
             return notEditedWhy(node);
         }
-        const refused = sourceEditRefusal(node, propNamed(node.getProperties(), 'Value')?.key ?? 'Value');
-        if (refused) {
-            return refusalClause(refused);
-        }
-        const seedless = node._editTextWhy?.();
-        if (seedless) {
-            return seedless;
-        }
-        // A value still in the encoded stream it was read from, or read from a MAT stream that is shown
-        // and not edited (DataNode._refuseEncodedEdit, MatlabVariableNode._refuseStreamEdit).
-        const held = node;
-        const set = held._refuseEncodedEdit?.('Value', '') ?? held._refuseStreamEdit?.('') ?? held._refuseStreamValue?.('');
-        if (set?.reason) {
-            return refusalClause(set.reason);
-        }
-        // Else what it shows says it: no value (a bus, a signal), a summary of what no text spells (a
-        // struct, an object), or an object shown by its text (an enumeration value).
-        const shown = node.displayValue;
-        if (shown === '') {
-            return 'it has no value of its own to edit here';
-        }
-        const summary = /^<([\dx]+) (.+)>$/.exec(shown);
-        if (summary) {
-            return objectWhy(summary[1], summary[2]);
-        }
-        return node.className ? 'it is ' + withArticle(node.className) + ', shown here and not edited' : 'it is shown here and not edited';
+        return valueTakesNoEditWhy(node);
     }
     // Whether the Value of `node` takes an editor, as its row says (BaseNode.toRow's `_valueEditable`).
     function editTakesValue(node) {

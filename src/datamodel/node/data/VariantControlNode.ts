@@ -38,7 +38,7 @@ export default class VariantControlNode extends SimulinkObjectNode {
      * Our editor always delivers a string; we parse it and mirror the same
      * accept/reject logic MATLAB applies.
      */
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -54,7 +54,7 @@ export default class VariantControlNode extends SimulinkObjectNode {
             return inlineRefusal;
         }
         if (propName !== 'Value') {
-            return super.setProperty(propName, stringValue);
+            return super._setProperty(propName, stringValue);
         }
         const validValue = PropValue.format(this.Value);
         const trimmed = stringValue.trim();

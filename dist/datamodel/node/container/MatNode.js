@@ -1478,7 +1478,7 @@ export default class MatNode extends ContainerNode {
             container?._markModified();
             // Its strings judged as the objects they are made (_valueRefusal), once it holds them.
             this._makingStrings = typed === 'strings' ? made : undefined;
-            set = made.setProperty('Value', text);
+            set = made._setProperty('Value', text);
             this._makingStrings = undefined;
             if (set === true && typed === 'strings') {
                 set = this._makeStringsIn(made);
@@ -1602,7 +1602,7 @@ export default class MatNode extends ContainerNode {
             holder._markModified();
         });
         for (let i = 0; i < strings.length; i++) {
-            const set = made[i].node.setProperty('Value', strings[i].text);
+            const set = made[i].node._setProperty('Value', strings[i].text);
             if (set !== true) {
                 return set;
             }

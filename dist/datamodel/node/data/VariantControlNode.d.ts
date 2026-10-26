@@ -16,7 +16,7 @@ export default class VariantControlNode extends SimulinkObjectNode {
      * Our editor always delivers a string; we parse it and mirror the same
      * accept/reject logic MATLAB applies.
      */
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _serializedOverrides(): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): VariantControlNode;

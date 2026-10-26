@@ -6,7 +6,7 @@ export default class ConstantNode extends MatlabVariableNode {
     get icon(): string;
     _addChildRefusal(describe?: boolean): string | null;
     get valueEditable(): boolean;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): ConstantNode;
     static parse(rawVal: unknown, name: string, parent: BaseNode | null): ConstantNode;

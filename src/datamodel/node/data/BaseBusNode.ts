@@ -87,19 +87,17 @@ export class BaseBusElementNode extends DataNode {
     // (ObjectNode.setProperty): DataNode's generic tail kept the text on a field nothing
     // writes, marked the bus Modified, pushed an undo step and answered `true`, and the save
     // dropped it. One still in the encoded stream it was read from keeps that refusal's own
-    // reason. Every subclass's setProperty reaches this one for a Value.
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    // reason. Every subclass's setter reaches this one for a Value, and the gate of what the row
+    // offers says it so too (DataNode._offerRefusal).
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         if (this._resolveProperty(propName) === 'Value') {
-            return (
-                this._refuseEncodedEdit(propName, stringValue) ?? {
-                    error: true,
-                    reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
-                    invalidValue: stringValue,
-                    validValue: this.displayValue,
-                }
-            );
+            return this._refuseEncodedEdit(propName, stringValue) ?? this._noValueRefusal(stringValue);
         }
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
+    }
+
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult {
+        return this._noValueRefusal(stringValue);
     }
 
     serializeValue(): unknown {
@@ -129,11 +127,11 @@ export class BaseBusNode extends DataNode {
     // A bus whose properties are held beside its class is shown as read, and takes an edit of its
     // name alone, which the save writes back as read (DataNode._inlineObjectBag, _refuseInlineBagEdit).
     get descriptionEditable(): boolean { return !this._inlineObjectBag() && super.descriptionEditable; }
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
         }
-        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super._setProperty(propName, stringValue);
     }
 
     getProperties(): PropClass[] { return [PropName, PropDataType, PropDescription]; }

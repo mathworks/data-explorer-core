@@ -78,11 +78,11 @@ export class EnumTypeNode extends DataNode {
     // _refuseInlineBagEdit).
     get valueEditable() { return !this._inlineObjectBag() && super.valueEditable; }
     get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
         }
-        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super._setProperty(propName, stringValue);
     }
     // PI layout is schema-driven (schema/classes/enumType.json). NOTE: EnumValueNode
     // shares this className but keeps its own getPILayout override (a value row, not

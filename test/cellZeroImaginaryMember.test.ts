@@ -125,9 +125,11 @@ for (const { format, file } of FORMATS) {
       expect(rows(entry)).toEqual([member, ['double', '5']]);
     });
 
-    it.each(ZERO_CELLS)('$name with its committed literal unchanged is no edit', ({ name, shown, member }) => {
+    // Its own shown text too: the row offers no editor of it (DataNode._offerRefusal), and an edit
+    // of a row that offers none is refused whatever its text, before anything changes.
+    it.each(ZERO_CELLS)('$name with its committed literal unchanged is refused as any other text, and nothing changes', ({ name, shown, member }) => {
       const { session, entry } = open(file, name);
-      expect(session.editProperty(entry.id, 'Value', shown)).toBe(true);
+      expect(session.editProperty(entry.id, 'Value', shown)).toEqual({ error: true, reason: named(name), invalidValue: shown, validValue: shown });
       expect(rows(entry)).toEqual([member, ['double', '5']]);
       expect(session.canUndo()).toBe(false);
     });

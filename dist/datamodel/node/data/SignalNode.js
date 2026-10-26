@@ -67,7 +67,7 @@ export default class SignalNode extends DataNode {
     // its name alone (DataNode._inlineObjectBag, _refuseInlineBagEdit).
     get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
     getPropInfo(PropClassRef) { return this._inlineBagPropInfo(super.getPropInfo(PropClassRef)); }
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -96,7 +96,7 @@ export default class SignalNode extends DataNode {
                 return notAnEnumeral;
             }
         }
-        return DataNode.prototype.setProperty.call(this, propName, stringValue);
+        return DataNode.prototype._setProperty.call(this, propName, stringValue);
     }
     _getSerializedProperties() {
         const sp = this.serial._properties;

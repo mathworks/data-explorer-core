@@ -1,4 +1,5 @@
 import type BaseNode from './BaseNode.js';
+import type { SourceOfferedEditor } from './BaseNode.js';
 /**
  * What answers for an edit inside a stream, with a MAT-file's three answers
  * (MatNode._editRefusal, _editValueRefusal, _valueRefusal): why an edit of `key` at `node` is
@@ -9,6 +10,7 @@ import type BaseNode from './BaseNode.js';
  */
 export interface McosStreamGate {
     _editRefusal(entry: BaseNode, node: BaseNode, key: string): string | null;
+    _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
     _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
     _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
     _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;

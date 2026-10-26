@@ -197,7 +197,9 @@ describe("inside a stream, an allow-listed property the stream stores a value fo
     'pStruct.sp': ['Name'],
     'pStruct.sp(1,2)': ['Value'],
     'sPh': ['Name'],
-    'sPh.p': ['Name', 'Value', 'Min', 'Max', 'Description'],
+    // And a Unit, and a Signal's DataType, which the stream writes as a dictionary writes them of an
+    // object outside one (mcosStreamEdit._offeredEditor).
+    'sPh.p': ['Name', 'Value', 'Min', 'Max', 'Unit', 'Description'],
     'sPh.q': ['Name', 'Value'],
     'sPh.sp': ['Name'],
     'sPh.sp(1,2)': ['Value'],
@@ -211,7 +213,7 @@ describe("inside a stream, an allow-listed property the stream stores a value fo
     'shared.sp': ['Name'],
     'shared.sp(1,2)': ['Value'],
     'sigH': ['Name'],
-    'sigH.sig': ['Name', 'Min', 'Max', 'Description'],
+    'sigH.sig': ['Name', 'DataType', 'Min', 'Max', 'Unit', 'Description'],
     'sigH.sp': ['Name'],
     'sigH.sp(1,2)': ['Value'],
   };
@@ -605,8 +607,8 @@ describe('what the rules refuse is refused before it is made, and the dictionary
     ['sTh.t', 'Description', 'x', /^Cannot edit "sTh": sTh\.t\.Description is at its class default/],
     ['cPh{1}', 'Min', '0', /^Cannot edit "cPh": cPh\{1\}\.Min is at its class default/],
     ['sPh.p', 'DataType', 'single', ENCODED_REASON],
-    // Typed over the stream's whole value, whose class its hex states.
-    ['sPh', 'Value', '1', ENCODED_REASON],
+    // Typed over the stream's whole value, a struct, whose row offers no editor of it (DataNode._offerRefusal).
+    ['sPh', 'Value', '1', /^Cannot edit the Value of "sPh": it is a struct, whose fields are edited one at a time\.$/],
     // A string beside the objects, which the value written anew could not hold (MatWriter has no class for one).
     ['sPh.q', 'Value', '"abc"', /^Cannot edit "sPh": sPh\.q would hold a string, which a save does not write into its MAT stream\.$/],
   ];

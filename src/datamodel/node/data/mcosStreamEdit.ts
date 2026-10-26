@@ -2,10 +2,12 @@
 
 import DataNode from '../DataNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { SourceOfferedEditor } from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { setMcosStreamGate, type McosStreamGate } from '../mcosStream.js';
 import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
+import { dictEditorOf } from './dictObjectEdit.js';
 import {
   classRefusal,
   memberRefusal,
@@ -180,6 +182,17 @@ class McosStream implements McosStreamGate {
     }
     const refused = classRefusal(state, object) ?? this._propertyVerdicts.of(state, object, at.property) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * The editor the stream offers of `key` at `node`, a property of one of its objects a dictionary
+   * shows read-only (a Unit, a Signal's DataType), where its save writes it (_editRefusal): as a
+   * dictionary offers one of an object outside a stream (dictObjectEdit.dictEditorOf), so that a
+   * row offers the edit the stream takes, and no other (DataNode._offerRefusal).
+   */
+  _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null {
+    const editor = dictEditorOf(classOf(node), key);
+    return editor && this._editRefusal(entry, node, key) === null ? editor : null;
   }
 
   /**
