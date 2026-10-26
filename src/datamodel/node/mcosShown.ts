@@ -113,10 +113,17 @@ export function withNumericTypeShown(bag: Record<string, unknown>): Record<strin
  * (McosEditRules: "a char row, which MATLAB loads as a string scalar"), in a MAT-file and in a
  * binary dictionary's encoded value alike, and the file opened again showed the char 's'. An empty
  * char is left as it is, as no such measurement holds it.
+ *
+ * Its Complexity is 'real' then, as MATLAB loads a Parameter whose Value is text whatever the file
+ * holds (measured, R2027a and R2023b): 'complex' is what a save of this package wrote for text typed
+ * over a complex Value, and the file opened again showed it beside the string.
  */
 export function withParameterValueShown(bag: Record<string, unknown>): Record<string, unknown> {
   if (typeof bag.Value === 'string' && bag.Value !== '') {
     bag.Value = [bag.Value];
+    if (typeof bag.Complexity === 'string' && bag.Complexity !== 'real') {
+      bag.Complexity = 'real';
+    }
   }
   return bag;
 }

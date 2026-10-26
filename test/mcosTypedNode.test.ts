@@ -193,6 +193,22 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect(element).toEqual({ Value: 'xyz' });
   });
 
+  // And its Complexity 'real', as MATLAB loads a Parameter whose Value is text whatever Complexity the
+  // file holds (R2027a and R2023b): 'complex' is what this package's save wrote for text typed over a
+  // complex Value, and the file opened again showed it beside the string.
+  it("shows a char row Value's Complexity real, as MATLAB loads it", () => {
+    const decoded: Record<string, unknown> = { Value: 'x', Complexity: 'complex', Dimensions: [1, 1] };
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'p', null, decoded)!;
+    expect(node.displayValue).toBe('"x"');
+    const shown = node.toRow().complexity as unknown;
+    expect(typeof shown === 'object' && shown ? (shown as { text?: string }).text : shown).toBe('real');
+    expect(decoded.Complexity).toBe('complex');
+    // A Value that is no text keeps the Complexity the file holds.
+    const numeric = buildTypedNodeFromMcos('Simulink.Parameter', 'q', null, { Value: [1, 2], Complexity: 'complex', Dimensions: [1, 2] })!;
+    const held = numeric.toRow().complexity as unknown;
+    expect(typeof held === 'object' && held ? (held as { text?: string }).text : held).toBe('complex');
+  });
+
   // Defect 9. The adapter used to keep only `[dimensions[0], dimensions[1]]`, so a
   // 2x3x2 object array (MATLAB: `size(obj2x3x2)` is `[2 3 2]`, twelve elements)
   // announced itself as a 2x3 and then handed those two extents to the subscript
