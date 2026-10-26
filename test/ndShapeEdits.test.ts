@@ -19,6 +19,11 @@ import { ingest } from '../src/core/ingest.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
+// `text` matched literally inside a RegExp.
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function opened(file: string, given?: Uint8Array) {
   const session = createSession();
   const bytes = given ?? new Uint8Array(readFileSync(join(TEST_ROOT, 'fixtures/nd-shapes', file)));
@@ -96,12 +101,12 @@ describe('an N-D array that is no vector', () => {
         const node = o.at(path);
         const shape = node._dims.join('x');
         expect(o.session.addChildRefusal(node.id)).toMatch(
-          new RegExp('^Cannot add to "' + path + '": it is a ' + shape + ' \\w+ array, which MATLAB grows by no element at its end, being no vector'),
+          new RegExp('^Cannot add to "' + escapeRegExp(path) + '": it is a ' + shape + ' \\w+ array, which MATLAB grows by no element at its end, being no vector'),
         );
         expect(o.session.addChildTo(node.id)).toBeNull();
         const first = node.children[0];
         expect(o.session.deleteRefusal(first.id)).toMatch(
-          new RegExp('^Cannot delete "' + first.matlabPath.replace(/[{}()]/g, '\\$&') + '": "' + path + '" is a ' + shape + ' \\w+ array, which an element deleted would make a 1x3 row, as MATLAB\'s x\\(k\\) = \\[\\] does'),
+          new RegExp('^Cannot delete "' + escapeRegExp(first.matlabPath) + '": "' + escapeRegExp(path) + '" is a ' + shape + ' \\w+ array, which an element deleted would make a 1x3 row, as MATLAB\'s x\\(k\\) = \\[\\] does'),
         );
         expect(o.session.deleteNodeById(first.id)).toBe(false);
       });
