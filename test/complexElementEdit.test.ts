@@ -12,8 +12,10 @@
 // `1+2i`, and that was refused with nothing said. The element kept the edit, and the next
 // save wrote it.
 //
-// A complex value typed into a REAL array is still refused. MATLAB's `x(1) = 3+4i` makes
-// the whole array complex, which an element editor cannot express.
+// A complex value typed into a REAL array makes the whole array complex, as MATLAB's
+// `x(1) = 3+4i` does, and a real number typed into a complex one is x+0i while another element
+// has an imaginary part that is not 0 (MatlabVariableNode._settleComplexity, and
+// complexIndexedAssignment.test.ts in every format).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +23,7 @@ import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { zipSync } from 'fflate';
 import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const fixture = (name: string): ArrayBuffer => {
@@ -65,6 +68,13 @@ const complexElements = (root: any): any[] =>
   root.flatten().filter(
     (n: any) => n._scalarType === 'complex' && n.parent?._kind === 'array' && n.parent._elementType === 'complex' && n.valueEditable,
   );
+
+/** Whether an element other than `el` of its array has an imaginary part that is not 0. */
+const othersComplex = (el: any): boolean =>
+  el.parent.children.some((c: any) => {
+    const parts = c !== el && typeof c._scalarValue === 'string' ? parseComplexNum(c._scalarValue) : null;
+    return parts !== null && Number(parts.im) !== 0;
+  });
 
 /** Every complex array's rows, by id: the array's display and each element's. */
 function complexRows(root: any): Record<string, string> {
@@ -138,14 +148,16 @@ describe('an edit to an element of a complex array is undone, redone and undone 
       for (const el of complexElements(root)) {
         const shown = el.displayValue;
         const arrayShown = el.parent.displayValue;
+        // 5+0i while the array stays complex, and 5 where the edit leaves it real.
+        const five = othersComplex(el) ? '5+0i' : '5';
         session.setActive(root, el);
         expect(session.editProperty(el.id, 'Value', '5'), el.id).toBe(true);
-        expect(el.displayValue, el.id).toBe('5');
+        expect(el.displayValue, el.id).toBe(five);
         session.undo();
         expect(el.displayValue, el.id).toBe(shown);
         expect(el.parent.displayValue, el.id).toBe(arrayShown);
         session.redo();
-        expect(el.displayValue, el.id).toBe('5');
+        expect(el.displayValue, el.id).toBe(five);
         session.undo();
         expect(el.displayValue, el.id).toBe(shown);
       }
@@ -161,31 +173,40 @@ describe('an edit to an element of a complex array is undone, redone and undone 
   }
 });
 
-describe('a complex value typed into an element of a real array is still refused', () => {
-  const REAL_ONLY = expect.stringMatching(/^Cannot edit "[^"]+": an element of the \S+ (?:sparse )?double array takes one number, and the text typed, “3\+4i”, is a complex number\.$/);
-  for (const [file, name, reason] of [
-    ['sparse/sparse_text.sldd', 'dRow', REAL_ONLY],
-    // A sparse array's rows, a text dictionary's MAT stream's and a binary dictionary's hex's alike.
-    ['sparse/sparse_text.sldd', 'spDiag', REAL_ONLY],
-    ['sparse/sparse_binary.sldd', 'dRow', REAL_ONLY],
-    ['sparse/sparse_binary.sldd', 'spDiag', REAL_ONLY],
-  ] as const) {
-    it(`${file} ${name}`, () => {
+describe('a complex value typed into an element of a real array makes it complex, as MATLAB does', () => {
+  for (const file of ['sparse/sparse_text.sldd', 'sparse/sparse_binary.sldd']) {
+    it(`${file} dRow`, () => {
       const session = createSession();
       const root = open(file, session);
-      const array = root.getSection('design').children.find((e: any) => e.name === name);
-      expect(array._kind, name).toBe('array');
-      expect(array._elementType, name).not.toBe('complex');
+      const array = root.getSection('design').children.find((e: any) => e.name === 'dRow');
+      expect([array._kind, array._isComplexValue()]).toEqual(['array', false]);
       const el = array.children[0];
-      expect(el.valueEditable, el.id).toBe(reason === REAL_ONLY);
-      const shown = el.displayValue;
+      const shown = array.displayValue;
       session.setActive(root, el);
-      expect(session.editProperty(el.id, 'Value', '3+4i'), el.id).toMatchObject({
-        error: true,
-        reason,
-      });
-      expect(el.displayValue).toBe(shown);
-      expect(session.canUndo()).toBe(false);
+      expect(session.editProperty(el.id, 'Value', '3+4i'), el.id).toBe(true);
+      expect([el.displayValue, array._isComplexValue()]).toEqual(['3+4i', true]);
+      expect(array.children.slice(1).every((c: any) => /\+0i$/.test(c.displayValue))).toBe(true);
+      session.undo();
+      expect([array.displayValue, array._isComplexValue()]).toEqual([shown, false]);
+    });
+  }
+
+  // A sparse array a dictionary holds as a MAT stream, which takes an edit of its non-zeros: a complex
+  // one makes it complex too, as MATLAB's sp(1,1) = 3+4i does, and its save holds it so.
+  for (const file of ['sparse/sparse_text.sldd', 'sparse/sparse_binary.sldd']) {
+    it(`${file} spDiag, a sparse array held as a MAT stream`, () => {
+      const session = createSession();
+      const root = open(file, session);
+      const array = root.getSection('design').children.find((e: any) => e.name === 'spDiag');
+      const el = array.children[0];
+      const shown = array.displayValue;
+      session.setActive(root, el);
+      expect(session.editProperty(el.id, 'Value', '3+4i'), el.id).toBe(true);
+      expect([el.displayValue, array._isComplexValue()]).toEqual(['3+4i', true]);
+      const again = saveAndReopen(session, root).getSection('design').children.find((e: any) => e.name === 'spDiag');
+      expect([again._isComplexValue(), again.children[0].displayValue]).toEqual([true, '3+4i']);
+      session.undo();
+      expect([array.displayValue, array._isComplexValue()]).toEqual([shown, false]);
     });
   }
 });

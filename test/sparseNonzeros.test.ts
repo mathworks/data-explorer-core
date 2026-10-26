@@ -364,21 +364,26 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
     ]);
   });
 
-  it('a complex array whose every non-zero is set to a real number is still complex', () => {
-    // Its complexity used to ride on the text of its zeros, `0+0i`; there are none now.
+  it('a complex array whose every non-zero is set to a real number is real, as MATLAB makes it', () => {
+    // MATLAB R2027a: sp = sparse([1+1i 0; 0 2i]); sp(1,1) = 1; sp(2,2) = 1; isreal(sp) is true, and
+    // with one of them set it is false (MatlabVariableNode._settleComplexity). Its complexity used to
+    // ride on the text of its zeros, `0+0i`, and then on its imaginary parts, all of them 0.
     const spComplex = textEntry('spComplex');
-    for (const row of spComplex.children) {
+    const rows = spComplex.children.slice();
+    expect(rows[0].setProperty('Value', '1')).toBe(true);
+    expect(spComplex._isComplexValue()).toBe(true);
+    for (const row of rows.slice(1)) {
       expect(row.setProperty('Value', '1')).toBe(true);
     }
     const written = cdataVariable(JSON.parse(JSON.stringify(spComplex.serializeValue())));
     expect([spComplex._isComplexValue(), written.isComplex, entries(written.sparse)]).toEqual([
-      true,
-      true,
+      false,
+      false,
       [
-        [1, 1, 1, 0],
-        [3, 1, 1, 0],
-        [2, 3, 1, 0],
-        [1, 4, 1, 0],
+        [1, 1, 1],
+        [3, 1, 1],
+        [2, 3, 1],
+        [1, 4, 1],
       ],
     ]);
   });

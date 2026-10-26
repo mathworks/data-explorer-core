@@ -16,7 +16,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser, { collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
@@ -83,6 +83,12 @@ function shapedEmptyOf(parsed: ParsedValue): Record<string, unknown> | null {
     }
     const dims = parsed.dims ?? [0, 0];
     return cls === 'double' && dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? null : binaryEmptyForm(cls, dims);
+}
+
+// A class's `[]` literal, `{_type: 'int8', _value: '[]'}`, as a node writes its empty of rank 2.
+function isClassEmptyLiteral(v: unknown): boolean {
+    const o = v as Record<string, unknown> | null;
+    return !!o && typeof o === 'object' && typeof o._type === 'string' && o._value === '[]' && Object.keys(o).length === 2;
 }
 
 export default class ParameterNode extends DataNode {
@@ -282,6 +288,41 @@ export default class ParameterNode extends DataNode {
         return null;
     }
 
+    // A Value typed into the Value row (`node`, this Parameter's Value node) is MATLAB's `p.Value = v`,
+    // as one typed into this Parameter's own Value cell is, so that the two agree. Text is made here,
+    // as this setter makes it: a string scalar where the source judges values (a MAT-file), ['ab';
+    // 'cd'] the 1x1 "acbd" (R2027a), and the char a dictionary keeps elsewhere. The row held its own
+    // char: in a MAT-file 'abc' was shown a char until the file was opened again as the string
+    // "abc", and "abc" and ['ab'; 'cd'] were refused there; in a dictionary ['ab'; 'cd'] was the 2x2
+    // char. Null for any other text, which the row makes itself, in place, as this setter would: of
+    // the class the text is, not the one the Value had (_assignsValueBelow).
+    _setValueBelow(node: MatlabVariableNode, stringValue: string): true | SetPropertyResult | null {
+        if (node !== this._valueNode) {
+            return null;
+        }
+        const parsed = MatlabValueParser.parse(stringValue);
+        return parsed && (parsed.type === 'char' || parsed.type === 'string') ? this._setProperty('Value', stringValue) : null;
+    }
+
+    // Whether a value typed on `node` is MATLAB's `p.Value = v`, which keeps no class of the Value it
+    // replaces: `[4 5 6]` over int8([1 2 3]) is a double, its DataType 'auto' where the source says it
+    // follows, as the same text typed into this Parameter's Value cell makes it. The class a number
+    // typed over a plain member keeps (the D11 ruling) is not kept at a Parameter's Value, where
+    // `int8([4 5 6])` keeps int8. True of the Value node, the row; a field of a struct Value is a
+    // member, and keeps its class.
+    _assignsValueBelow(node: MatlabVariableNode): boolean {
+        return node === this._valueNode;
+    }
+
+    // What puts back this Parameter's Value as it is now, for the undo of an edit of its Value row
+    // (`node`), which this Parameter may make (_setValueBelow), and for its redo, asked after that
+    // edit, when the row is no longer the Value node, which the edit replaced (DataModel's
+    // redoRestore): its Value's restorer (_restorerFor). Asked of the Value node alone, the redo put
+    // back the row and not the Value the edit made.
+    _restorerBelow(node: MatlabVariableNode): (() => void) | null {
+        return node.parent === this ? this._restorerFor('Value') : null;
+    }
+
     // A structural edit below this node, at any depth of its Value: `container` gains a child
     // (`op` 'add') or loses one ('remove'). It gets the answer MATLAB gives on assigning the Value
     // it would leave (the maintainer's ruling A2, 2026-10-15 evening: "structural edits follow
@@ -373,7 +414,12 @@ export default class ParameterNode extends DataNode {
     // both; it simply was not being reached. So an edited value is marked Modified
     // here, which is also just true of it.
     _adoptValueNode(rawValue: unknown, edited?: boolean): void {
-        const valueNode = NodeRegistry.parseValue(rawValue, 'Value', this) as DataNode;
+        this._takeValueNode(NodeRegistry.parseValue(rawValue, 'Value', this) as DataNode, edited);
+    }
+
+    // `valueNode`, made under this Parameter, as its Value node, and its Value row where it needs one
+    // (_adoptValueNode, and a Value a conversion typed makes).
+    _takeValueNode(valueNode: DataNode, edited?: boolean): void {
         this.children = [];
         this._valueNode = valueNode;
         if (edited) {
@@ -660,7 +706,8 @@ export default class ParameterNode extends DataNode {
             if (this._valueIsEnum()) {
                 return this._valueNode!._setProperty(propName, stringValue);
             }
-            const raw = MatlabValueParser.parse(stringValue);
+            // Or a conversion, `int8(5)`, `double([1 2])` (classConversion).
+            const raw = MatlabValueParser.parse(stringValue) ?? classConversion(stringValue);
             if (!raw) {
                 return { error: true, reason: 'Invalid MATLAB expression', invalidValue: stringValue, validValue: this.displayValue };
             }
@@ -671,7 +718,8 @@ export default class ParameterNode extends DataNode {
             // (defect 42) exists for a 64-bit ENTRY, which knows its class; carried in
             // here it would be written to the dictionary as a JSON string and read back
             // as the char '18446744073709551615'.
-            const parsed = collapseExact(raw);
+            // Not of a conversion, whose 64-bit integer is the one MATLAB keeps (classConversion).
+            const parsed = raw.cls !== undefined ? raw : collapseExact(raw);
             // MATLAB refuses a cell and a string ARRAY as Parameter.Value, both with
             // Simulink:Data:Param_Invalid_Value: the accepted text is a string SCALAR
             // (refusedAsValue). The string array was accepted, and written as an
@@ -696,6 +744,21 @@ export default class ParameterNode extends DataNode {
                 this._adoptValueNode(shapedEmpty, true);
                 this.Value = [];
                 this._markModified();
+                this._followValueShape();
+                return true;
+            }
+            // A conversion to an integer class or single, `int8(5)`, `single([1.5 2])`, `int8(3+4i)`:
+            // a Value of that class, as MATLAB's `p.Value = int8(5)` makes it (R2027a; its DataType
+            // follows where the source says, _followValueShape), its node made of the text as a
+            // variable's Value typed in is (MatlabVariableNode._applyParsed). It was "Invalid MATLAB
+            // expression". `double(...)` is a double, as the arms below make it.
+            if (parsed.cls !== undefined && parsed.cls !== 'double') {
+                const valueNode = NodeRegistry.parseValue(0, 'Value', this) as MatlabVariableNode;
+                valueNode._applyParsed(parsed);
+                this._takeValueNode(valueNode, true);
+                this.Value = valueNode.serializeValue();
+                this._markModified();
+                // Its DataType the Value's class, as MATLAB's setter makes it, in a dictionary too (D9).
                 this._followValueShape();
                 return true;
             }
@@ -758,6 +821,7 @@ export default class ParameterNode extends DataNode {
             if (parsed.type === 'string') {
                 this._adoptValueNode([parsed.value], true);
                 this.Value = [parsed.value];
+                this._clearForText();
                 this._markModified();
                 this._followValueShape();
                 return true;
@@ -814,6 +878,9 @@ export default class ParameterNode extends DataNode {
             this.children = [];
             this._valueNode = null;
             this.Value = parsed.value;
+            if (parsed.type === 'char') {
+                this._clearForText();
+            }
             this._markModified();
             this._followValueShape();
             return true;
@@ -822,6 +889,16 @@ export default class ParameterNode extends DataNode {
             return this._setMinMax(propName, stringValue);
         }
         return DataNode.prototype._setProperty.call(this, propName, stringValue);
+    }
+
+    // What MATLAB's Value setter clears as it makes the Value text, a string: the Min, the Max and the
+    // Unit, measured (R2027a: p.Value = 'abc', "abc" or ['ab'; 'cd'] over a Parameter with Min 0, Max 10
+    // and Unit 'm' leaves Min [], Max [] and Unit ''; a number, a logical or a struct leaves them).
+    // Kept, a MAT-file held a Parameter MATLAB makes none of, and a dictionary showed them.
+    _clearForText(): void {
+        this.Min = undefined;
+        this.Max = undefined;
+        this.Unit = '';
     }
 
     // MATLAB keeps a Parameter's Dimensions and Complexity as its Value's (_followValueShape): it
@@ -937,10 +1014,11 @@ export default class ParameterNode extends DataNode {
         if (this._valueNode) {
             innerValue = this._valueNode.serializeValue();
             // A numeric or logical empty of another class than double or another size than 0x0, which
-            // its node writes as `[]`, a 0x0 double: as the binary reader holds one, which both
-            // writers spell as the empty it is (MatlabVariableNode._emptyHeader).
+            // its node writes as `[]`, a 0x0 double, or as its class's `[]`, the 0x0 a text
+            // dictionary reads back (MatlabVariableNode._serializeEmpty): as the binary reader holds
+            // one, which both writers spell as the empty it is (MatlabVariableNode._emptyHeader).
             const empty = (this._valueNode as unknown as { _emptyHeader?: () => unknown })._emptyHeader?.();
-            if (empty && Array.isArray(innerValue) && innerValue.length === 0) {
+            if (empty && (Array.isArray(innerValue) ? innerValue.length === 0 : isClassEmptyLiteral(innerValue))) {
                 innerValue = empty;
             }
         } else {

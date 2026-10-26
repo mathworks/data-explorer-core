@@ -258,9 +258,9 @@ for (const format of [BINARY, TEXT]) {
 }
 
 describe('a value typed over a collapsed complex scalar follows the rule for an edited one', () => {
-  // An edited complex scalar is a double, as the literal typed for it is in MATLAB
-  // (_complexClass). The class a collapse kept is the collapse's, not the next value's.
-  it('a bare int16 entry, cut to one element and then given 5+6i, is a complex double', () => {
+  // An edited complex scalar keeps the class it had, as a number typed over it does (the D11
+  // ruling, _applyParsed): the class a collapse kept, int16, holds the next value too.
+  it('a bare int16 entry, cut to one element and then given 5+6i, is a complex int16', () => {
     const { session, root, design } = openBinary();
     const meta = design.children.find((e: any) => e.name === 'zRow').metadata;
     design.parseEntry({
@@ -276,8 +276,8 @@ describe('a value typed over a collapsed complex scalar follows the rule for an 
     expect([v._scalarType, v._complexClass()]).toEqual(['complex', 'int16']);
     expect(BINARY.save(session, root, []).written('zInt16Row')).toBe('<P Name="Value" Class="int16" IsComplex="1">1+2i</P>');
     expect(v.setProperty('Value', '5+6i')).toBe(true);
-    expect([v._scalarType, v._complexClass()]).toEqual(['complex', 'double']);
-    expect(BINARY.save(session, root, []).written('zInt16Row')).toBe('<P Name="Value" Class="double" IsComplex="1">5.0+6.0i</P>');
+    expect([v._scalarType, v._complexClass()]).toEqual(['complex', 'int16']);
+    expect(BINARY.save(session, root, []).written('zInt16Row')).toBe('<P Name="Value" Class="int16" IsComplex="1">5+6i</P>');
     // A session undoes that edit by setting the text it showed back (DataModel.editProperty),
     // which is a value typed like any other. The removal's undo after it is still the int16
     // array the removal cut.

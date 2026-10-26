@@ -147,6 +147,35 @@ properties replaced, every other byte as it was read: the hex's `EncodedLength`
 is the new byte count, and the cdata's text is the new stream's own. An edit
 undone writes the stream as it was read.
 
+### A value typed in
+
+In every format, a value typed in is what MATLAB makes of the same assignment.
+
+- A number typed over a value of an integer class or `single` keeps that class, whatever the
+  text: `-0`, `1e3`, `[NaN Inf]`, `[]`, a row of any length, a complex number. It is MATLAB's
+  `cast(<text>, class(x))`, as MATLAB's Variable Editor keeps the class. This holds for a
+  variable, a struct field, a cell element and an element of an array, not for a
+  `Simulink.Parameter`'s Value (below).
+- A conversion typed as a whole value is of the class it spells: `int8(5)`, `single([1.5 2])`,
+  `uint16(7)`, `int8(3+4i)`, `logical([1 0 2])`, `int8([])`, and `int8(zeros(1,0))` where the
+  format holds a 1x0 (a text dictionary refuses it, below). `double(42)` is how a value of an
+  integer class becomes a double. Each part is rounded half away from zero and saturated under
+  an integer class, and NaN is 0.
+- A conversion keeps every digit of a 64-bit integer only where its argument is the bare
+  literal, with a minus sign at most, as MATLAB does: `int64(9007199254740993)` keeps it, and
+  `int64([9007199254740993 1])` and `int64(+9007199254740993)` hold 9007199254740992. A bare
+  integer typed over an `int64` or `uint64` value keeps every digit too, as the value shows it,
+  where MATLAB's `x = 9007199254740993` is the nearest double.
+- A `Simulink.Parameter`'s Value, typed in its Value cell or on its Value row, is what
+  `p.Value = v` makes it: `[4 5 6]` over an `int8` Value is a double, its DataType `auto`, and
+  `int8([4 5 6])` an `int8`.
+- An element of an array takes a number in the array's class, and a conversion as the number
+  it converts to, as `x(2) = int8(300)` does. A complex number makes the array complex, and the
+  array is real again once no imaginary part is left that is not 0, as MATLAB's assignment
+  leaves it.
+- An element of a logical array takes only `true`, `false`, 1 and 0, and an element of a
+  numeric array no `true` or `false`. MATLAB converts both.
+
 ### A MAT-file
 
 A MAT-file is saved as the file it was read from, with what was edited written
@@ -237,9 +266,8 @@ N-D string array), shows its summaries and is edited an element at a time. In a
 cell's text, in a MAT-file and a dictionary alike, a member of a numeric class other than
 double is spelled with its class (`{1, int8(3), single(2.5), uint16([1 2])}`), so the text
 typed back keeps every class; a cell holding one no text spells exactly (a single -0) is
-edited an element at a time. An integer class's conversion reads its digits exactly:
-`uint64(9007199254740993)` keeps that value, where MATLAB, which reads the digits as a
-double first, keeps 9007199254740992. A bare word typed in a cell (`{missing}`) is refused: a char
+edited an element at a time. A conversion reads a 64-bit integer as MATLAB does (below). A bare
+word typed in a cell (`{missing}`) is refused: a char
 is typed in quotes. A string is still refused in an element of a numeric array, and as a
 `Simulink.Parameter`'s Value where MATLAB refuses it. A string array (a row or a column)
 takes `""` added and an element deleted, as in a dictionary, written into its object;

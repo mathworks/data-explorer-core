@@ -122,9 +122,13 @@ describe("a Parameter's DataType, as MATLAB's edit of its Value leaves it", () =
     const spI = object('spI');
     expect(edit(spI._valueNode.children[1], 'Value', '7')).toBe(true);
     expect([spI.displayValue, spI.DataType]).toEqual(['[1 7 3]', 'int16']);
-    // Typed on its row, the Value keeps the class its row is (an entry's rule, MatlabVariableNode).
+    // Typed on its row, the Value is what MATLAB's `p.Value = [4 5]` makes it, as typed as the
+    // Parameter's (ParameterNode._assignsValueBelow): a double, its DataType 'auto'.
     expect(edit(spI._valueNode, 'Value', '[4 5]')).toBe(true);
-    expect([spI.displayValue, spI._valueNode.className, spI.DataType, JSON.stringify(spI.serial._properties.Dimensions)]).toEqual(['[4 5]', 'int16', 'int16', '[1,2]']);
+    expect([spI.displayValue, spI._valueNode.className, spI.DataType, JSON.stringify(spI.serial._properties.Dimensions)]).toEqual(['[4 5]', 'double', 'auto', '[1,2]']);
+    // And int8([4 5]) on its row an int8, the DataType with it.
+    expect(edit(spI._valueNode, 'Value', 'int8([4 5])')).toBe(true);
+    expect([spI._valueNode.className, spI.DataType]).toEqual(['int8', 'int8']);
     // Typed as the Parameter's, it is the double MATLAB makes of `[6 7]`.
     expect(edit(spI, 'Value', '[6 7]')).toBe(true);
     expect([spI.displayValue, spI._valueNode.className, spI.DataType]).toEqual(['[6 7]', 'double', 'auto']);

@@ -806,16 +806,16 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
     spAllZero._rawInput = undefined;
     const zero = MatlabVariableNode.parse(spAllZero._serializeArray(), 'z', null);
     expect([zero._dims, zero.isSparse, entriesOf(zero._sparse)]).toEqual([[3, 4], true, []]);
-    // And a complex one is still complex when every non-zero is set to a real number: its
-    // non-zeros still carry their (zero) imaginary parts.
+    // And a complex one is real once every non-zero is set to a real number, as MATLAB's
+    // assignment makes it (MatlabVariableNode._settleComplexity): its elements are spelled real.
     const spComplex = textEntry(design, 'spComplex');
     for (const [r, c] of [[1, 1], [3, 1], [2, 3], [1, 4]]) {
       expect(elementAt(spComplex, r, c).setProperty('Value', '1')).toBe(true);
     }
-    expect([spComplex._isComplexValue(), spComplex._var.isComplex]).toEqual([true, true]);
-    expect(/IsComplex="1" Dimension="3\*4">([^<]*)</.exec(spComplex._serializeArrayXml('P', { Name: 'Value' }, 2))![1].split(' ')).toEqual([
-      '1.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '0.0+0.0i', '0.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '0.0+0.0i',
-    ]);
+    expect([spComplex._isComplexValue(), spComplex._var.isComplex]).toEqual([false, false]);
+    const realXml = spComplex._serializeArrayXml('P', { Name: 'Value' }, 2);
+    expect(realXml).not.toContain('IsComplex');
+    expect(/Dimension="3\*4">([^<]*)</.exec(realXml)![1].trim().split(/\s+/).map(Number)).toEqual([1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0]);
   });
 
   it('past what it lays out densely, the fallback writes the summary, never a dense list', () => {
