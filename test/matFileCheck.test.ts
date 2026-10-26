@@ -114,7 +114,8 @@ describe('the MATLAB-verdict corpus', () => {
     const after = checkMatFile(read(join(CORPUS, 'variable-after-subsystem.mat')));
     expect(after).toEqual([expect.objectContaining({ code: 'subsystem-not-last', variable: 'd_scalar' })]);
     const chars = checkMatFile(read(join(CORPUS, 'char-every-encoding.mat')));
-    expect(chars.map((v) => v.variable)).toEqual(['ch_utf32', 'ch_na_utf32', 'ch_cjk_u16', 'ch_cjk_utf32', 'ch_emoji_u16', 'ch_emoji_utf32']);
+    // CJK as miUTF8 loads in R2027a and fails the load in R2023b.
+    expect(chars.map((v) => v.variable)).toEqual(['ch_utf32', 'ch_na_utf32', 'ch_cjk_utf8', 'ch_cjk_u16', 'ch_cjk_utf32', 'ch_emoji_u16', 'ch_emoji_utf32']);
     const crash = checkMatFile(read(join(CORPUS, 'non-utf8-name.mat')));
     expect(crash).toEqual([expect.objectContaining({ code: 'name', message: expect.stringContaining('crashes') })]);
   });

@@ -25,7 +25,7 @@
 //     the small form; an EMPTY payload stays long (that is how MATLAB writes the
 //     empty name)
 //   * a logical is class uint8 with the logical flag and a miUINT8 payload
-//   * a char payload is miUTF8
+//   * a char payload is miUTF8 where every character is below U+0080, and miUTF16 otherwise
 //   * a struct's field-name stride is max(longest name, 4) + 1 — measured at
 //     lengths 1, 3, 4, 5, 6 and 8, which rules out both `longest + 1` and any
 //     4-byte rounding of it
@@ -129,6 +129,7 @@ const MI_INT64 = 12;
 const MI_UINT64 = 13;
 const MI_MATRIX = 14;
 const MI_UTF8 = 16;
+const MI_UTF16 = 17;
 
 const MX_CELL = 1;
 const MX_STRUCT = 2;
@@ -622,7 +623,30 @@ function charBody(v: MatVariable, d: number[]): Uint8Array[] {
   if (text.length !== elementCountOf(d)) {
     throw new MatWriteError('char value has ' + text.length + ' characters but declares [' + d.join(',') + ']');
   }
-  return [element(MI_UTF8, new TextEncoder().encode(text))];
+  return [charData(text)];
+}
+
+// A char array's data as MATLAB writes it (measured, R2023b and R2027a: save -v7, compressed and
+// not, at the top, in a struct field, in a cell and in an object's property; and
+// getByteStreamFromArray): miUTF8 where every character is below U+0080, one byte each, and
+// miUTF16 otherwise, one UTF-16 unit each, little-endian, a surrogate as the unit it is. R2023b
+// refuses miUTF8 holding a character past U+07FF (MATLAB:load:cantReadFile, of '日本語' written
+// so); and a surrogate on its own has no UTF-8, where TextEncoder wrote U+FFFD in its place.
+function charData(text: string): Uint8Array {
+  const ascii = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    if (unit >= 0x80) {
+      const units = new Uint8Array(text.length * 2);
+      const view = new DataView(units.buffer);
+      for (let j = 0; j < text.length; j++) {
+        view.setUint16(j * 2, text.charCodeAt(j), true);
+      }
+      return element(MI_UTF16, units);
+    }
+    ascii[i] = unit;
+  }
+  return element(MI_UTF8, ascii);
 }
 
 function cellBody(v: MatVariable, d: number[], budget: UnbackedBudget): Uint8Array[] {

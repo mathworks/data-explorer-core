@@ -426,6 +426,26 @@ describe('parseMat — char arrays', () => {
     }
   });
 
+  it('keeps a UTF-16 payload\'s units as they are: a surrogate on its own, a leading U+FEFF, a long text', () => {
+    // As MATLAB R2023b and R2027a load them (test/fixtures/mat-char/*/surrogates.mat); a
+    // TextDecoder made each such surrogate U+FFFD and dropped the U+FEFF.
+    for (const type of [MI.UTF16, MI.UINT16]) {
+      for (const text of ['\ufeff\ude00a\ud83d', '\ud83d', 'x'.repeat(10_000) + '\ude00' + 'y'.repeat(5_000)]) {
+        expect(only(matFile([charVar('c', text, type)])).value).toBe(text);
+      }
+    }
+  });
+
+  it('reads a byte left over of a UTF-16 payload as U+FFFD', () => {
+    const el = matrix([arrayFlags(CLASS.CHAR), dims([1, 2]), varName('c'), element(MI.UTF16, new Uint8Array([0x61, 0, 0x62]))]);
+    expect(only(matFile([el])).value).toBe('a\ufffd');
+  });
+
+  it('keeps a leading U+FEFF of a UTF-8 payload, as MATLAB loads one this package once wrote', () => {
+    // Measured, R2023b and R2027a: miUTF8 EF BB BF 61 loads as char([65279 97]).
+    expect(only(matFile([charVar('c', '\ufeffa', MI.UTF8)])).value).toBe('\ufeffa');
+  });
+
   it('falls back to UTF-8 for an unexpected char payload type', () => {
     expect(only(matFile([charVar('c', 'abcd', MI.INT32)])).value).toBe('abcd');
   });

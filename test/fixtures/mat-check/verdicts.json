@@ -604,9 +604,12 @@
   {
     "file": "char-cjk-utf8.mat",
     "probe": "B14_ch_cjk_utf8",
-    "matlab": "loads",
+    "matlab": "fails",
     "what": "three CJK characters as miUTF8",
-    "codes": []
+    "matlabSays": "R2027a loads it; R2023b: Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "utf8-wide"
+    ]
   },
   {
     "file": "char-cjk-uint16.mat",
@@ -676,7 +679,8 @@
     "what": "the 16 char variables above in one file",
     "matlabSays": "S = load(f) and load(f) fail; load(f, \"ch_utf8\") works: one bad variable fails the whole-file load",
     "codes": [
-      "char-type"
+      "char-type",
+      "utf8-wide"
     ]
   },
   {

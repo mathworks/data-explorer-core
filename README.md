@@ -139,7 +139,11 @@ variable is then written from the model, an object it holds as the element it wa
 read as. Written from the model, a variable is still the one it was
 read as in every part it holds: a struct array of no element keeps its field
 names, an empty its complexity, a zero its sign, and a variable saved as global
-stays global. Before the bytes are handed back, every record written anew is
+stays global. Text is written as MATLAB writes it, byte for byte: as UTF-8 where
+every character is ASCII, and as UTF-16 otherwise, at the top, in a struct or a
+cell and in an object's property, which MATLAB R2023b loads as R2027a does (it
+fails a file holding CJK as UTF-8); a UTF-16 surrogate on its own is read and
+written as the unit it is, as MATLAB keeps it. Before the bytes are handed back, every record written anew is
 read again, and the file is held to the rules MATLAB loads a file by: a save that
 breaks one the file as read did not break is refused, with a `MatWriteError`
 naming the variable, and nothing is written. Both are asked where the save changed

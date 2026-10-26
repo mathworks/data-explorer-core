@@ -20,6 +20,8 @@
  * - `duplicate-name`: two records of one name;
  * - `char-type`: char data in a type MATLAB does not read as text, or reads wrong;
  * - `utf8-count`: miUTF8 char data whose UTF-16 length is not the array's element count;
+ * - `utf8-wide`: miUTF8 char data holding a character of three UTF-8 bytes, which R2027a loads
+ *   and R2023b does not (its value as read is the value, so it is no `char-type`);
  * - `nbytes`: a matrix its sub-elements do not fill exactly;
  * - `int-storage`: a numeric array of a class other than double, stored in a type other than
  *   its class's own;
@@ -29,7 +31,7 @@
  * - `data-size`: a data sub-element holding more or fewer elements than the dimensions say;
  * - `budget`: the check stopped here, and nothing from here on was checked.
  */
-export type MatViolationCode = 'short-file' | 'not-level5' | 'level4-lookalike' | 'big-endian' | 'framing' | 'top-level-type' | 'empty-matrix' | 'compressed-wrapper' | 'subsystem-offset' | 'subsystem-not-last' | 'anonymous-record' | 'name' | 'duplicate-name' | 'char-type' | 'utf8-count' | 'nbytes' | 'int-storage' | 'element' | 'data-size' | 'budget';
+export type MatViolationCode = 'short-file' | 'not-level5' | 'level4-lookalike' | 'big-endian' | 'framing' | 'top-level-type' | 'empty-matrix' | 'compressed-wrapper' | 'subsystem-offset' | 'subsystem-not-last' | 'anonymous-record' | 'name' | 'duplicate-name' | 'char-type' | 'utf8-count' | 'utf8-wide' | 'nbytes' | 'int-storage' | 'element' | 'data-size' | 'budget';
 /** One rule a MAT-file breaks, and where. */
 export interface MatViolation {
     code: MatViolationCode;

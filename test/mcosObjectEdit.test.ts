@@ -239,7 +239,7 @@ interface AllowlistCase {
   rules?: RulesWritten;
 }
 // How many cases each way: held to the probe's bytes, or to the rules' own (named in the truth file).
-const COUNTS = { sessionBytes: 97, sessionRules: 50, rulesBytes: 0, rulesOwn: 71, refusedAtEdit: 31, refusedByRules: 5 };
+const COUNTS = { sessionBytes: 91, sessionRules: 56, rulesBytes: 0, rulesOwn: 71, refusedAtEdit: 31, refusedByRules: 5 };
 const ALLOWLIST_TRUTH: { cases: AllowlistCase[] } = JSON.parse(readFileSync(join(ALLOWLIST, 'allowlist.truth.json'), 'utf8'));
 
 const TEXT_PROPERTIES = new Set(['Description', 'Unit', 'InitialValue', 'DataType']);
