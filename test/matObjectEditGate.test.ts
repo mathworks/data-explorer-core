@@ -187,8 +187,21 @@ const FIXTURES = matFilesUnder(TEST_ROOT).filter((abs) => {
   }
 });
 
+// E2 of the 2026-10-26 edit bash, pinned as it is until it is fixed: the rename of an element of a
+// Simulink.Parameter's struct-array Value is one the gate takes and the row offers no editor of,
+// and a rename forced on it is refused in other words than the gate's. By row, the words.
+const E2 = new Map(
+  ['r2023b', 'r2027a'].flatMap((release) =>
+    ['Value(1)', 'Value(2)'].map((element): [string, string] => [
+      `fixtures/edit-bash/${release}/values.mat: pStructArr.${element} Name`,
+      `'${element}' is not a name this entry can carry, so it cannot be renamed.`,
+    ]),
+  ),
+);
+
 describe('the gate is the writer, for every object of every fixture', () => {
   const totals = { taken: 0, refusedByValue: 0, refused: 0, structural: 0, objects: 0 };
+  const metE2: string[] = [];
   // The Adds and removals of an element of a Simulink.Parameter's array Value, by file and Value.
   const valueRows: { add: string[]; remove: string[] } = { add: [], remove: [] };
 
@@ -226,7 +239,16 @@ describe('the gate is the writer, for every object of every fixture', () => {
               continue;
             }
             const label = `${shown(file)}: ${seen.matlabPath} ${key}`;
-            if (sourceEditRefusal(seen, key) === null && seen.className === 'struct' && seen !== objectSeen && key === 'Value') {
+            if (E2.has(label)) {
+              const { root, edit, save } = opened(original);
+              const node = at(root, path);
+              expect([sourceEditRefusal(node, key), node.getPropInfo(prop).editable], label).toEqual([null, false]);
+              for (const value of candidates(seen, objectSeen, key)) {
+                expect(edit(node, key, value), label + ' = ' + value).toMatchObject({ error: true, reason: E2.get(label) });
+              }
+              expect(sameBytes(save(), original), label + ': the file as it was').toBe(true);
+              metE2.push(label);
+            } else if (sourceEditRefusal(seen, key) === null && seen.className === 'struct' && seen !== objectSeen && key === 'Value') {
               // A struct row of a Value takes a row added or removed (below) and an edit of each of
               // its fields, which the gate asks as one of its Value; a value typed over it whole is
               // refused by the value, every one, and the table offers no editor for it.
@@ -348,6 +370,7 @@ describe('the gate is the writer, for every object of every fixture', () => {
   }
 
   it('reaches every kind of edit: values taken and refused by value, properties refused, Adds and removals', () => {
+    expect(metE2.sort()).toEqual([...E2.keys()].sort());
     // 338 objects, 2951 edits taken, 39 refused by their value, 11373 properties refused, 84 Adds
     // and removals, when written.
     expect(totals.objects).toBeGreaterThanOrEqual(300);

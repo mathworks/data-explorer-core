@@ -81,9 +81,27 @@ function judged(bytes: ArrayBuffer, i: number) {
   });
 }
 
+// E1 of the 2026-10-26 edit bash, pinned as it is until it is fixed: a struct or cell holding an
+// enumeration value refuses every edit of its Value, and in other words when the node ceiling cut
+// it. By container, what the gate says of each tree; the save of each refuses in the same words.
+const ENUM = 'is a matlab.lang.OnOffSwitchState, which this package cannot write into a MAT-file.';
+const HANDLE = 'holds an object whose handle this package could not read, so a save could not write it as it is.';
+const E1 = new Map(
+  ['r2023b', 'r2027a'].flatMap((release) =>
+    [
+      ['enumOnInStruct', 'enumOnInStruct.v'],
+      ['enumOnInCell', 'enumOnInCell{1}'],
+    ].map(([name, member]): [string, { whole: string; cut: string }] => [
+      `fixtures/edit-bash/${release}/values.mat: ${name}`,
+      { whole: `Cannot edit "${name}": ${member} ${ENUM}`, cut: `Cannot edit "${name}": ${member} ${HANDLE}` },
+    ]),
+  ),
+);
+
 describe('a container the node ceiling cut is gated and saved as it is with its rows', () => {
   it('in every fixture: the same verdict, the same refusal, or a value that reads back the same', { timeout: 120_000 }, () => {
     let cut = 0;
+    const metE1: string[] = [];
     for (const file of matFilesUnder(TEST_ROOT)) {
       const bytes = fileBytes(file);
       try {
@@ -99,6 +117,15 @@ describe('a container the node ceiling cut is gated and saved as it is with its 
         }
         cut++;
         const label = file.slice(TEST_ROOT.length) + ': ' + whole.node.name;
+        const pinned = E1.get(label);
+        if (pinned) {
+          expect([whole.gate, shown.gate], label).toEqual([pinned.whole, pinned.cut]);
+          for (const t of [whole, shown]) {
+            expect((t.save as { refused?: string }).refused, label).toBe(t.gate!.replace(/^Cannot edit/, 'Cannot write') + ' Nothing was written.');
+          }
+          metE1.push(label);
+          continue;
+        }
         expect(shown.gate, label).toBe(whole.gate);
         // And the gate is the writer, in each tree.
         for (const t of [whole, shown]) {
@@ -114,6 +141,7 @@ describe('a container the node ceiling cut is gated and saved as it is with its 
     }
     // The fixtures hold that many containers to cut, and the sweep met them.
     expect(cut).toBeGreaterThanOrEqual(500);
+    expect(metE1.sort()).toEqual([...E1.keys()].sort());
   });
 });
 

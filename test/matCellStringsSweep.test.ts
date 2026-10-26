@@ -229,8 +229,9 @@ describe('a MAT-file cell holding strings, its text typed back', () => {
     expect(wrong).toEqual([]);
     // At least what was measured when this was written: 29 cells taking an edit of their text; 12
     // not, 4 holding another object, 6 a string no text spells (<missing>, an empty or N-D array),
-    // 2 a summary of another value (a struct).
+    // 2 a summary of another value (a struct). The edit-bash fixtures add, in each release's
+    // values.mat, strMissingInCell (a <missing>) and cLeaves (a summary of a struct among them).
     expect(editable).toBeGreaterThanOrEqual(29);
-    expect(Object.fromEntries(locked)).toEqual({ 'another object': 4, 'a string no text spells': 6, 'a summary of another value': 2 });
+    expect(Object.fromEntries(locked)).toEqual({ 'another object': 4, 'a string no text spells': 8, 'a summary of another value': 4 });
   });
 });

@@ -1,0 +1,1022 @@
+{
+  "about": "The edit-bash parity fixtures (make_edit_bash.m, then this script). \"in\" lists the files that hold a value; \"refused\" is what MATLAB said where a file does not; \"readsBackOtherwise\" is how MATLAB reads a held value back where that is not the value it was given.",
+  "files": {
+    "r2027a-mat": {
+      "path": "r2027a/values.mat",
+      "writtenBy": "27.1.0.3422810 (R2027a) Prerelease",
+      "format": "MAT-file, save -v7"
+    },
+    "r2027a-mat-handles": {
+      "path": "r2027a/handles.mat",
+      "writtenBy": "27.1.0.3422810 (R2027a) Prerelease",
+      "format": "MAT-file, save -v7 -nocompression, its matlabroot scrubbed"
+    },
+    "r2027a-text": {
+      "path": "r2027a/values_text.sldd",
+      "writtenBy": "27.1.0.3422810 (R2027a) Prerelease",
+      "format": "dictionary, FileFormat 'uncompressed-text' (JSON)"
+    },
+    "r2027a-binary": {
+      "path": "r2027a/values_binary.sldd",
+      "writtenBy": "27.1.0.3422810 (R2027a) Prerelease",
+      "format": "dictionary, FileFormat 'compressed-binary'"
+    },
+    "r2023b-mat": {
+      "path": "r2023b/values.mat",
+      "writtenBy": "23.2.0.3186351 (R2023b) Update 11",
+      "format": "MAT-file, save -v7"
+    },
+    "r2023b-mat-handles": {
+      "path": "r2023b/handles.mat",
+      "writtenBy": "23.2.0.3186351 (R2023b) Update 11",
+      "format": "MAT-file, save -v7 -nocompression, its matlabroot scrubbed"
+    },
+    "r2023b-binary": {
+      "path": "r2023b/values_binary.sldd",
+      "writtenBy": "23.2.0.3186351 (R2023b) Update 11",
+      "format": "dictionary, FileFormat 'compressed-binary'"
+    }
+  },
+  "notWritten": {
+    "r2023b-text": "Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'."
+  },
+  "variables": {
+    "dScalar": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "dRow": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "d2x3": {
+      "group": "leaf",
+      "class": "double",
+      "size": "2x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "dNegZero": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "value the sign of a zero differs"
+      }
+    },
+    "dInf": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "dNaN": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "dNonFinite": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "zScalar": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "zArray": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "zZeroImag": {
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "zInt8": {
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "i8": {
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "i16": {
+      "group": "leaf",
+      "class": "int16",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "i32": {
+      "group": "leaf",
+      "class": "int32",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "i64": {
+      "group": "leaf",
+      "class": "int64",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "i64Max": {
+      "group": "leaf",
+      "class": "int64",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "u8": {
+      "group": "leaf",
+      "class": "uint8",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "u16": {
+      "group": "leaf",
+      "class": "uint16",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "u32": {
+      "group": "leaf",
+      "class": "uint32",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "u64": {
+      "group": "leaf",
+      "class": "uint64",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "u64Max": {
+      "group": "leaf",
+      "class": "uint64",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sgl": {
+      "group": "leaf",
+      "class": "single",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sglRow": {
+      "group": "leaf",
+      "class": "single",
+      "size": "1x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "lScalar": {
+      "group": "leaf",
+      "class": "logical",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "lArray": {
+      "group": "leaf",
+      "class": "logical",
+      "size": "1x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "chRow": {
+      "group": "leaf",
+      "class": "char",
+      "size": "1x5",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "chEmpty": {
+      "group": "leaf",
+      "class": "char",
+      "size": "0x0",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "ch2Row": {
+      "group": "leaf",
+      "class": "char",
+      "size": "2x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "strScalar": {
+      "group": "leaf",
+      "class": "string",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "strEmpty": {
+      "group": "leaf",
+      "class": "string",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "strRow": {
+      "group": "leaf",
+      "class": "string",
+      "size": "1x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "str2x2": {
+      "group": "leaf",
+      "class": "string",
+      "size": "2x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "dEmpty0x3": {
+      "group": "leaf",
+      "class": "double",
+      "size": "0x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "value size 0x3, read back 0x0"
+      }
+    },
+    "i8Empty1x0": {
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x0",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "value size 1x0, read back 0x0"
+      }
+    },
+    "cEmpty": {
+      "group": "leaf",
+      "class": "cell",
+      "size": "0x0",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sNoFields": {
+      "group": "leaf",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sEmpty0x0": {
+      "group": "leaf",
+      "class": "struct",
+      "size": "0x0",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "value fields {a}, read back {}"
+      }
+    },
+    "nd2x2x2": {
+      "group": "leaf",
+      "class": "double",
+      "size": "2x2x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "strMissing": {
+      "group": "dictionary-edge",
+      "class": "string",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2023b-mat"
+      ],
+      "refused": {
+        "r2027a-text": "refused by saveChanges: <missing> string element not supported.",
+        "r2027a-binary": "refused by saveChanges: <missing> string element not supported.",
+        "r2023b-binary": "refused: <missing> string element not supported."
+      }
+    },
+    "spMatrix": {
+      "group": "dictionary-edge",
+      "class": "double",
+      "size": "2x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "enumOn": {
+      "group": "dictionary-edge",
+      "class": "matlab.lang.OnOffSwitchState",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sLeaves": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "(1).dNegZero the sign of a zero differs; (1).dEmpty0x3 size 0x3, read back 0x0; (1).i8Empty1x0 size 1x0, read back 0x0; (1).sEmpty0x0 fields {a}, read back {}"
+      },
+      "fields": [
+        "dScalar",
+        "dRow",
+        "d2x3",
+        "dNegZero",
+        "dInf",
+        "dNaN",
+        "dNonFinite",
+        "zScalar",
+        "zArray",
+        "zZeroImag",
+        "zInt8",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "i64Max",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "u64Max",
+        "sgl",
+        "sglRow",
+        "lScalar",
+        "lArray",
+        "chRow",
+        "chEmpty",
+        "ch2Row",
+        "strScalar",
+        "strEmpty",
+        "strRow",
+        "str2x2",
+        "dEmpty0x3",
+        "i8Empty1x0",
+        "cEmpty",
+        "sNoFields",
+        "sEmpty0x0",
+        "nd2x2x2"
+      ]
+    },
+    "sArr": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x3",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "sArr(3).b"
+    },
+    "cLeaves": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x38",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "readsBackOtherwise": {
+        "r2027a-text": "{4} the sign of a zero differs; {33} size 0x3, read back 0x0; {34} size 1x0, read back 0x0; {37} fields {a}, read back {}"
+      },
+      "elements": [
+        "dScalar",
+        "dRow",
+        "d2x3",
+        "dNegZero",
+        "dInf",
+        "dNaN",
+        "dNonFinite",
+        "zScalar",
+        "zArray",
+        "zZeroImag",
+        "zInt8",
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "i64Max",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "u64Max",
+        "sgl",
+        "sglRow",
+        "lScalar",
+        "lArray",
+        "chRow",
+        "chEmpty",
+        "ch2Row",
+        "strScalar",
+        "strEmpty",
+        "strRow",
+        "str2x2",
+        "dEmpty0x3",
+        "i8Empty1x0",
+        "cEmpty",
+        "sNoFields",
+        "sEmpty0x0",
+        "nd2x2x2"
+      ]
+    },
+    "c2x2": {
+      "group": "container",
+      "class": "cell",
+      "size": "2x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "c2x2{2,2}"
+    },
+    "sNest": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "sNest.c{2}.s.f"
+    },
+    "cNest": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "cNest{1}{2}{1}"
+    },
+    "saCell": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "saCell(2).c{1}.x"
+    },
+    "deep4": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "deep4.a.b{1}.c.d"
+    },
+    "strMissingInStruct": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2023b-mat"
+      ],
+      "refused": {
+        "r2027a-text": "refused: <missing> string element not supported.",
+        "r2027a-binary": "refused: <missing> string element not supported.",
+        "r2023b-binary": "refused: <missing> string element not supported."
+      },
+      "deepest": "strMissingInStruct.v"
+    },
+    "strMissingInCell": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2023b-mat"
+      ],
+      "refused": {
+        "r2027a-text": "refused: <missing> string element not supported.",
+        "r2027a-binary": "refused: <missing> string element not supported.",
+        "r2023b-binary": "refused: <missing> string element not supported."
+      },
+      "deepest": "strMissingInCell{1}"
+    },
+    "spMatrixInStruct": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "spMatrixInStruct.v"
+    },
+    "spMatrixInCell": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "spMatrixInCell{1}"
+    },
+    "enumOnInStruct": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "enumOnInStruct.v"
+    },
+    "enumOnInCell": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "enumOnInCell{1}"
+    },
+    "pStruct": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "pStruct.Value.inner.y"
+    },
+    "pStructArr": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "pStructArr.Value(2).a"
+    },
+    "pInt8": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "pComplex": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "pMatrix": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "pProps": {
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sig": {
+      "group": "object",
+      "class": "Simulink.Signal",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "sHoldsParam": {
+      "group": "object",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "sHoldsParam.p.Value"
+    },
+    "cHoldsParam": {
+      "group": "object",
+      "class": "cell",
+      "size": "1x2",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "cHoldsParam{1}.Value"
+    },
+    "bus": {
+      "group": "object",
+      "class": "Simulink.Bus",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ],
+      "deepest": "bus.Elements(2).DataType"
+    },
+    "numType": {
+      "group": "object",
+      "class": "Simulink.NumericType",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat",
+        "r2027a-text",
+        "r2027a-binary",
+        "r2023b-mat",
+        "r2023b-binary"
+      ]
+    },
+    "fnHandle": {
+      "group": "dictionary-edge",
+      "class": "function_handle",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat-handles",
+        "r2023b-mat-handles"
+      ],
+      "refused": {
+        "r2027a-text": "refused: Values of class 'function_handle' are not supported in the 'Design_Data' section of the dictionary.",
+        "r2027a-binary": "refused: Values of class 'function_handle' are not supported in the 'Design_Data' section of the dictionary.",
+        "r2023b-binary": "refused: Values of class 'function_handle' are not accepted in the 'Design_Data' section of the dictionary."
+      }
+    },
+    "fnHandleInStruct": {
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat-handles",
+        "r2023b-mat-handles"
+      ],
+      "refused": {
+        "r2027a-text": "refused: Unable to import variable 'fnHandleInStruct'. Function handle data type not supported for data dictionaries.",
+        "r2027a-binary": "refused: Unable to import variable 'fnHandleInStruct'. Function handle data type not supported for data dictionaries.",
+        "r2023b-binary": "refused: Data dictionary cannot store function handles."
+      },
+      "deepest": "fnHandleInStruct.v"
+    },
+    "fnHandleInCell": {
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "in": [
+        "r2027a-mat-handles",
+        "r2023b-mat-handles"
+      ],
+      "refused": {
+        "r2027a-text": "refused: Unable to import variable 'fnHandleInCell'. Function handle data type not supported for data dictionaries.",
+        "r2027a-binary": "refused: Unable to import variable 'fnHandleInCell'. Function handle data type not supported for data dictionaries.",
+        "r2023b-binary": "refused: Data dictionary cannot store function handles."
+      },
+      "deepest": "fnHandleInCell{1}"
+    }
+  },
+  "notConstructed": [
+    {
+      "name": "pStructCell",
+      "what": "Simulink.Parameter whose Value is struct('a', 1, 'c', {{1, 2}})",
+      "error": "A valid structure must be numeric",
+      "releases": [
+        "r2027a",
+        "r2023b"
+      ]
+    }
+  ],
+  "asymmetries": [
+    "R2023b has no text dictionary: setting FileFormat fails (\"Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.\"), so r2023b/ has no values_text.sldd.",
+    "A missing string, alone or in a struct field or a cell, is in no dictionary (\"<missing> string element not supported.\"). R2027a takes one alone in addEntry and refuses it at saveChanges, so the error comes at the save.",
+    "A function handle, alone or in a struct field or a cell, is in no dictionary; MATLAB says so in four ways (see refused). The values holding one are in handles.mat, not values.mat (see make_edit_bash.m).",
+    "The R2027a text dictionary drops the sign of -0 (it writes 0), the shape of an empty numeric (0x3 double and 1x0 int8 read back 0x0) and the fields of an empty struct array (struct('a', {}) reads back with none), alone and in sLeaves and cLeaves. The binary dictionaries of both releases and both MAT-files keep them.",
+    "A Simulink.Parameter's struct Value cannot hold a cell: MATLAB refuses the assignment (\"A valid structure must be numeric\", both releases), so pStructCell is in no file.",
+    "Every dictionary holds a sparse matrix, an enumeration value (matlab.lang.OnOffSwitchState.on) and a struct or a cell holding a Simulink.Parameter, as the MAT-files do.",
+    "R2027a loads r2023b/values.mat and opens r2023b/values_binary.sldd with every getValue equal to the MAT-file; R2023b cannot read R2027a-written Simulink objects or dictionaries."
+  ]
+}
