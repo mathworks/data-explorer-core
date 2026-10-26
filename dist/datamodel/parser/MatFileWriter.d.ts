@@ -100,8 +100,11 @@ export declare function freshWriteRefusal(node: BaseNode, headerBytes: Uint8Arra
  * it was read as (MatlabVariableNode._var), so that variable is what is asked of it, and not its
  * rows, which _matWritable would find none of to refuse: a cell of function handles, cut, said
  * nothing, and its edit was refused by MatWriter at the save.
+ *
+ * `stringsMade`: a string a cell or a struct under `at` holds is none of these, for a value whose
+ * strings the edit makes the objects a save writes as such (MatNode._retype, _makeStringsIn).
  */
-export declare function unwritableIn(at: BaseNode): {
+export declare function unwritableIn(at: BaseNode, stringsMade?: boolean): {
     path: string;
     what: string;
     why?: string;

@@ -3,6 +3,19 @@ export interface ParsedValue {
     value: unknown;
     dims?: number[];
 }
+/**
+ * A Value as a user types it, read as parse reads it, but for a bare word in a cell, `{missing}`,
+ * `{strings(0,3)}`, `{a, b}`: no value this package evaluates, which parse keeps as a char
+ * (`{'missing'}`, `{'strings(0', '3)'}`) and a typed value refuses, saying which word and how a
+ * char or a string is typed. Null for text that is no value. The setters of a variable's Value
+ * read it so (MatlabVariableNode.setProperty, MatNode's retype); what a file holds, and every
+ * other caller of parse, is read as before.
+ */
+export declare function parseTyped(text: string): {
+    parsed: ParsedValue;
+} | {
+    why: string;
+} | null;
 declare function parse(str: string): ParsedValue | null;
 /**
  * The same parse with every exact-integer token collapsed back to its double — the
@@ -32,6 +45,7 @@ export declare function controlsAsOneChar(value: string): string;
 export declare function unquoteMatlabText(text: string): string;
 declare function parseArray(str: string): ParsedValue | null;
 declare function parseCell(str: string): ParsedValue | null;
+export declare function classCall(span: string): unknown | null;
 /**
  * A complex value typed in (a parsed 'complex'), as the bag a binary dictionary's reader gives
  * one, which a node is built of as one read from a file is (MatlabVariableNode._parseCdataText),
@@ -49,6 +63,7 @@ declare function parsedIsScalarNumeric(parsed: ParsedValue | null): boolean;
 export { parsedIsScalarNumeric };
 declare const _default: {
     parse: typeof parse;
+    parseTyped: typeof parseTyped;
     parseArray: typeof parseArray;
     parseCell: typeof parseCell;
     parsedIsScalarNumeric: typeof parsedIsScalarNumeric;

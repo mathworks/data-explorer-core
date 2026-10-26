@@ -194,9 +194,21 @@ too), typed as a string (`"abc"`, `["a" "b"]`) becomes one, as `x = "abc"` and
 value. The save writes the new string into the file's objects (a file with none gains
 them) and the variable or the container that holds it fresh; a string no longer held
 stays among the objects, which MATLAB loads with no warning. One undo puts the value
-back, and the file is then saved as it was read. A value typed in that holds a string
-inside it (`{1, "a"}`) is refused, and Add is not offered on a struct array or on an
-element of one. A variable stored
+back, and the file is then saved as it was read. A cell typed in that holds strings
+(`{1, "a"}`, `{{"a"}}`, `{["a" "b"]}`) is taken the same way, each string made one of the
+file's objects, and each then takes an edit of its own. A cell that holds no object but
+strings shows them by their text, as a dictionary does (`{1, "a", ["x" "yz"]}`), and takes an
+edit of that text; one holding another object, or a string no text spells (`<missing>`, an
+empty or N-D string array), shows its summaries and is edited an element at a time. In a
+cell's text, in a MAT-file and a dictionary alike, a member of a numeric class other than
+double is spelled with its class (`{1, int8(3), single(2.5), uint16([1 2])}`), so the text
+typed back keeps every class; a cell holding one no text spells exactly (a single -0) is
+edited an element at a time. An integer class's conversion reads its digits exactly:
+`uint64(9007199254740993)` keeps that value, where MATLAB, which reads the digits as a
+double first, keeps 9007199254740992. A bare word typed in a cell (`{missing}`) is refused: a char
+is typed in quotes. A string is still refused in an element of a numeric array, and as a
+`Simulink.Parameter`'s Value where MATLAB refuses it.
+Add is not offered on a struct array or on an element of one. A variable stored
 after the objects, which MATLAB does not load, takes no edit, not even a rename,
 and can be deleted. A file no save of which can be written is `readOnly` and takes
 no edit, addition or delete at all: one whose records do not tile it, one opened
@@ -216,8 +228,9 @@ sparse array, a struct, a cell, and structs and cells of these) is written fresh
 property the copy holds is set on it as an edit sets it; the object made is then held
 to the copy, row by row and in the properties no row shows, and a difference refuses
 the paste, naming the property. So does anything else no save could write as it was
-copied: a function handle, an object array, an object or a string inside a struct or
-a cell, an enumeration, the classes `addEntry` does not offer, a value past the
+copied: a function handle, an object array, an object inside a struct or a cell (a
+string there is made one of the file's objects, as a cell typed in makes it; an empty
+one, which no text spells, is refused), an enumeration, the classes `addEntry` does not offer, a value past the
 writer's budget, and a Parameter Value whose text does not hold it (an integer,
 `single` or complex Value, a struct). `session.pasteRefusal(srcId, payload, { deep })`
 answers what the paste would refuse, cheaply or, with `deep`, by making the paste and

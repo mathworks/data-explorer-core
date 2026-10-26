@@ -131,14 +131,14 @@ describe('every struct field and cell element of every MAT-file fixture', () => 
     // Every fixture opens but the one this package does not read at all, so a file it stops reading
     // is not passed over here unseen.
     expect(unopened).toEqual(['fixtures/strings_v73.mat: MAT-file version 7.3 (HDF5) is not supported']);
-    // At least what was measured when this was written: 593 files opened; 557 rows offered an editor
-    // and every one took the edit, 489 of them plain values made strings and 24 strings made numbers
-    // (the rest objects' Values, set as they were); 322 rows offered none.
-    expect(files).toBeGreaterThanOrEqual(593);
-    expect(taken).toBeGreaterThanOrEqual(557);
-    expect(retyped).toBeGreaterThanOrEqual(489);
-    expect(unstrung).toBeGreaterThanOrEqual(24);
-    expect(unoffered).toBeGreaterThanOrEqual(322);
+    // At least what was measured when this was written: 595 files opened; 619 rows offered an editor
+    // and every one took the edit, 511 of them plain values made strings and 64 strings made numbers
+    // (the rest objects' Values, set as they were); 328 rows offered none.
+    expect(files).toBeGreaterThanOrEqual(595);
+    expect(taken).toBeGreaterThanOrEqual(619);
+    expect(retyped).toBeGreaterThanOrEqual(511);
+    expect(unstrung).toBeGreaterThanOrEqual(64);
+    expect(unoffered).toBeGreaterThanOrEqual(328);
     expect(refused).toBe(0);
   });
 });

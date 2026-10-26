@@ -17,7 +17,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
-import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { classCall, controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
@@ -231,6 +231,13 @@ function holdsMcosObject(variable: MatVariable): boolean {
   return false;
 }
 
+// Whether the cell variable `v` holds no object but strings, itself or in a cell it holds
+// (MatlabVariableNode._spellsStrings, of a cell with no rows).
+function cellOfStrings(v: MatVariable): boolean {
+  const members = Array.isArray(v.value) ? (v.value as (MatVariable | null)[]) : [];
+  return members.every((m) => !m || (m.isOpaque ? m.className === 'string' : m.className !== 'cell' || cellOfStrings(m)));
+}
+
 /**
  * MATLAB's class(value) for a variable, which is what a hex element's `Class` says: a
  * logical is 'logical' however the variable came to be, where the node layer rebuilds one
@@ -391,6 +398,12 @@ export default class MatlabVariableNode extends DataNode {
   _streamLockVerdict?: boolean;
   // The stream such a value was read from (_streamReadAgain).
   _streamRead?: Record<string, unknown>;
+  // Of a MAT-file's string, whether the text it shows spells it, judged of that text and those
+  // elements (_spellsItself).
+  _spelledAs?: { key: string; same: boolean };
+  // Of a cell's member of a class other than double, whether its class's conversion of its text is it,
+  // judged of that text and that value (_classSpelled, _valueKey).
+  _classSpelledAs?: { key: string; exact: boolean };
   // Of such a value, why an Add or a Remove of an element is not offered, as judged for the rows it
   // had then (_streamChildRefusal).
   _streamChildVerdicts?: Partial<Record<'add' | 'remove', { rows: BaseNode[]; count: number; reason: string | null }>>;
@@ -813,6 +826,156 @@ export default class MatlabVariableNode extends DataNode {
     return this.displayValue;
   }
 
+  /**
+   * A cell's member of a numeric class other than double, spelled as a cell's literal spells it: as
+   * the class's conversion of what it shows, `int8(3)`, `uint16([1 2])`, `single(2.5)`, where that
+   * text read back (MatlabValueParser.classCall) is this member exactly, class, size and every value.
+   * Shown as the number alone, as it was, the text typed back made it a double. Null where it is not
+   * (a -0 shown as 0, a complex one whose imaginary part is 0, an N-D or an empty array), which is
+   * shown as it was and leaves its cell no editor of its text (_classUnspelled), and for every other
+   * member, which spells itself. Kept for the text and the value it was judged of: a single 0 and
+   * -0 show the same text.
+   */
+  _classSpelled(): string | null {
+    const cls = this._typedNumericClass();
+    if (cls === null) {
+      return null;
+    }
+    const text = cls + '(' + this.displayValue + ')';
+    const key = text + '\n' + this._valueKey();
+    if (this._classSpelledAs?.key !== key) {
+      const bag = classCall(text);
+      const back = bag ? NodeRegistry.parseValue(bag, this.name, null) : null;
+      const exact = back instanceof MatlabVariableNode && variableDifference(this._var, back._var, this.name) === null;
+      this._classSpelledAs = { key, exact };
+    }
+    return this._classSpelledAs.exact ? text : null;
+  }
+
+  // This numeric value's class, size and every element, a -0 told from a 0: what a verdict on it is
+  // kept for (_classSpelled).
+  _valueKey(): string {
+    const v = this._var;
+    if (!v) {
+      return '';
+    }
+    const part = (x: unknown) => (Object.is(x, -0) ? '-0' : String(x));
+    const values = Array.isArray(v.value) ? v.value : [v.value];
+    return v.className + ' ' + v.dimensions.join('x') + (v.isComplex ? ' complex' : '') + ' '
+      + values.map((x) => (x !== null && typeof x === 'object' && 're' in x ? part(x.re) + ',' + part((x as { im?: unknown }).im) : part(x))).join(' ');
+  }
+
+  /**
+   * Whether this, a cell's member, is of a numeric class other than double whose class its text does
+   * not spell exactly (_classSpelled): shown as it was, a -0 as 0, a complex one whose imaginary part
+   * is 0 as `1+0i`, and so no text its cell takes would keep it as it is (_literalRoundTrips).
+   */
+  _classUnspelled(): boolean {
+    return this._typedNumericClass() !== null && this._classSpelled() === null;
+  }
+
+  // The class of this, a plain number or array of a numeric class other than double (int8..uint64,
+  // single), real or complex; or null for any other value (_classSpelled, _classUnspelled).
+  _typedNumericClass(): string | null {
+    if (this._isOpaque || this._sparse || !(this._kind === 'scalar' || this._kind === 'array')) {
+      return null;
+    }
+    const cls = this._scalarType === 'complex' ? this._complexClass() : this._scalarType;
+    return TYPED_NUMERIC_CLASS.test(cls) ? cls : null;
+  }
+
+  /**
+   * Whether this cell holds no object but strings, itself or in a cell it holds: what spells its
+   * strings by their text (_cellLiteralElement). A struct is its summary whatever it holds.
+   */
+  _spellsStrings(): boolean {
+    // A cell the node ceiling built without its rows, as the variable it was read as says.
+    if (this._cutByCeiling && this._matVar) {
+      return cellOfStrings(this._matVar);
+    }
+    return this.children.every((c) => {
+      if (!(c instanceof MatlabVariableNode)) {
+        return false;
+      }
+      if (c._isOpaque) {
+        return c._opaqueClassName === 'string';
+      }
+      return c._kind !== 'cell' || c._spellsStrings();
+    });
+  }
+
+  /**
+   * The text a string's Value is typed as that makes this string, a scalar or a 2-D array, whatever
+   * its length (its displayValue is a summary past the display's budget); or why there is none: an
+   * N-D or an empty array, which no literal spells, or an element `<missing>`, which none does. What
+   * a string made anew of this one is set to (MatNode._makeStringsIn, matPaste's stand-ins).
+   */
+  _stringLiteral(): { text: string } | { why: string } {
+    const d = effectiveDims(this._dims);
+    const texts = this._stringTexts();
+    if (!texts) {
+      return { why: 'it is no string' };
+    }
+    if (d.length > 2 || texts.length === 0 || texts.length !== elementCount(d)) {
+      return { why: 'it is a ' + d.join('x') + ' string array, which no text spells' };
+    }
+    if (texts.some((t) => typeof t !== 'string')) {
+      return { why: 'it holds <missing>, which no text spells' };
+    }
+    if (texts.length === 1) {
+      return { text: formatStringElement(texts[0]) };
+    }
+    const [rows, cols] = d;
+    const rowTexts: string[] = [];
+    for (let r = 0; r < rows; r++) {
+      const vals: string[] = [];
+      for (let c = 0; c < cols; c++) {
+        // Column-major, as _formatString reads them.
+        vals.push(formatStringElement(texts[c * rows + r]));
+      }
+      rowTexts.push(vals.join(' '));
+    }
+    return { text: '[' + rowTexts.join('; ') + ']' };
+  }
+
+  // The texts of this string's elements: of a string scalar typed in, a scalar node, its one text;
+  // of an array, or of a string a file holds, its elements. Null where this is no string
+  // (_stringLiteral, _spellsItself).
+  _stringTexts(): unknown[] | null {
+    if (this._kind === 'scalar' && this._scalarType === 'string') {
+      return [this._scalarValue];
+    }
+    return this._kind === 'string' ? this._elements : null;
+  }
+
+  /**
+   * Whether this, a `string` decoded out of a MAT-file's objects (or one an edit made there), is
+   * spelled exactly by the text it shows: that text read back (MatlabValueParser) is a string of
+   * the same size holding the same text in each element. Not a summary (an empty or N-D array, one
+   * past the char budget), nor `<missing>`, which no text read back is. Kept for the text and the
+   * elements it was judged of.
+   */
+  _spellsItself(): boolean {
+    if (!this._isOpaque || this._opaqueClassName !== 'string' || this._kind !== 'string') {
+      return false;
+    }
+    const text = this.displayValue;
+    const key = text + '\n' + effectiveDims(this._dims).join('x') + ' ' + JSON.stringify(this._elements);
+    if (this._spelledAs?.key !== key) {
+      const parsed = MatlabValueParser.parse(text);
+      let same = false;
+      if (parsed) {
+        const back = new MatlabVariableNode('', null, {});
+        back._applyParsed(parsed);
+        const texts = back._stringTexts();
+        same = !!texts && effectiveDims(back._dims).join('x') === effectiveDims(this._dims).join('x')
+          && texts.length === this._elements.length && texts.every((e, i) => typeof e === 'string' && e === this._elements[i]);
+      }
+      this._spelledAs = { key, same };
+    }
+    return this._spelledAs.same;
+  }
+
   /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
   _formatScalar(asMeasured = false): string {
     // The MCOS decoder's "value unrecoverable" sentinel is a bare-angle-bracket
@@ -972,8 +1135,11 @@ export default class MatlabVariableNode extends DataNode {
     return EMPTY_NUMERIC;
   }
 
-  /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
-  _formatCell(asMeasured = false): string {
+  /**
+   * `asMeasured`: the text the length guard measures (_guardText), not the one shown.
+   * `summarized`: a MAT-file's strings in it spelled by their summaries (_cellLiteralElement).
+   */
+  _formatCell(asMeasured = false, summarized = !this._spellsStrings()): string {
     // A cell the node ceiling built without its rows (_cutByCeiling) shows what it showed with
     // them: past the element budget its summary, which needs no element, and otherwise the
     // literal its elements make, rebuilt alone with no rows of their own (_withCeilingTwin).
@@ -984,7 +1150,13 @@ export default class MatlabVariableNode extends DataNode {
       if (needsSummary(this._dims)) {
         return summaryForm(this._dims, 'cell');
       }
-      return this._withCeilingTwin(true, (t) => (asMeasured ? t._guardText() : t.displayValue));
+      // Its strings spelled as this cell's holder says (`summarized`), where the twin is a cell.
+      return this._withCeilingTwin(true, (t) => {
+        if (t._kind === 'cell') {
+          return t._formatCell(asMeasured, summarized);
+        }
+        return asMeasured ? t._guardText() : t.displayValue;
+      });
     }
     if (this.children.length === 0) {
       // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
@@ -1012,7 +1184,7 @@ export default class MatlabVariableNode extends DataNode {
           // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
           // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
           const child = this.children[c * rows + r];
-          vals.push(child ? this._cellLiteralElement(child, measured) : EMPTY_NUMERIC);
+          vals.push(child ? this._cellLiteralElement(child, measured, summarized) : EMPTY_NUMERIC);
         }
         rowStrs.push(vals.join(', '));
       }
@@ -1047,13 +1219,35 @@ export default class MatlabVariableNode extends DataNode {
   // a `string` above all, as `<1x3 string>` at the shape the decoder recovered (dims). That token
   // was `<1x1 Class>` whatever the shape, from when an undecoded opaque was never told its
   // dimensions, so a 1x3 string and a 0x0 one both read as a 1x1. The element's own row shows
-  // the object, shape and all. A nested cell prints its own literal by the same rule.
+  // the object, shape and all. A nested cell prints its own literal by the same rule. So is a
+  // string a MAT-file edit made an object of in a cell typed in (MatNode._makeStringsIn), which a
+  // reopen reads as one of the file's.
+  //
+  // But in a cell that holds no object but strings, at any depth (_spellsStrings), a string whose
+  // text spells it exactly, read back as the same string (_spellsItself), is spelled so,
+  // `{1, "inCell", ["x" "yz"]}`, as a dictionary spells the same cell. So such a cell of plain values
+  // and strings is its literal, and takes an edit of it (_literalRoundTrips), which a MAT-file makes
+  // as a value typed in that holds strings (MatNode._retype). One no text spells (<missing>, an
+  // empty or N-D string array) keeps its summary, and the cell its lock. A cell holding another
+  // object shows what it showed, a nested cell's strings included (`summarized`), and takes no edit
+  // of its text.
   //
   // `asMeasured`: the element's text as the length guard measures it (_guardText).
-  _cellLiteralElement(child: BaseNode, asMeasured = false): string {
+  _cellLiteralElement(child: BaseNode, asMeasured = false, summarized = !this._spellsStrings()): string {
     if (child instanceof MatlabVariableNode) {
-      if (this._matVar && child._isOpaque) {
+      if (child._isOpaque && (this._matVar || mcosPlaceOf(child))) {
+        if (!summarized && child._spellsItself()) {
+          return asMeasured ? child._guardText() : child.displayValue;
+        }
         return summaryForm(child.dims, child._opaqueClassName || 'double');
+      }
+      if (summarized && child._kind === 'cell' && !child._isOpaque) {
+        return child._formatCell(asMeasured, true);
+      }
+      // A member of a numeric class other than double is spelled with its class (_classSpelled).
+      const typed = child._classSpelled();
+      if (typed !== null) {
+        return typed;
       }
       return asMeasured ? child._guardText() : child.displayValue;
     }
@@ -1084,15 +1278,18 @@ export default class MatlabVariableNode extends DataNode {
     if (this._cutByCeiling && this._matVar) {
       return this._withCeilingTwin(true, (t) => t._literalRoundTrips());
     }
+    // Judged once of the cell, not once of each element: asked for each, it walked every element
+    // for each, and a cell of 10,000 took 0.8 s to say whether it takes an editor.
+    const summarized = !this._spellsStrings();
     return this.children.every((c) => {
-      const token = this._cellLiteralElement(c);
+      const token = this._cellLiteralElement(c, false, summarized);
       if (token.charAt(0) === '<' && token.charAt(token.length - 1) === '>') {
         return false;
       }
       if (!(c instanceof MatlabVariableNode) && !c.valueEditable) {
         return false;
       }
-      if (c instanceof MatlabVariableNode && c._isZeroImaginaryComplex()) {
+      if (c instanceof MatlabVariableNode && (c._isZeroImaginaryComplex() || c._classUnspelled())) {
         return false;
       }
       return !(c instanceof MatlabVariableNode && c._kind === 'cell') || c._literalRoundTrips();
@@ -1209,9 +1406,10 @@ export default class MatlabVariableNode extends DataNode {
       return null;
     }
     if (this.children.length > 0) {
+      const summarized = this._kind === 'cell' && !this._spellsStrings();
       return this.children.map((c) => ({
         label: c.displayName,
-        value: this._kind === 'cell' ? this._cellLiteralElement(c) : c.displayValue,
+        value: this._kind === 'cell' ? this._cellLiteralElement(c, false, summarized) : c.displayValue,
       }));
     }
     const name = this.displayName;
@@ -1334,15 +1532,17 @@ export default class MatlabVariableNode extends DataNode {
       if (this._isConstrainedChild()) {
         return this._setStreamElement(stringValue);
       }
-      const parsed = MatlabValueParser.parse(stringValue);
-      if (!parsed) {
+      // As a user types it: a bare word in a cell (`{missing}`) is refused, named (parseTyped).
+      const read = MatlabValueParser.parseTyped(stringValue);
+      if (!read || 'why' in read) {
         return {
           error: true,
-          reason: 'Invalid MATLAB expression',
+          reason: read ? read.why : 'Invalid MATLAB expression',
           invalidValue: stringValue,
           validValue: this.displayValue,
         };
       }
+      const parsed = read.parsed;
       // What holds this value may refuse it: a Simulink.Parameter refuses what MATLAB refuses as
       // its Value, and holds a field of its struct Value to the same rules (_valueHolderRefusal).
       const holderRefusal = this._valueHolderRefusal(parsed, stringValue);

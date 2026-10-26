@@ -1,5 +1,38 @@
 // Copyright 2026 The MathWorks, Inc.
-import { parseExactNum, formatComplexNum, parseComplexNum, formatMatrixSerial, formatMxCharSerial } from './XmlUtils.js';
+import { parseExactNum, formatComplexNum, parseComplexNum, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, toIntegerClass } from './XmlUtils.js';
+// Set while a Value a user typed is read (parseTyped): the first bare word a cell held, which that
+// read refuses rather than keeping as a char (tokenizeCellElements). Null for every other read.
+let typedRead = null;
+/**
+ * A Value as a user types it, read as parse reads it, but for a bare word in a cell, `{missing}`,
+ * `{strings(0,3)}`, `{a, b}`: no value this package evaluates, which parse keeps as a char
+ * (`{'missing'}`, `{'strings(0', '3)'}`) and a typed value refuses, saying which word and how a
+ * char or a string is typed. Null for text that is no value. The setters of a variable's Value
+ * read it so (MatlabVariableNode.setProperty, MatNode's retype); what a file holds, and every
+ * other caller of parse, is read as before.
+ */
+export function parseTyped(text) {
+    const outer = typedRead;
+    const read = { bareWord: null };
+    typedRead = read;
+    let parsed;
+    try {
+        parsed = parse(text);
+    }
+    finally {
+        typedRead = outer;
+    }
+    if (parsed) {
+        return { parsed };
+    }
+    const word = read.bareWord;
+    if (word === null) {
+        return null;
+    }
+    // A call's arguments a comma split, `strings(0` of `strings(0,3)`, shown as the call it starts.
+    const shown = word.includes('(') ? word.slice(0, word.indexOf('(')) + '(...)' : word;
+    return { why: shown + ' is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes' };
+}
 function parse(str) {
     str = str.trim();
     if (str === '') {
@@ -634,10 +667,10 @@ function splitRows(inner) {
             i = scanned.next;
             continue;
         }
-        if (ch === '[' || ch === '{') {
+        if (ch === '[' || ch === '{' || ch === '(') {
             depth++;
         }
-        else if (ch === ']' || ch === '}') {
+        else if (ch === ']' || ch === '}' || ch === ')') {
             depth--;
         }
         else if (ch === ';' && depth === 0) {
@@ -802,7 +835,19 @@ function tokenizeCellElements(rowStr) {
             const bare = bareSpan(rowStr, i, noTermBefore);
             span = bare.span;
             joined = bare.joined;
+            // A row a span stops at once (a `;` or a `(` no row split at): no member, and no way on.
+            // It pushed '' for ever, `{int8([1 2; 3 4])}` included.
+            if (bare.end === i) {
+                return null;
+            }
             i = bare.end;
+        }
+        // A member spelled as a class's conversion of numbers: `int8(3)`, `uint16([1 2])`,
+        // `single(2.5)`, as a cell's typed members are shown (MatlabVariableNode._cellLiteralElement).
+        const typed = ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined ? null : classCall(span);
+        if (typed !== null) {
+            elements.push(typed);
+            continue;
         }
         // An imaginary term then a real one (`i + 1`, `2i-3`) is one complex value in MATLAB,
         // which `parse` reads only real part first. Held as text, `{i+1}` was the char 'i+1'.
@@ -821,6 +866,11 @@ function tokenizeCellElements(rowStr) {
             if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined || /[-+*/\\^]/.test(span)) {
                 return null;
             }
+            // Typed in, a bare word is refused, saying which (parseTyped).
+            if (typedRead) {
+                typedRead.bareWord ??= span;
+                return null;
+            }
             elements.push(span);
             continue;
         }
@@ -830,6 +880,50 @@ function tokenizeCellElements(rowStr) {
         elements.push(real !== null ? real : cellElementRaw(parsed));
     }
     return elements.length > 0 ? elements : null;
+}
+// A call of a numeric class's conversion, `int8(...)`: the class, and the text of its argument.
+const CLASS_CALL = /^(u?int(?:8|16|32|64)|single)\((.*)\)$/s;
+// MATLAB's conversions of a real number or array to a numeric class other than double, which a cell's
+// member is spelled as (`int8(3)`, `uint64(18446744073709551615)`, `single([1.5 NaN])`), as the bag
+// each reader gives such a member (`{_type: 'int8', _value: '3'}`, an unsigned one's `7U`, a single's
+// `2.5F`), the integers converted as MATLAB converts them (rounded half away, saturated: int8(300)
+// is 127), and a complex one as the complex-text bag of its class. Null for any other text, or a
+// class of an empty or N-D value, which no member's text here spells.
+export function classCall(span) {
+    const m = CLASS_CALL.exec(span.trim());
+    if (!m) {
+        return null;
+    }
+    const cls = m[1];
+    const parsed = parse(m[2]);
+    const convert = (v) => (cls === 'single' ? v : toIntegerClass(v, cls));
+    // A complex one, `int16([3+4i 5-6i])`: the complex-text bag of a binary dictionary's reader,
+    // of the class, each part converted.
+    if (parsed && parsed.type === 'complex') {
+        const many = Array.isArray(parsed.value);
+        const texts = many ? parsed.value : [parsed.value];
+        const converted = [];
+        for (const t of texts) {
+            const parts = parseComplexNum(t, cls);
+            if (!parts) {
+                return null;
+            }
+            converted.push(formatComplexNum(convert(parts.re), convert(parts.im)));
+        }
+        return { ...complexBag({ ...parsed, value: many ? converted : converted[0] }), _class: cls };
+    }
+    if (!parsed || parsed.type !== 'double') {
+        return null;
+    }
+    if (!Array.isArray(parsed.value)) {
+        return { _type: cls, _value: formatNumLiteral(convert(parsed.value), cls) };
+    }
+    const values = parsed.value;
+    const dims = parsed.dims ?? [1, values.length];
+    if (dims.length > 2 || values.length === 0) {
+        return null;
+    }
+    return { _type: cls, _value: formatMatrixSerial(values.map(convert), dims, cls) };
 }
 // The bare member of a row of a bracketed or braced literal that starts at `i`: its span, where
 // it ends, and whether a binary sign joined it to the next term. MATLAB's whitespace rule inside
@@ -849,6 +943,16 @@ function bareSpan(rowStr, i, noTermBefore) {
     let joined = false;
     for (;;) {
         while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
+            // A call's arguments, `int8([1 2])`, are one span with it: split at their space, it was
+            // the two members `int8([1` and `2])`.
+            if (rowStr.charAt(end) === '(') {
+                const close = findMatchingBracket(rowStr, end, '(', ')');
+                if (close < 0) {
+                    break;
+                }
+                end = close + 1;
+                continue;
+            }
             end++;
         }
         let next = end;
@@ -1069,6 +1173,7 @@ function parsedIsScalarNumeric(parsed) {
 export { parsedIsScalarNumeric };
 export default {
     parse,
+    parseTyped,
     parseArray,
     parseCell,
     parsedIsScalarNumeric,

@@ -222,7 +222,7 @@ for (const { format, file } of FORMATS) {
       }
     });
 
-    it('refuses {1 + 2} and {a + b}, leaving the value as it was, and still takes {a, b} and {1 -2}', () => {
+    it("refuses {1 + 2}, {a + b} and {a, b}, leaving the value as it was, and still takes {'a', 'b'} and {1 -2}", () => {
       for (const literal of ['{1 + 2}', '{a + b}']) {
         const { session, entry } = openCCplx(file);
         const result = session.editProperty(entry.id, 'Value', literal);
@@ -230,9 +230,17 @@ for (const { format, file } of FORMATS) {
         expect(entry.displayValue).toBe('{1+2i}');
         expect(rows(entry)).toEqual([['double (complex)', '1+2i']]);
       }
-      // Controls, each taken as before.
+      // A bare word typed into a cell is a name or a call, which this editor does not evaluate: it
+      // was taken as a char ({a, b} as {'a', 'b'}, {missing} as {'missing'}); it is refused, named
+      // (MatlabValueParser.parseTyped). Quoted, the chars are taken as before.
+      const bare = openCCplx(file);
+      expect(bare.session.editProperty(bare.entry.id, 'Value', '{a, b}')).toMatchObject({
+        error: true,
+        reason: 'a is a name or a call, which this editor does not evaluate: a char is typed in quotes, a string in double quotes',
+      });
+      expect(rows(bare.entry)).toEqual([['double (complex)', '1+2i']]);
       const names = openCCplx(file);
-      expect(names.session.editProperty(names.entry.id, 'Value', '{a, b}')).toBe(true);
+      expect(names.session.editProperty(names.entry.id, 'Value', "{'a', 'b'}")).toBe(true);
       expect(rows(names.entry)).toEqual([['char', "'a'"], ['char', "'b'"]]);
       const numbers = openCCplx(file);
       expect(numbers.session.editProperty(numbers.entry.id, 'Value', '{1 -2}')).toBe(true);

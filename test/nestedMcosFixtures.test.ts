@@ -312,10 +312,13 @@ const SUMMARIES: [file: string, path: string, ours: string, matlabDisp: string][
     'Columns 1 through 3\n\n    {["a"    "b"    "c"]}    {1×2 Simulink.Parameter}    {0×0 string}\n\n  Column 4\n\n    {1×1 Simulink.Parameter}',
   ],
   ['nested_objects.mat', 'cNest', '{{<1x2 string>}, {<1x1 Simulink.Parameter>}}', '{1×1 cell}    {1×1 cell}'],
-  ['nested_objects.mat', 'cNest{1}', '{<1x2 string>}', '{["p"    "q"]}'],
+  // A cell holding no object but strings spells them by their text, as MATLAB's disp does and as a
+  // dictionary spells the same cell (MatlabVariableNode._spellsStrings); one holding another object
+  // keeps every summary, a nested cell's strings included (cNest).
+  ['nested_objects.mat', 'cNest{1}', '{["p" "q"]}', '{["p"    "q"]}'],
   ['nested_objects.mat', 'cNest{2}', '{<1x1 Simulink.Parameter>}', '{1×1 Simulink.Parameter}'],
   ['nested_objects.mat', 's2', '<1x1 struct>', 'cs: {["x"    "y"]}'],
-  ['nested_objects.mat', 's2.cs', '{<1x2 string>}', '{["x"    "y"]}'],
+  ['nested_objects.mat', 's2.cs', '{["x" "y"]}', '{["x"    "y"]}'],
   ['nested_ws.slx', 'cfg', '<1x1 struct>', 'k: [1×1 Simulink.Parameter]\n    label: "ws text"'],
 ];
 
@@ -347,9 +350,9 @@ const GRIDS: [path: string, grid: [label: string, value: string][]][] = [
   ['c{4}', [['c{4}{1}', '<1x1 Simulink.Parameter>']]],
   ['cArr', [['cArr{1}', '<1x3 string>'], ['cArr{2}', '<1x2 Simulink.Parameter>'], ['cArr{3}', '<0x0 string>'], ['cArr{4}', '<1x1 Simulink.Parameter>']]],
   ['cNest', [['cNest{1}', '{<1x2 string>}'], ['cNest{2}', '{<1x1 Simulink.Parameter>}']]],
-  ['cNest{1}', [['cNest{1}{1}', '<1x2 string>']]],
+  ['cNest{1}', [['cNest{1}{1}', '["p" "q"]']]],
   ['cNest{2}', [['cNest{2}{1}', '<1x1 Simulink.Parameter>']]],
-  ['s2.cs', [['cs{1}', '<1x2 string>']]],
+  ['s2.cs', [['cs{1}', '["x" "y"]']]],
 ];
 
 describe('each cell\'s Variable Editor grid is today\'s, and agrees with its literal', () => {
@@ -407,9 +410,14 @@ describe("a .mat cell spells an object element at the element's own size", () =>
       const node = nodeAt(fx.variables(), path);
       const tokens = node.displayElements().map((e: { value: string }) => e.value);
       expect(tokens.length).toBe(t.numel);
+      // A string in a cell holding no other object is spelled by its text (MatlabVariableNode._spellsStrings).
+      const elements = Array.from({ length: t.numel }, (_, i) => fx.truth.paths[`${path}{${i + 1}}`]);
+      const onlyStrings = elements.every((e) => !e.isobject || e.class === 'string');
       for (let i = 0; i < t.numel; i++) {
-        const el = fx.truth.paths[`${path}{${i + 1}}`];
-        if (el.isobject) {
+        const el = elements[i];
+        if (el.isobject && onlyStrings) {
+          expect([path, i + 1, tokens[i]]).toEqual([path, i + 1, nodeAt(fx.variables(), `${path}{${i + 1}}`).displayValue]);
+        } else if (el.isobject) {
           expect([path, i + 1, tokens[i]]).toEqual([path, i + 1, `<${el.size.join('x')} ${el.class}>`]);
         }
       }

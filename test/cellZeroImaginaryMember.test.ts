@@ -213,7 +213,10 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
         const cell = root.children.find((v: any) => v.name === `z${k}`);
         const shown = String(cell.displayValue);
         const member = /^\{(.+), 5\}$/.exec(shown)?.[1];
-        expect(member, label).toMatch(/\+0i$/);
+        // A member of a class other than double is spelled with it, `single(1+0i)` (MatlabVariableNode._classSpelled).
+        expect(member, label).toMatch(cls === 'double' ? /\+0i$/ : /^\w+\(.*\+0i\)$/);
+        // The member's own row shows its value alone.
+        const own = cls === 'double' ? member : member!.replace(/^\w+\((.*)\)$/, '$1');
         expect(cell.valueEditable, label).toBe(false);
         expect(cell.setProperty('Value', `{${member}, 6}`), label).toMatchObject({ error: true, reason: REASON });
         expect(cell.displayValue, label).toBe(shown);
@@ -221,15 +224,15 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
 
         expect(cell.children.length, label).toBe(cut ? 0 : 2);
         if (!cut) {
-          expect(rows(cell), label).toEqual([[`${cls} (complex)`, member], ['double', '5']]);
+          expect(rows(cell), label).toEqual([[`${cls} (complex)`, own], ['double', '5']]);
           expect(cell.children[1].setProperty('Value', '6'), label).toBe(true);
-          expect(rows(cell), label).toEqual([[`${cls} (complex)`, member], ['double', '6']]);
+          expect(rows(cell), label).toEqual([[`${cls} (complex)`, own], ['double', '6']]);
         }
         const copy = copyOf(cell) as any;
         expect(copy._elements[0], label).toEqual(asRead._elements[0]);
         for (const dictionary of [TEXT, BINARY]) {
           const { entry } = pasteSaveReopen(dictionary, copy);
-          expect(rows(entry), `${label}, ${dictionary}`).toEqual([[`${cls} (complex)`, member], ['double', cut ? '5' : '6']]);
+          expect(rows(entry), `${label}, ${dictionary}`).toEqual([[`${cls} (complex)`, own], ['double', cut ? '5' : '6']]);
         }
       });
     });
