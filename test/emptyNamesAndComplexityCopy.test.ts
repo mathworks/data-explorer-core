@@ -211,12 +211,13 @@ describe("a text dictionary's own stream of them, written again", () => {
     const { entry } = pasteSaved(TEXT, copyOf(variable('cNd')));
     const raw = entry._rawInput;
     expect(entry._readFromStream).toBe(true);
-    // Unedited, it is written as the stream it was read from.
+    // Unedited, it is written as the stream it was read from; and so it is once marked edited while
+    // its value is the one it was read as (_streamReadAgain).
     expect(entry.serializeValue()).toBe(raw);
-    // Rebuilt from its rows (what a value edit leaves, though the editor takes none here: a text
-    // dictionary's stream is shown and not edited), the stream MatWriter writes holds them too.
     entry._markModified();
-    const again = entry.serializeValue() as any;
+    expect(entry.serializeValue()).toBe(raw);
+    // Rebuilt from its rows (what an edit of a member leaves), the stream MatWriter writes holds them too.
+    const again = entry._serializeCdata(true) as any;
     expect(again).not.toBe(raw);
     expect(streamOf(again).members!.map((m) => [m.cls, m.dims, m.fields, m.complex])).toEqual([
       [CLASS.STRUCT, [0, 0], ['a', 'bb'], false],

@@ -9,8 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
 import type { McosEditRefusal } from '../src/datamodel/parser/McosSubsystemEdit.js';
+import { parameterDataTypeAfter } from '../src/datamodel/parser/McosPropertyRules.js';
 import {
-  dataTypeAfter,
   objectEditCells,
   propertyEditRefusal,
   propertyValueRefusal,
@@ -404,6 +404,6 @@ describe("MATLAB's DataType after p.Value = v, measured", () => {
     ['logical', 'double', 'boolean', 'auto'],
     ['double', 'uint64', 'fixdt(1,16,4)', 'uint64'],
   ])('a %s Value, set to a %s one, under %s: %s', (old, now, dt, after) => {
-    expect(dataTypeAfter(old, now, dt)).toBe(after);
+    expect(parameterDataTypeAfter(old, now, dt)).toBe(after);
   });
 });

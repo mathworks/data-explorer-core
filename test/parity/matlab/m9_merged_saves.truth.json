@@ -1,7 +1,7 @@
 {
-  "version": "27.1.0.3417384 (R2027a) Prerelease",
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-24",
+  "date": "2026-10-26",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
@@ -287,6 +287,13 @@
       "notSelfEqual": [
         "design|ntAuto"
       ]
+    },
+    {
+      "file": "orig_sldd_stream_objects_stream_datatype_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 1,
+      "notSelfEqual": []
     },
     {
       "file": "orig_sldd_stream_objects_stream_objects_binary.sldd",
@@ -11059,6 +11066,52 @@
           "checked": 4,
           "same": 4,
           "bySignature": 1,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/sldd-stream-objects/stream_datatype_binary.sldd",
+      "variant": "",
+      "original": "orig_sldd_stream_objects_stream_datatype_binary.sldd",
+      "file": "m9_sldd_stream_objects_stream_datatype_binary_1.sldd",
+      "section": "design",
+      "entry": "sDt",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sDtM9",
+      "refused": "",
+      "save": {
+        "chunk": "42c47c1748915354e0ffc145d077ed99154d537a55f26060ab77a0a9a9ca779b",
+        "parts": "85302e76f584016bf9e85b2076f1646a13c96d88a4fafb75a2486092d882f6e3"
+      },
+      "merged": false,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 0,
+          "same": 0,
+          "bySignature": 0,
           "differ": []
         },
         "error": ""

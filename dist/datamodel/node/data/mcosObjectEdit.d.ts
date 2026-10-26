@@ -125,9 +125,28 @@ export declare function objectEditsOf(state: McosObjectState, node: BaseNode, pe
  *
  * Only a DataType the object holds a cell for is co-written. One it holds none for is at its class
  * default, which MATLAB re-derives from the Value as it loads the object, and is shown as read, as a
- * file read again shows it.
+ * file read again shows it. One it holds is MATLAB's after each edit of the Value in turn
+ * (nodeFollowedDataType), not after one from the file's: "abc" and then 7 typed over a single
+ * Parameter's 5 make it 'auto'.
  */
 export declare function shownDataType(state: McosObjectState, node: BaseNode): string | null;
+/**
+ * The DataType the Simulink.Parameter at `node` follows to with the Value `value` (the node's own,
+ * by default; an edit's about to be made): McosEditRules.followedDataType of the Value class the node
+ * last followed (ParameterNode._classFollowed) and the DataType it shows. Null for a Value the node
+ * holds none of a save writes, and where the rules derive it from the file's.
+ */
+export declare function nodeFollowedDataType(state: McosObjectState, node: BaseNode, value?: MatVariable): string | null;
+/**
+ * What the Simulink.Parameter at `node` follows its DataType on from at the next edit of its Value,
+ * in a MAT-file and in a dictionary's MAT stream alike (matObjectEdit.dataTypeShownFor,
+ * nodeFollowedDataType): the Value class it last followed (ParameterNode._classFollowed, which an
+ * undo puts back), undefined until it has, and the DataType it shows, `read` where it shows none.
+ */
+export declare function dataTypeFollowedFrom(node: BaseNode, read: string): {
+    before: string | undefined;
+    shown: string;
+};
 /** What a node holds that a save does not write, as text to compare: see the file header. */
 export declare function fingerprintOf(node: BaseNode): string;
 /** The nodes of a file that are one object, two variables holding one handle (`r = h`), say. */

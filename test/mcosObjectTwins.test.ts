@@ -168,13 +168,15 @@ describe("a Parameter's DataType, as MATLAB's edit of its Value leaves it", () =
     ]);
   });
 
-  it('in a dictionary, the DataType a Parameter holds, which the dictionary writes as it is', () => {
+  // A dictionary's follows the same rule, of what the file held (decision D9;
+  // test/dictionaryParameterDataType.test.ts): a double over an int16 Value makes it 'auto'.
+  it('in a dictionary, the DataType MATLAB makes of the one the Parameter held', () => {
     const session = createSession();
     const root: any = session.addDataSource('params.sldd', JSON.parse(readFileSync(join(TEST_ROOT, 'parity', 'artifacts', 'text', 'params.sldd'), 'utf8')));
     const find = (n: any): any => (n.name === 'pInt16' ? n : n.children.map(find).find((x: any) => x));
     const p = find(root);
     session.setActive(root, p);
-    expect([session.editProperty(p.id, 'Value', '7'), p.displayValue, p.DataType]).toEqual([true, '7', 'int16']);
+    expect([session.editProperty(p.id, 'Value', '7'), p.displayValue, p.DataType]).toEqual([true, '7', 'auto']);
   });
 });
 

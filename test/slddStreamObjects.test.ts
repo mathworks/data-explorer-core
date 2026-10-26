@@ -5,8 +5,10 @@
 // Value when the entry also holds a sparse array, and the cdata of the same stream a text
 // dictionary holds once this package pastes such an entry into one. The objects ride in the
 // stream's own subsystem; an allow-listed property the stream stores a value for takes an edit,
-// which the save writes by swapping its cell (mcosStreamEdit), and everything else in the stream
-// stays read-only, with the words it had.
+// which the save writes by swapping its cell (mcosStreamEdit). A part of the value that is no object
+// and in none (a field, a sparse array's rows, a cell's members) takes edits as a MAT-file's does,
+// which the save writes by writing the value anew with each object as the element it was read as
+// (test/binaryHexEdits.test.ts); an object's other properties stay read-only, with the words they had.
 //
 // The fixture is MATLAB's (fixtures/sldd-stream-objects/make_stream_objects.m): ten entries MATLAB
 // wrote as hex, each a struct, a cell or a Parameter holding objects beside a sparse array, and two
@@ -159,39 +161,59 @@ describe('the fixture is what these tests need', () => {
   });
 });
 
-describe('inside a stream, an allow-listed property the stream stores a value for takes an edit, and nothing else does', () => {
+describe("inside a stream, an allow-listed property the stream stores a value for takes an edit, and so does the value's part that is no object", () => {
   // What the table and the Property Inspector offer (getPropInfo), node by node: every node of every
-  // stream entry, and the two controls, which are XML and edit as they always did.
+  // stream entry, and the two controls, which are XML and edit as they always did. A field's name is
+  // its struct's, and a struct of the value renames its fields, one holding an object included.
   const { root } = open();
   const offered = (node: any): string[] =>
     node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key);
   const OFFERED: Record<string, string[]> = {
     'arr': ['Name'],
+    'arr.ps': ['Name'],
     'arr.ps(1)': ['Value', 'Description'],
     'arr.ps(2)': ['Value', 'Description'],
+    'arr.sp': ['Name'],
+    'arr.sp(1,2)': ['Value'],
     'cPh': ['Name'],
     'cPh{1}': ['Value', 'Description'],
     'cPh{1}.Value': ['Value'],
     'cPh{1}.Value(1)': ['Value'],
     'cPh{1}.Value(2)': ['Value'],
     'cPh{1}.Value(3)': ['Value'],
+    'cPh{2}(1,2)': ['Value'],
     'nested': ['Name'],
-    'nested.inner.p': ['Value', 'Description'],
+    'nested.inner': ['Name'],
+    'nested.inner.p': ['Name', 'Value', 'Description'],
+    'nested.sp': ['Name'],
+    'nested.sp(1,2)': ['Value'],
     'pSp': ['Name', 'Min', 'Max', 'Description'],
     'pStruct': ['Name'],
+    'pStruct.p': ['Name'],
     'pStruct.p.Value.a': ['Name', 'Value'],
     'pStruct.p.Value.b': ['Name', 'Value'],
     'pStruct.p.Value.b(1)': ['Value'],
     'pStruct.p.Value.b(2)': ['Value'],
+    'pStruct.sp': ['Name'],
+    'pStruct.sp(1,2)': ['Value'],
     'sPh': ['Name'],
-    'sPh.p': ['Value', 'Min', 'Max', 'Description'],
+    'sPh.p': ['Name', 'Value', 'Min', 'Max', 'Description'],
+    'sPh.q': ['Name', 'Value'],
+    'sPh.sp': ['Name'],
+    'sPh.sp(1,2)': ['Value'],
     'sTh': ['Name'],
-    'sTh.t': ['Value', 'Max'],
+    'sTh.t': ['Name', 'Value', 'Max'],
+    'sTh.sp': ['Name'],
+    'sTh.sp(1,2)': ['Value'],
     'shared': ['Name'],
-    'shared.a': ['Value', 'Description'],
-    'shared.b': ['Value', 'Description'],
+    'shared.a': ['Name', 'Value', 'Description'],
+    'shared.b': ['Name', 'Value', 'Description'],
+    'shared.sp': ['Name'],
+    'shared.sp(1,2)': ['Value'],
     'sigH': ['Name'],
-    'sigH.sig': ['Min', 'Max', 'Description'],
+    'sigH.sig': ['Name', 'Min', 'Max', 'Description'],
+    'sigH.sp': ['Name'],
+    'sigH.sp(1,2)': ['Value'],
   };
 
   it('every node of a stream offers exactly these, and the rest of it nothing', () => {
@@ -207,25 +229,28 @@ describe('inside a stream, an allow-listed property the stream stores a value fo
     expect(got).toEqual(OFFERED);
   });
 
-  it('a node offered no Value takes no Value editor, and only a Parameter\'s Value a row added or removed', () => {
+  it('a node offered no Value takes no Value editor, and a row is added or removed where MATLAB adds one', () => {
     // A Parameter's array Value, its struct Value and an array in a field of that: each an edit of
-    // the Value, as in a MAT-file (mcosObjectEdit.propertyAt).
-    const STRUCTURAL = ['cPh{1}.Value', 'pStruct.p.Value', 'pStruct.p.Value.b'];
+    // the Value, as in a MAT-file (mcosObjectEdit.propertyAt). And a struct or a cell of the value
+    // that is no object: a field added or deleted, as MATLAB's rmfield deletes one at any depth (D5;
+    // each deletion saved here is getValue's rmfield in MATLAB R2027a), a cell's member added or removed.
+    const ADDS = ['arr', 'cPh', 'cPh{1}.Value', 'nested', 'nested.inner', 'pStruct', 'pStruct.p.Value', 'pStruct.p.Value.b', 'sPh', 'sTh', 'shared', 'sigH'];
+    const REMOVES = ['arr', 'cPh', 'cPh{1}.Value', 'nested', 'nested.inner', 'pStruct', 'pStruct.p.Value', 'pStruct.p.Value.b', 'sPh', 'sTh', 'shared', 'sigH'];
     for (const name of STREAMS) {
       for (const node of subtree(nodeAt(root, name))) {
         const label = node.matlabPath + ' (' + node.constructor.name + ')';
         expect(node.valueEditable, label).toBe((OFFERED[node.matlabPath] ?? []).includes('Value'));
-        const structural = STRUCTURAL.includes(node.matlabPath);
-        expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(structural);
-        expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(structural);
+        expect(typeof node.canAddChild === 'function' ? node.canAddChild() : false, label).toBe(ADDS.includes(node.matlabPath));
+        expect(typeof node.canRemoveChild === 'function' ? node.canRemoveChild() : false, label).toBe(REMOVES.includes(node.matlabPath));
       }
     }
   });
 
   it('what is not offered is refused with the words an encoded value always had', () => {
     // Every property each class's setter edits through an override of its own, and the generic ones,
-    // at every node of every stream that is no object of a class with rules and under none.
-    const PROPS = ['Value', 'Min', 'Max', 'DataType', 'Description', 'Unit', 'Complexity', 'Dimensions', 'Name'];
+    // at every node of every stream that is no object of a class with rules and under none: all but
+    // a Value and a Name, which a part of the value that is no object takes where it is offered.
+    const PROPS = ['Min', 'Max', 'DataType', 'Description', 'Unit', 'Complexity', 'Dimensions'];
     const { root: fresh } = open();
     for (const name of STREAMS) {
       for (const node of subtree(nodeAt(fresh, name)).slice(1)) {
@@ -234,8 +259,9 @@ describe('inside a stream, an allow-listed property the stream stores a value fo
         }
         for (const prop of PROPS) {
           const result = node.setProperty(prop, '1');
-          // A value with no Description says so first (DataNode._noDescriptionRefusal).
-          const reason = prop === 'Description' && !node.descriptionApplies ? / has no Description\.$/ : ENCODED_REASON;
+          // A value with no Description says so first (DataNode._noDescriptionRefusal); a dictionary
+          // names a key no row offers (DataNode._unofferedKeyRefusal) where the stream takes the edit.
+          const reason = prop === 'Description' && !node.descriptionApplies ? / has no Description\.$/ : /is stored as an encoded MATLAB value that this editor can show but not write, so it is read-only\.$|is read-only here\.$|is not one this editor writes into /;
           expect(result, node.matlabPath + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(reason) });
         }
       }
@@ -249,7 +275,6 @@ describe('inside a stream, an allow-listed property the stream stores a value fo
       ['sPh.p', 'Complexity', 'complex'],
       ['sPh.p', 'Dimensions', '[1 2]'],
       ['sPh.p', 'StorageClass', 'ExportedGlobal'],
-      ['sPh.p', 'Name', 'pp'],
       ['sigH.sig', 'Complexity', 'complex'],
     ]) {
       expect(nodeAt(fresh, path).setProperty(prop, text), path + ' ' + prop).toMatchObject({ error: true, reason: expect.stringMatching(ENCODED_REASON) });
@@ -578,10 +603,11 @@ describe('what the rules refuse is refused before it is made, and the dictionary
     ['sigH.sig', 'DataType', 'Inherit: auto', /^Cannot edit "sigH": sigH\.sig\.DataType would be 'Inherit: auto'/],
     ['sTh.t', 'Description', 'x', /^Cannot edit "sTh": sTh\.t\.Description is at its class default/],
     ['cPh{1}', 'Min', '0', /^Cannot edit "cPh": cPh\{1\}\.Min is at its class default/],
-    ['sPh.q', 'Value', '6', ENCODED_REASON],
-    ['sPh.sp(1,2)', 'Value', '8', ENCODED_REASON],
     ['sPh.p', 'DataType', 'single', ENCODED_REASON],
+    // Typed over the stream's whole value, whose class its hex states.
     ['sPh', 'Value', '1', ENCODED_REASON],
+    // A string beside the objects, which the value written anew could not hold (MatWriter has no class for one).
+    ['sPh.q', 'Value', '"abc"', /^Cannot edit "sPh": sPh\.q would hold a string, which a save does not write into its MAT stream\.$/],
   ];
   for (const [path, prop, text, reason] of REFUSED) {
     it(`${path} ${prop} = ${text}`, () => {
@@ -644,15 +670,15 @@ describe('a stream a save could not write again exactly takes no edit', () => {
 });
 
 describe('an edit of the stream no gate asked about refuses the save, and nothing is written', () => {
-  it('a value beside the objects changed around the editor', () => {
+  // A value beside the objects is written anew around them (mcosStreamEdit._plainElement), so one
+  // the writer cannot write refuses the save: a string set on the node around the editor.
+  it('a value beside the objects changed around the editor into one the writer cannot write', () => {
     const { session, root } = open();
     const q = nodeAt(root, 'sPh.q');
-    q._scalarValue = 6;
+    q._applyParsed({ type: 'string', value: 's' });
     q._markModified();
     expect(() => session.serializeSource(root.name)).toThrow(MatWriteError);
-    expect(() => session.serializeSource(root.name)).toThrow(
-      'Cannot write "sPh": sPh holds an edit of a part of its value that is no object of it, which a save does not write into its stream. Nothing was written.',
-    );
+    expect(() => session.serializeSource(root.name)).toThrow(/^Cannot write "sPh": its value could not be written anew: .*string.*\. Nothing was written\.$/);
   });
 
   it('a property no rule writes changed around the editor', () => {
@@ -808,6 +834,29 @@ describe('a stream pasted into the other kind of dictionary takes the same edits
   });
 });
 
+describe("the check that a stream written anew reads back as its holder's rows names the row that differs", () => {
+  // mcosStreamEdit._plainReadBackWrong, asked of streams it did not write. A stream reading back
+  // more rows than its holder shows named none: "a row shows nothing, and reads back as nothing".
+  const withField = (): Uint8Array => {
+    const { session, root } = open();
+    session.setActive(root, nodeAt(root, 'sPh'));
+    expect(session.addChildTo(nodeAt(root, 'sPh').id)).toBeTruthy();
+    return (mcosStreamGateOf(nodeAt(root, 'sPh')) as any).rewritten();
+  };
+
+  it('a row more read back, and a row shown that does not read back', () => {
+    const added = withField();
+    const { root } = open();
+    const asRead: any = mcosStreamGateOf(nodeAt(root, 'sPh'));
+    expect(asRead._plainReadBackWrong(added, true)).toBe('a row reads back field=0, which no row shows');
+    const edited = open();
+    edited.session.setActive(edited.root, nodeAt(edited.root, 'sPh'));
+    expect(edited.session.addChildTo(nodeAt(edited.root, 'sPh').id)).toBeTruthy();
+    const stream: any = mcosStreamGateOf(nodeAt(edited.root, 'sPh'));
+    expect(stream._plainReadBackWrong(hexStream(MATLAB_CHUNK, 'sPh').bytes, true)).toBe('a row shows field=0, and reads back as nothing');
+  });
+});
+
 describe('a row added to a Value, and undone, writes the stream as it was read', () => {
   it('an element added to cPh{1}\'s Value and a field to pStruct\'s, both undone', () => {
     const { session, root } = open();
@@ -820,5 +869,64 @@ describe('a row added to a Value, and undone, writes the stream as it was read',
     const saved = savedChunk(session, root);
     expect(valueTag(saved, 'cPh')).toBe(valueTag(MATLAB_CHUNK, 'cPh'));
     expect(valueTag(saved, 'pStruct')).toBe(valueTag(MATLAB_CHUNK, 'pStruct'));
+  });
+});
+
+describe("a part of a stream's value that is no object takes an edit, written anew with its objects as read", () => {
+  // As a MAT-file's save writes a variable holding objects fresh (MatFileWriter.objectElementOf): each
+  // object, and each enumeration value, as the element it was read as, which names the same object of
+  // the subsystem, and the subsystem as it was. Measured against MATLAB R2027a, each edit below, the
+  // binary dictionary saved and reopened, is MATLAB's own edit of getValue of the entry: a value beside
+  // the objects, a sparse array's row, a field added and renamed (one holding an object too), a cell's
+  // object member removed and a member added, and an edit of an object and of a value beside it in one
+  // save. A binary dictionary's struct or cell holding a matlab.lang.OnOffSwitchState took no edit at all.
+  const EB = new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/edit-bash/r2027a/values_binary.sldd', import.meta.url))));
+  const EDITS: [Uint8Array, string, string, string | null, string | null, string][] = [
+    // [file, entry, path, key ('Name', 'Value'; null for an Add, 'remove' for a removal), text, the entry's rows after]
+    [BINARY, 'sPh', 'sPh.q', 'Value', '6', 'sPh <1x1 struct> | p 5 | q 6 | sp <1x2 sparse double> | 1 7'],
+    [BINARY, 'sPh', 'sPh.sp(1,2)', 'Value', '8', 'sPh <1x1 struct> | p 5 | q 5 | sp <1x2 sparse double> | 1 8'],
+    [BINARY, 'sPh', 'sPh', null, null, 'sPh <1x1 struct> | p 5 | q 5 | sp <1x2 sparse double> | 1 7 | field 0'],
+    [BINARY, 'sPh', 'sPh.q', 'Name', 'zq', 'sPh <1x1 struct> | p 5 | zq 5 | sp <1x2 sparse double> | 1 7'],
+    [BINARY, 'sPh', 'sPh.p', 'Name', 'zp', 'sPh <1x1 struct> | zp 5 | q 5 | sp <1x2 sparse double> | 1 7'],
+    [BINARY, 'cPh', 'cPh{1}', 'remove', null, 'cPh {<1x3 sparse double>} | 1 <1x3 sparse double> | 1 1'],
+    [EB, 'enumOnInStruct', 'enumOnInStruct', null, null, 'enumOnInStruct <1x1 struct> | v on | field 0'],
+    [EB, 'enumOnInStruct', 'enumOnInStruct.v', 'Name', 'zv', 'enumOnInStruct <1x1 struct> | zv on'],
+  ];
+  // Each row's name and value (a sparse array's rows are named by the order of its non-zeros).
+  const rowsOf = (n: any): string[] => [n.name + ' ' + n.displayValue, ...n.children.flatMap(rowsOf)];
+
+  for (const [bytes, entry, path, key, text, after] of EDITS) {
+    it(`${path} ${key ?? 'Add'} ${text ?? ''}: taken, saved, reopened as shown`, () => {
+      const filename = bytes === BINARY ? 'stream_objects_binary.sldd' : 'values_binary.sldd';
+      const { session, root } = open(bytes, filename);
+      const node = nodeAt(root, path);
+      session.setActive(root, node);
+      const r = key === null ? session.addChildTo(node.id) !== null : key === 'remove' ? session.deleteNodeById(node.id) : session.editProperty(node.id, key, text!);
+      expect(r).toBe(true);
+      expect(rowsOf(nodeAt(root, entry)).join(' | ')).toBe(after);
+      const saved = (session.serializeSource(root.name) as any).bytes;
+      expect(rowsOf(nodeAt(open(saved, filename).root, entry)).join(' | ')).toBe(after);
+    });
+  }
+
+  it("an enumeration value itself is refused in a MAT-file's words, and a string beside the objects before it is made", () => {
+    const { session, root } = open(EB, 'values_binary.sldd');
+    expect(edit(session, root, 'enumOnInStruct.v', 'Value', "'off'")).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "enumOnInStruct": enumOnInStruct.v is a value of the enumeration matlab.lang.OnOffSwitchState, which a save writes only as it was read, so its edit cannot be saved.',
+    });
+    expect(edit(session, root, 'enumOnInCell{1}', 'Value', "'off'")).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot edit "enumOnInCell": enumOnInCell\{1\} is a value of the enumeration /) });
+    const fresh = open();
+    expect(edit(fresh.session, fresh.root, 'sPh.q', 'Value', '{1, "s"}')).toMatchObject({ error: true, reason: 'Cannot edit "sPh": sPh.q would hold a string, which a save does not write into its MAT stream.' });
+    expect(savedChunk(fresh.session, fresh.root)).toBe(MATLAB_CHUNK);
+  });
+
+  it('an edit undone writes the stream as it was read', () => {
+    const { session, root } = open();
+    expect(edit(session, root, 'sPh.q', 'Value', '6')).toBe(true);
+    session.setActive(root, null);
+    session.undo();
+    const noStamps = (x: string) => x.replace(new RegExp(LASTMOD.source, 'g'), '');
+    expect(noStamps(savedChunk(session, root))).toBe(noStamps(MATLAB_CHUNK));
   });
 });

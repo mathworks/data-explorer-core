@@ -194,10 +194,37 @@ describe('a copied hex entry is pasted as the value it holds', () => {
   });
 });
 
-describe('a hex value is read-only, all the way down, and its name is not', () => {
+// A hex value of plain values and sparse arrays, which MatWriter writes anew as it reads back
+// (MatlabVariableNode._rewritesEncoded), takes edits as the same value read as XML does, and as a
+// MAT-file's: a sparse array's rows, a struct's and a cell's members (the C-012 ruling, revised
+// 2026-10-24). One holding an object or a function handle is read-only all the way down.
+const REWRITTEN = ['c', 'spAllZero', 'spBig', 'spCol', 'spComplex', 'spDiag', 'spEmpty', 'spLogical', 'spNonFinite', 'spRow', 'spSingle', 'spTall', 'st'];
+
+describe('a hex value of plain values takes edits; its value unedited is written as read', () => {
   const root = open();
   const design = root.getSection('design');
-  for (const name of HEX) {
+  it('is every hex value of plain values the fixture holds', () => {
+    expect(HEX.filter((name) => design.children.find((e: any) => e.name === name)._rewritesEncoded?.())).toEqual(REWRITTEN);
+  });
+  for (const name of REWRITTEN) {
+    it(name, () => {
+      const entry = design.children.find((e: any) => e.name === name);
+      for (const node of subtree(entry).filter((n: any) => n._sparse)) {
+        expect([node.valueEditable, node.canAddChild(), node.canRemoveChild()], `${name}: ${node.id}`).toEqual([false, false, false]);
+        for (const row of node.children) {
+          expect(row.valueEditable, `${name}: ${row.id}`).toBe(true);
+        }
+      }
+      expect(valueTag(serializeEntryToXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(regenerateEntryXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
+    });
+  }
+});
+
+describe('a hex value of an object or a function handle is read-only, all the way down, and its name is not', () => {
+  const root = open();
+  const design = root.getSection('design');
+  for (const name of HEX.filter((n) => !REWRITTEN.includes(n))) {
     it(name, () => {
       const entry = design.children.find((e: any) => e.name === name);
       for (const node of subtree(entry)) {

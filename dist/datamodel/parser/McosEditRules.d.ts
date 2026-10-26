@@ -56,8 +56,17 @@ export declare function valueMemberRefusal(value: MatVariable): string | null;
  *
  * The edits are judged together, as the object a save leaves: a Min and a Max set in one save are
  * held to each other as they will be, not as they were.
+ *
+ * `followed`, for a Simulink.Parameter, is the DataType its node shows (followedDataType): MATLAB's
+ * after each edit of its Value in turn, written in place of the one derived from the file's Value
+ * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export declare function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string): McosRulesResult;
-/** MATLAB's DataType after `p.Value = v` of class `now` over a Value of class `old` under DataType `dt`, measured. */
-export declare function dataTypeAfter(old: string, now: string, dt: string): string;
+export declare function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string, followed?: string): McosRulesResult;
+/**
+ * The DataType of the Simulink.Parameter `held` once its Value is `v`, as MATLAB's own `p.Value = v`
+ * makes it over a Value of class `before` (the file's, where none is given) under DataType `dt`: the
+ * one its node shows as it follows each edit of the Value in turn. Null where the object holds no
+ * DataType cell that reads, whose DataType the rules derive from the file's alone (valueCoWrites).
+ */
+export declare function followedDataType(held: McosObjectHeld, v: MatVariable, before: string | undefined, dt: string): string | null;
 //# sourceMappingURL=McosEditRules.d.ts.map

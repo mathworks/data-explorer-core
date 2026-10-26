@@ -261,7 +261,10 @@ if (process.argv[1] && import.meta.url === new URL('file://' + process.argv[1]).
     mkdirSync(outDir, { recursive: true });
     for (const [name, data] of Object.entries(files)) writeFileSync(join(outDir, name), data);
     copyFileSync(join(testDir, TEXT_TWIN), join(outDir, originalName(TEXT_TWIN)));
-    const originals = oldSaveOriginals(testDir);
+    // The originals the old saves were made of: a fixture added since (one holding a struct of no
+    // element) has none.
+    const { existsSync } = await import('node:fs');
+    const originals = oldSaveOriginals(testDir).filter(({ rel }) => Object.keys(BUILDS).every((b) => existsSync(join(testDir, OLD_SAVES_DIR, saveName(b, rel)))));
     for (const { rel, bytes } of originals) {
       writeFileSync(join(outDir, originalName(rel)), bytes);
       for (const build of Object.keys(BUILDS)) {

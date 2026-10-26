@@ -175,6 +175,28 @@ export default class DataNode extends BaseNode {
     _noDescriptionRefusal(propName: string, stringValue: string): SetPropertyResult | null;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
+     * The refusal of an edit of `propName` in a dictionary that no row of this node takes an edit of,
+     * or null: a key that is no column or Property Inspector row of it, or one that is shown read-only
+     * (getPropInfo, what the table and the Property Inspector both read). The tail of setProperty
+     * wrote any key as a field of the node and answered as if the edit were taken: a Simulink.Parameter
+     * took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of 'notAType!' and a
+     * `Unit`, both shown as labels, which it wrote, and `dataType` threw. Said as a MAT-file's save
+     * says it, `<path>.<Property> ...`, where the class has a reason of its own (_coWrittenWhy). The
+     * keys a setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an
+     * edit inside a MAT stream holding objects, whose own gate answered for every key already
+     * (BaseNode.sourceEditRefusal, mcosStream): it writes a Unit and a Signal's DataType.
+     */
+    _unofferedKeyRefusal(propName: string, stringValue: string): SetPropertyResult | null;
+    /**
+     * A property of this node's class that MATLAB keeps as its Value's and refuses set on its own,
+     * named as MATLAB names it, with why, where `propName` names one in any case; or null. None but
+     * a Simulink.Parameter's (ParameterNode).
+     */
+    _coWrittenWhy(_propName: string): {
+        property: string;
+        why: string;
+    } | null;
+    /**
      * The rename setProperty makes once it has found `name` one this node takes: the node called
      * `name`, and every structure keyed by its name told. And the undo's and the redo's of a rename
      * (_nameRestorer), which put back a name the setter checked once already, or one the file was read

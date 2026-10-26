@@ -108,14 +108,27 @@ save gate has to check for itself. `readEntryFragment(fragment,
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.
 
+A host that writes one entry of a text dictionary itself writes the entry's
+`serialize()` record with `textDictionaryJson(value, indent?)`, not
+`JSON.stringify`: its numbers are spelled as MATLAB writes them (`1000000.0`,
+`1e300`), as a save spells them. `JSON.stringify` writes a double of 2^64 as an
+integer literal, and MATLAB does not open the dictionary. `jsonNumberText(x)`
+spells one number so.
+
 A value a dictionary holds as a MAT stream is shown, and written back as the
 stream: a binary dictionary's `Encoding="hex"` value, which MATLAB writes for an
 entry whose value holds a sparse array, and the cdata of the same stream a text
-dictionary holds once such an entry is pasted into it. Nothing in one takes an
-edit but its entry's rename and, where the stream is the entry's whole value,
-the properties of its `Simulink.Parameter` and `Simulink.Signal` objects that a
-MAT-file's take (below), by the same rules, and shown as a MAT-file shows them:
-the DataType a Value of another class co-writes at once, and two fields holding
+dictionary holds for it, and for a complex or N-D value. One of plain values (numbers,
+logicals, chars, sparse arrays, and cells and structs of them) takes edits as the same
+value in a MAT-file does, at its rows and members, where the stream the edit makes reads
+back as it; the save writes the stream anew, and an edit undone writes it as it was read.
+In one holding an object or a function handle, nothing takes an edit but its entry's
+rename and, where the stream is the entry's whole value, the parts of it that are no
+object (written anew around its objects, each the element it was read as) and the
+properties of its `Simulink.Parameter` and `Simulink.Signal` objects that a MAT-file's
+take (below), by the same rules, and shown as a MAT-file shows them:
+the DataType each edit of the Value co-writes, one edit at a time, as MATLAB's
+`p.Value = v` re-derives it, at once, and two fields holding
 one handle as one object, every edit of it made through the first of them
 edited. The save writes the stream again with only the cells of those
 properties replaced, every other byte as it was read: the hex's `EncodedLength`

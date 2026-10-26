@@ -189,10 +189,11 @@ describe('a damaged column count in a sparse array of its own, edited or copied'
       expect(spTall.children[1].setProperty('Value', '9')).toMatchObject({ error: true });
       // And what would write one says so, as an error to catch.
       expect(() => encodeMatStream(spTall._var)).toThrow(MatWriteError);
-      // Saved after a rename, it is the stream it was read as. The stream beside it, spRow, is
-      // shown and not edited, as every stream of a text dictionary is (the C-012 ruling, 2026-10-15).
+      // Saved after a rename, it is the stream it was read as. The stream beside it, spRow, which
+      // MatWriter writes as it reads back, takes the edit, as a MAT-file's does (the C-012 ruling,
+      // revised 2026-10-24).
       const spRow = root.getSection('design').children.find((e: any) => e.name === 'spRow');
-      expect(spRow.children[0].setProperty('Value', '5')).toMatchObject({ error: true });
+      expect(spRow.children[0].setProperty('Value', '5')).toBe(true);
       expect(spTall.setProperty('Name', 'spTallRenamed')).toBe(true);
       const [saved, ms] = timed(() => JSON.parse(session.serializeSource(root.name)!.text!));
       expect(ms).toBeLessThan(1000);

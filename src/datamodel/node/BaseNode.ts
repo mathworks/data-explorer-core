@@ -191,13 +191,18 @@ export type ElementSubscript =
  * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
  * objects with the words this gives. The stream is the gate for as long as its node is, so an
  * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
+ *
+ * Nor is one whose value this package writes anew as it reads back, once edited (a binary
+ * dictionary's sparse array: MatlabVariableNode._rewritesEncoded): it takes edits as the same value
+ * read as XML does, and the edit drops the hex.
  */
 export function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null {
   for (let n = node; n && !(n as unknown as { isContainer?: boolean }).isContainer; n = n.parent) {
     if (mcosStreamGateOf(n)) {
       return null;
     }
-    if ((n as unknown as { _encoded?: unknown })._encoded) {
+    const held = n as unknown as { _encoded?: unknown; _rewritesEncoded?: () => boolean };
+    if (held._encoded && !held._rewritesEncoded?.()) {
       return n;
     }
   }

@@ -60,6 +60,11 @@ function fieldsOf(rawVal: Record<string, unknown>): string[] {
     return [];
 }
 
+// Whether `fields` are in the order MATLAB sorts names in, code unit by code unit (a field name is ASCII).
+function inSortedOrder(fields: string[]): boolean {
+    return fields.every((f, k) => k === 0 || fields[k - 1] < f);
+}
+
 // Whether a struct element is a bag of fields at all is DataNode's isFieldBag, which the raw
 // struct writer asks too. Read as fields, a string element 1 listed its character indices as the
 // struct's fields, and a declared `length` over an array read its length.
@@ -174,10 +179,14 @@ export default class StructNode extends DataNode {
     // setOwn rather than an assignment: the names are the file's, and a field called
     // `__proto__` assigned into `{}` went to the prototype setter, so a save lost its value
     // while `_fields` still named it.
+    //
+    // Keyed in sorted order, as MATLAB keys a text dictionary's struct whatever its fields' order,
+    // which `_fields` says where it is not that (serializeValue). Keyed in field order, an undone
+    // edit of a sparse element in a field rewrote the struct's text that MATLAB had written sorted.
     serializeElement(): Record<string, unknown> {
         const fields = (this.serial._fields as string[]) || [];
         const elem: Record<string, unknown> = {};
-        fields.forEach((field) => {
+        [...fields].sort().forEach((field) => {
             const child = this.children.find((c) => c.name === field);
             setOwn(elem, field, child ? (child as DataNode).serializeValue() : undefined);
         });
@@ -228,7 +237,12 @@ export default class StructNode extends DataNode {
             _dimensions: d,
             _elements: elements
         };
-        if (this._fieldsDeclared) {
+        // And where its fields are not in sorted order, whatever the file held: MATLAB writes a
+        // struct's keys sorted, and `_fields` only for one whose fields are not, and it reads a
+        // struct of no `_fields` with its fields sorted (R2027a). A field renamed in place, or one an
+        // Add put at the end, left the order unsorted, and MATLAB read `struct('zz_new', 1, 'b', 2)`
+        // back as {b, zz_new}.
+        if (this._fieldsDeclared || !inSortedOrder(fields)) {
             result._fields = fields;
         }
         result._mw_element_type = (this.serial._mw_element_type as string) || 'MATLABArray';

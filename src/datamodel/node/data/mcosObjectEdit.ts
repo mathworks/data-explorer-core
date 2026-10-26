@@ -22,6 +22,7 @@ import {
   type McosSubsystem,
 } from '../../parser/McosSubsystemEdit.js';
 import {
+  followedDataType,
   hasEditRules,
   objectEditCells,
   propertyEditRefusal,
@@ -528,7 +529,9 @@ export function objectEditsOf(
  *
  * Only a DataType the object holds a cell for is co-written. One it holds none for is at its class
  * default, which MATLAB re-derives from the Value as it loads the object, and is shown as read, as a
- * file read again shows it.
+ * file read again shows it. One it holds is MATLAB's after each edit of the Value in turn
+ * (nodeFollowedDataType), not after one from the file's: "abc" and then 7 typed over a single
+ * Parameter's 5 make it 'auto'.
  */
 export function shownDataType(state: McosObjectState, node: BaseNode): string | null {
   if (state.held.className !== PARAMETER) {
@@ -538,15 +541,43 @@ export function shownDataType(state: McosObjectState, node: BaseNode): string | 
   if ('why' in found) {
     return null;
   }
-  if (!found.edits.some((e) => e.property === 'Value')) {
+  const followed = nodeFollowedDataType(state, node);
+  if (!found.edits.some((e) => e.property === 'Value') && (followed === null || followed === state.dataType)) {
     return state.dataType;
   }
-  const ruled = objectEditCells(state.held, found.edits, node.matlabPath);
+  const ruled = objectEditCells(state.held, found.edits, node.matlabPath, followed ?? undefined);
   if (!ruled.ok) {
     return null;
   }
+  // None written where the one followed to is the file's.
   const written = ruled.cells.find((c) => c.savedName === 'DataType');
-  return written && typeof written.value.value === 'string' ? written.value.value : state.dataType;
+  return written && typeof written.value.value === 'string' ? written.value.value : followed ?? state.dataType;
+}
+
+/**
+ * The DataType the Simulink.Parameter at `node` follows to with the Value `value` (the node's own,
+ * by default; an edit's about to be made): McosEditRules.followedDataType of the Value class the node
+ * last followed (ParameterNode._classFollowed) and the DataType it shows. Null for a Value the node
+ * holds none of a save writes, and where the rules derive it from the file's.
+ */
+export function nodeFollowedDataType(state: McosObjectState, node: BaseNode, value?: MatVariable): string | null {
+  const v = value ?? nodePropertyValue(node, 'Value');
+  if (typeof v === 'string') {
+    return null;
+  }
+  const { before, shown } = dataTypeFollowedFrom(node, state.dataType);
+  return followedDataType(state.held, v, before, shown);
+}
+
+/**
+ * What the Simulink.Parameter at `node` follows its DataType on from at the next edit of its Value,
+ * in a MAT-file and in a dictionary's MAT stream alike (matObjectEdit.dataTypeShownFor,
+ * nodeFollowedDataType): the Value class it last followed (ParameterNode._classFollowed, which an
+ * undo puts back), undefined until it has, and the DataType it shows, `read` where it shows none.
+ */
+export function dataTypeFollowedFrom(node: BaseNode, read: string): { before: string | undefined; shown: string } {
+  const parameter = node as unknown as { DataType?: unknown; _classFollowed?: string };
+  return { before: parameter._classFollowed, shown: String(parameter.DataType ?? read) };
 }
 
 /** What a node holds that a save does not write, as text to compare: see the file header. */
@@ -844,15 +875,21 @@ export function objectSubsystemEdit(
   const objects: McosObjectEdits[] = [];
   const cells: McosPlannedCell[] = [];
   for (const [objectId, { state, node, edits }] of byObject) {
-    if (edits.size === 0) {
+    // A Parameter's DataType, written with its Value, and alone where the Value was typed back to
+    // the file's after another class (nodeFollowedDataType).
+    const followed = state.held.className === PARAMETER ? nodeFollowedDataType(state, node) : null;
+    if (edits.size === 0 && followed === null) {
       continue;
     }
-    const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath);
+    const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath, followed ?? undefined);
     if (!ruled.ok) {
-      refuse(edits.get(ruled.property)?.node ?? node, ruled.message);
+      return refuse(edits.get(ruled.property)?.node ?? node, ruled.message);
+    }
+    if (ruled.cells.length === 0) {
+      continue;
     }
     const written: { savedName: string; cell: Uint8Array }[] = [];
-    for (const { savedName, value } of (ruled as { cells: { savedName: string; value: MatVariable }[] }).cells) {
+    for (const { savedName, value } of ruled.cells) {
       let cell: Uint8Array;
       try {
         cell = valueCellOf(value);

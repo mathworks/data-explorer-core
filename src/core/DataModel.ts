@@ -37,6 +37,7 @@ import type BaseNode from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 import { copyDifference, landedDifference, writerWhy } from '../datamodel/node/container/matPaste.js';
 import { readEntryFragment } from '../datamodel/parser/EntryMerge.js';
+import { textDictionaryJson } from '../datamodel/parser/TextDictionaryJson.js';
 import * as NodeRegistry from '../datamodel/node/NodeRegistry.js';
 
 // The session's own vocabulary — what a caller passes in and what these functions hand
@@ -2929,7 +2930,10 @@ function serializeSource(srcId: string): SerializedSource | null {
   // an entry renamed since the read is renamed in it here, in the text, as the binary save
   // does in its member, or it reopens as its raw class (a struct type as a data interface).
   // So is a service interface's function, which the catalog keeps a copy of.
-  const text = JSON.stringify(source.serializeJson(), null, '\t');
+  //
+  // Its numbers as MATLAB writes them (textDictionaryJson): a double of 2^64 as an integer literal
+  // made a dictionary MATLAB could not open.
+  const text = textDictionaryJson(source.serializeJson(), '\t');
   return {
     kind: 'text',
     sourceFormat: source.sourceFormat,

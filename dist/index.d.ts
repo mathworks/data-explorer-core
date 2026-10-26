@@ -22,6 +22,7 @@ export type { NativeInflate } from './datamodel/parser/Inflate.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+export { textDictionaryJson, jsonNumberText } from './datamodel/parser/TextDictionaryJson.js';
 export { readEntryFragment } from './datamodel/parser/EntryMerge.js';
 export type { ReadEntryOptions } from './datamodel/parser/EntryMerge.js';
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';

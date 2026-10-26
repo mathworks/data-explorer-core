@@ -211,16 +211,9 @@ describe("where a field's name is not the struct's to write, nothing changed", (
   const names = (n: any) => n.children.map((c: any) => c.nameEditable);
   const none = (n: any) => n.children.map(() => false);
 
-  it("a value still in a dictionary's stream, and a struct value a text dictionary holds as a MATLAB value", () => {
-    const o = opened(read('fixtures/sldd-stream-objects/stream_objects_binary.sldd'), 'x.sldd');
-    const nested = flat(o.root).find((n) => n.matlabPath === 'nested' && n.children.length > 0);
-    expect(nested.children.length).toBeGreaterThan(0);
-    expect(names(nested)).toEqual(none(nested));
-    expect(nested.children[0].setProperty('Name', 'renamed')).toMatchObject({ error: true });
-    const text = opened(read('parity/artifacts/text/cases.sldd'), 'cases.sldd');
-    const element = text.at('structNd(2,2,1)');
-    expect([element.constructor.name, names(element)]).toEqual(['MatlabVariableNode', none(element)]);
-  });
+  // A text dictionary's struct held as a MAT stream of plain values renames its fields, as a MAT-file
+  // does (test/textStreamContainers.test.ts), and so does a dictionary's struct in a MAT stream
+  // holding objects, which a save writes anew around them (test/slddStreamObjects.test.ts).
 
   it("a model workspace's struct, which is its stream", async () => {
     const { loadFile } = await import('./parity/loadFile.js');

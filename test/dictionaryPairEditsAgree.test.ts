@@ -8,10 +8,10 @@
 // show what they showed before the save.
 //
 // What a value offers differs between the two formats where the format says so (a text
-// dictionary holds a sparse array, and a cell or a struct its JSON cannot spell, as the MAT stream
-// it was read as, which is shown and not edited; MATLAB's JSON keeps no size of an empty), and is
-// not asked here. A complex value it holds so takes edits, as the binary twin's does (the C-012
-// ruling, revised 2026-10-24).
+// dictionary holds a sparse array as the MAT stream it was read as, which is shown and not edited;
+// MATLAB's JSON keeps no size of an empty), and is not asked here. A complex value it holds so takes
+// edits, as the binary twin's does, and so do the members of a cell or a struct it holds so (the
+// C-012 ruling, revised 2026-10-24), but for a string typed into one (stringIntoTextStream).
 //
 // Then the one edit the sweep finds the formats disagree on, recorded as an expected failure: a
 // string typed into a Simulink.Parameter's Value where the Parameter is held in a MAT stream (a
@@ -108,6 +108,14 @@ const TYPED = ['7', "'zz'", 'true', '[1 2]', 'int8(5)', '1+2i', '"s"', '{1, "x"}
 // what its own file opened again shows.
 const charIntoEncodedParameter = (node: any, typed: string) => /^'.*'$/.test(typed) && node.className === 'Simulink.Parameter' && sourceJudgesValues(node);
 
+// A string typed into a member of a cell or a struct the text dictionary holds whole as a MAT stream,
+// which takes edits of plain values (the C-012 ruling, revised 2026-10-24): MatWriter has no class
+// for a string, so the text dictionary refuses it, naming the member and the stream, where the binary
+// twin's XML spells it. The one format limit the sweep meets.
+const STREAM_STRING = /is held in the MAT stream of .*: it would hold a string, which a MAT stream there holds only to be shown\.$/;
+const stringIntoTextStream = (typed: string, tr: unknown, br: unknown) =>
+  br === true && /"/.test(typed) && STREAM_STRING.test((tr as { reason?: string } | null)?.reason ?? '');
+
 // What an edited row shows once its file is saved and opened again: what it showed. But for a real
 // number typed into an element of a complex array, which is that number with an imaginary part of 0:
 // the row shows the number, and the file opened again the complex number, in both formats alike.
@@ -120,6 +128,7 @@ describe('a text and a binary dictionary of the same values take the same edits 
   it('every edit both offer: taken by both or neither, shown the same, and reopened as shown', { timeout: 180_000 }, () => {
     let both = 0;
     let taken = 0;
+    let streamStrings = 0;
     for (const [textFile, binaryFile] of pairs()) {
       const textBytes = fileBytes(textFile);
       const binaryBytes = fileBytes(binaryFile);
@@ -137,6 +146,10 @@ describe('a text and a binary dictionary of the same values take the same edits 
           const binary = opened(binaryFile, binaryBytes);
           const [tn, bn] = [nodeAt(text.root, path), nodeAt(binary.root, path)];
           const [tr, br] = [text.edit(tn, typed), binary.edit(bn, typed)];
+          if (stringIntoTextStream(typed, tr, br)) {
+            streamStrings++;
+            continue;
+          }
           expect(br === true, label + ': ' + JSON.stringify({ text: tr, binary: br })).toBe(tr === true);
           if (tr !== true) {
             continue;
@@ -151,6 +164,8 @@ describe('a text and a binary dictionary of the same values take the same edits 
     // What the sweep met: that many values both offer an edit of, and that many edits taken.
     expect(both).toBeGreaterThanOrEqual(400);
     expect(taken).toBeGreaterThanOrEqual(1500);
+    // nd_text.sldd's C and s, each member typed "s" and {1, "x"}: 40 when this was written.
+    expect(streamStrings).toBeGreaterThanOrEqual(30);
   });
 });
 

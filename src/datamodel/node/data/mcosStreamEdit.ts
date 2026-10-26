@@ -5,11 +5,12 @@ import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { setMcosStreamGate, type McosStreamGate } from '../mcosStream.js';
-import { mcosPlaceOf } from '../mcosPlace.js';
+import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
 import {
   classRefusal,
   memberRefusal,
   mirrorTwins,
+  nodeFollowedDataType,
   nodePropertyValue,
   objectEditsOf,
   objectNodeAt,
@@ -32,8 +33,8 @@ import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem } from '.
 import { encodedStream, encodedXml, hexValue, matStreamPrefix, type EncodedValue } from '../../parser/EncodedValue.js';
 import { uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { decodeMatStream, type MatVariable } from '../../parser/MatParser.js';
-import { subsystemCellsDiffer, variableDifference, type McosWrittenCell } from '../../parser/MatFileWriter.js';
-import { MatWriteError } from '../../parser/MatWriter.js';
+import { objectElementOf, subsystemCellsDiffer, variableDifference, type McosWrittenCell } from '../../parser/MatFileWriter.js';
+import { MatWriteError, encodeMatVariable, withObjectMembers } from '../../parser/MatWriter.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 
 // An edit of a Simulink.Parameter's or a Simulink.Signal's property inside a dictionary value that
@@ -46,11 +47,12 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 // are MATLAB's own save of the edit byte for byte.
 //
 // WHAT IS EDITED. An allow-listed property of an object in the stream of an ENTRY's whole value,
-// which is where MATLAB writes one and where this package pastes one. Everything else in the
-// stream, a sparse array beside the object, a struct's field, a property no rule writes, a stream
-// nested in a value of another kind, stays read-only, with the words it had (_encodedWhy): the
-// value is still written as the stream it was read from, with only the cells of the edited
-// properties replaced, and the stream's value element written as it was.
+// which is where MATLAB writes one and where this package pastes one, written by replacing only the
+// cells of the edited properties; and a part of that value that is no object nor in one (a sparse
+// array beside the object, a struct's field, a cell's member: _plainEditRefusal), written by writing
+// the stream's value element anew with each object as the element it was read as (_plainElement).
+// Everything else, an enumeration value, a property no rule writes, a stream nested in a value of
+// another kind, stays read-only, with the words it had (_encodedWhy).
 //
 // WHERE IT IS ASKED. The stream is a source of its own (mcosStream), asked first by the
 // editability getters and the setters, as a MAT-file is (BaseNode.sourceEditRefusal,
@@ -119,8 +121,8 @@ export function adoptMcosStream(holder: DataNode, read: McosStreamRead): void {
 
 class McosStream implements McosStreamGate {
   _framed: Framed | undefined;
-  // The last stream rewritten that passed its self-check, and the subsystem it was made with.
-  _written: { element: Uint8Array; bytes: Uint8Array } | null = null;
+  // The last stream rewritten that passed its self-check, and the value and the subsystem it was made with.
+  _written: { element: Uint8Array; value: Uint8Array; bytes: Uint8Array } | null = null;
   // What the editor found of each object's node the first time it asked (mcosObjectEdit.objectStateOf),
   // kept for as long as the node is, as a MAT-file keeps it (MatNode._objectState).
   readonly _states = new WeakMap<BaseNode, McosObjectState | string>();
@@ -132,6 +134,8 @@ class McosStream implements McosStreamGate {
   _twins: McosTwinGroup[] | undefined;
   _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
   _stream: Uint8Array | undefined;
+  // Why the value as read would not be written anew around its objects, once judged (_plainVerdict).
+  _plainWhy: string | null | undefined;
 
   constructor(
     readonly holder: DataNode,
@@ -153,6 +157,11 @@ class McosStream implements McosStreamGate {
     if (this.holder !== entry) {
       return this._encodedWhy();
     }
+    // A part of the value that is no object, nor in one (_plainEditRefusal).
+    const plain = this._plainEditRefusal(entry, node, key);
+    if (plain !== undefined) {
+      return plain;
+    }
     const object = objectNodeAt(entry, node);
     const cls = object ? classOf(object) : '';
     // A part of the object refused is refused in the encoded value's words, so propertyAt's own
@@ -171,6 +180,111 @@ class McosStream implements McosStreamGate {
     }
     const refused = classRefusal(state, object) ?? this._propertyVerdicts.of(state, object, at.property) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * Why an edit of `key` at `node`, a part of the stream's value that is no object nor in one, is
+   * refused, or null where it is taken; undefined where `node` is at or under an object, whose own
+   * rules answer (_editRefusal). A value edit, an Add and a removal at a struct or a cell of the
+   * value, and a field's rename, which is its struct's edit: the save writes the value anew, each
+   * object in it as the element it was read as, which names the same object of the subsystem
+   * (MatFileWriter.objectElementOf, as a MAT-file's save writes a variable holding objects fresh),
+   * and the subsystem as it was, with the edited objects' cells swapped (rewritten). Refused at or
+   * under a member written only as it was read: an enumeration value, a string, an object of no
+   * class this edits; and wherever the value as read would not be written so (_plainVerdict). A
+   * binary dictionary's struct or cell holding a matlab.lang.OnOffSwitchState took no edit at all,
+   * where a MAT-file's and a text dictionary's took one beside it.
+   */
+  _plainEditRefusal(entry: BaseNode, node: BaseNode, key: string): string | null | undefined {
+    const at = (key === 'Name' || key === 'name') && node !== this.holder && node.parent ? node.parent : node;
+    if (objectNodeAt(entry, at)) {
+      return undefined;
+    }
+    for (let n: BaseNode | null = at; n; n = n.parent) {
+      if (MatlabVariableNode._objectMemberOf(n)) {
+        const enumeration = mcosEnumerationOf(n);
+        if (enumeration) {
+          return cannotEdit(entry.name, n.matlabPath + ' is a value of the enumeration ' + enumeration.className + ', which a save writes only as it was read, so its edit cannot be saved');
+        }
+        return cannotEdit(entry.name, n.matlabPath + ' is ' + (n === at ? '' : 'part of ') + 'an object of the file, which a save writes as it was read');
+      }
+      if (n === this.holder) {
+        break;
+      }
+    }
+    if (!['Value', 'Add', 'Name', 'name'].includes(key)) {
+      return this._encodedWhy();
+    }
+    const framed = this._framing();
+    if (typeof framed === 'string') {
+      return cannotEdit(entry.name, framed);
+    }
+    const why = this._plainVerdict();
+    return why ? cannotEdit(entry.name, why) : null;
+  }
+
+  // Why the value as read would not be written anew around its objects (_plainElement) as it reads,
+  // as a clause, or null: judged once, of its rows that are no object's, with the subsystem as read
+  // (an object edited before is the save's self-check's to hold to its edit).
+  _plainVerdict(): string | null {
+    if (this._plainWhy === undefined) {
+      try {
+        const element = this._plainElement();
+        const { valueEnd } = this._framing() as { valueEnd: number };
+        const wrong = this._plainReadBackWrong(this._withValue(element, this.bytes().subarray(valueEnd)), true);
+        this._plainWhy = wrong ? 'its value would not be written as it reads: ' + wrong : null;
+      } catch (e) {
+        if (!(e instanceof MatWriteError)) {
+          throw e;
+        }
+        this._plainWhy = 'its value could not be written anew: ' + e.message;
+      }
+    }
+    return this._plainWhy;
+  }
+
+  // The value element of the stream, written anew from the holder's rows with the empty name a
+  // stream's value has, each object in it as the element it was read as (MatFileWriter.objectElementOf).
+  _plainElement(): Uint8Array {
+    const v = (this.holder as MatlabVariableNode)._var;
+    return withObjectMembers((member) => {
+      const element = objectElementOf(member, '');
+      return 'element' in element ? element.element : null;
+    }, () => encodeMatVariable({ ...v, name: '' }));
+  }
+
+  // A stream of the header read, `value` as its value element, and `subsystem` after it.
+  _withValue(value: Uint8Array, subsystem: Uint8Array): Uint8Array {
+    return concatBytes(this.bytes().subarray(0, 8), value, subsystem);
+  }
+
+  // Where the stream `bytes` does not read back, as this package reads one (parseEncoded), as the
+  // value its holder shows, row for row, in words; or null where it does. With `plainOnly`, the rows
+  // at or under an object are not compared.
+  _plainReadBackWrong(bytes: Uint8Array, plainOnly = false): string | null {
+    const decoded = decodeMatStream(bytes, { whole: true });
+    if (!decoded.ok || decoded.trailingElements.length !== 1) {
+      return 'it does not decode' + (decoded.ok ? ' as one value and its objects' : ' (' + decoded.reason + ')');
+    }
+    let root: BaseNode;
+    try {
+      NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [decoded.variable], [], this.holder.name);
+      root = MatlabVariableNode.parseMatVariable(decoded.variable, this.holder.name, null);
+    } catch (e) {
+      return 'it does not read back (' + (e instanceof Error ? e.message : String(e)) + ')';
+    }
+    const rows = (n: BaseNode): string[] =>
+      plainOnly && mcosPlaceOf(n) ? [n.name + ' (an object)'] : [n.name + '=' + n.displayValue, ...n.children.flatMap(rows)];
+    const [shown, back] = [rows(this.holder).slice(1), rows(root).slice(1)];
+    let k = shown.findIndex((r, i) => r !== back[i]);
+    if (k < 0) {
+      if (shown.length === back.length) {
+        return null;
+      }
+      // Every row shown reads back, and more do: the first of those is named, not "nothing".
+      k = shown.length;
+    }
+    return k < shown.length ? 'a row shows ' + shown[k] + ', and reads back ' + (back[k] ?? 'as nothing') : 'a row reads back ' + back[k] + ', which no row shows';
   }
 
   /** An edit at `node`, a node of the stream (BaseNode._markSourceDirty): what was found of each object at or above it is forgotten. */
@@ -275,7 +389,9 @@ class McosStream implements McosStreamGate {
     if (typeof edits === 'string') {
       return cannotEdit(entry.name, edits);
     }
-    const ruled = objectEditCells(state.held, edits, object.matlabPath);
+    // The DataType the edit of the Value is about to follow to (mcosObjectEdit.nodeFollowedDataType).
+    const followed = nodeFollowedDataType(state, object, at.property === 'Value' ? pending : undefined);
+    const ruled = objectEditCells(state.held, edits, object.matlabPath, followed ?? undefined);
     return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
   }
 
@@ -290,6 +406,16 @@ class McosStream implements McosStreamGate {
     const object = objectNodeAt(entry, node);
     if (object && (object as unknown as { _valueNode?: BaseNode | null })._valueNode === node) {
       return this._editValueRefusal(entry, node, 'Value', value);
+    }
+    // Not typed over the stream's whole value, whose class its hex states.
+    if (node === this.holder) {
+      return this._encodedWhy();
+    }
+    // Typed into a part of the value that is no object's, which the save writes anew
+    // (_plainEditRefusal): what MatWriter writes, a plain value (MatlabVariableNode._isPlainTree), and
+    // not a string, which it has no class for.
+    if (!object && value instanceof MatlabVariableNode && !value._isPlainTree()) {
+      return cannotEdit(entry.name, node.matlabPath + ' would hold ' + value._unplainPhrase() + ', which a save does not write into its MAT stream');
     }
     const refused = object ? memberRefusal(object, node, value) : null;
     return refused ? cannotEdit(entry.name, refused) : null;
@@ -322,32 +448,51 @@ class McosStream implements McosStreamGate {
     const refuse = (why: string): never => {
       throw new MatWriteError('Cannot write "' + holder.name + '": ' + why + '. Nothing was written.');
     };
-    if (holder._plainEdited) {
+    // An edit of a part of the value that is no object (_plainEditRefusal) writes the value anew.
+    const plain = !!holder._plainEdited;
+    if (plain && !(holder instanceof MatlabVariableNode)) {
       refuse(holder.matlabPath + ' holds an edit of a part of its value that is no object of it, which a save does not write into its stream');
     }
     const edited = objectNodesUnder(holder).filter((n) => (n as DataNode)._objectEdited);
-    if (edited.length === 0) {
+    if (edited.length === 0 && !plain) {
       return null;
     }
     const framed = this._framing();
     if (typeof framed === 'string') {
       return refuse(framed);
     }
-    const written = objectSubsystemEdit(framed.subsystem, edited, (n) => this._state(n), () => holder.name);
-    if (!written) {
+    const written = edited.length > 0 ? objectSubsystemEdit(framed.subsystem, edited, (n) => this._state(n), () => holder.name) : null;
+    if (!written && !plain) {
+      return null;
+    }
+    const subsystem = written ? written.element : this.bytes().subarray(framed.valueEnd);
+    const valueRead = this.bytes().subarray(8, framed.valueEnd);
+    let value: Uint8Array;
+    try {
+      value = plain ? this._plainElement() : valueRead;
+    } catch (e) {
+      if (!(e instanceof MatWriteError)) {
+        throw e;
+      }
+      return refuse('its value could not be written anew: ' + e.message);
+    }
+    // A value written anew as the bytes it was read as (an Add undone), with no object edited: the
+    // stream as read.
+    if (plain && !written && sameBytes(value, valueRead)) {
       return null;
     }
     // One save asks for the stream more than once (the entry's merge reads its text back), and
-    // the edits that make one subsystem make one stream: what the self-check passed is kept.
-    if (this._written && sameBytes(this._written.element, written.element)) {
+    // the edits that make one value and one subsystem make one stream: what the self-check passed
+    // is kept.
+    if (this._written && sameBytes(this._written.element, subsystem) && sameBytes(this._written.value, value)) {
       return this._written.bytes;
     }
-    const bytes = streamWithSubsystem(this.bytes(), framed.valueEnd, written.element);
-    const wrong = this._selfCheck(bytes, framed, written.element, written.cells, edited);
+    const bytes = plain ? this._withValue(value, subsystem) : streamWithSubsystem(this.bytes(), framed.valueEnd, subsystem);
+    const wrong = this._selfCheck(bytes, framed, subsystem, written?.cells ?? [], edited, plain);
     if (wrong) {
       refuse('the stream written for it did not read back as written: ' + wrong);
     }
-    this._written = { element: written.element, bytes };
+    this._written = { element: subsystem, value, bytes };
     return bytes;
   }
 
@@ -444,19 +589,27 @@ class McosStream implements McosStreamGate {
   // only the planned cells changed (subsystemCellsDiffer); its hex or its cdata reads back as
   // these bytes, the hex's EncodedLength their count; and the objects this package shows of it
   // hold the values the edits made.
+  // A value written anew (`plain`) is held to the rows its holder shows instead (_plainReadBackWrong).
   _selfCheck(
     bytes: Uint8Array,
     framed: { valueEnd: number; subsystem: McosSubsystem },
     element: Uint8Array,
     cells: readonly McosWrittenCell[],
     edited: readonly BaseNode[],
+    plain = false,
   ): string | null {
     const parts = mcosStreamParts(bytes);
     if (!parts.ok) {
       return 'it ' + parts.message;
     }
-    if (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.bytes().subarray(0, framed.valueEnd))) {
+    if (!plain && (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.bytes().subarray(0, framed.valueEnd)))) {
       return 'its value is not the bytes it was read as';
+    }
+    if (plain) {
+      const wrong = this._plainReadBackWrong(bytes);
+      if (wrong) {
+        return wrong;
+      }
     }
     if (!sameBytes(parts.subsystem, element)) {
       return 'its objects are not the element written for them';
@@ -562,4 +715,14 @@ function classOf(node: BaseNode): string {
 
 function cannotEdit(name: string, why: string): string {
   return 'Cannot edit "' + name + '": ' + why + '.';
+}
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
 }

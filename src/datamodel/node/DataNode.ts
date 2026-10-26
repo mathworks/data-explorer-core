@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode, { encodedHolderOf, propNamed, refusalClause, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal, UNWORDED } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, inMcosStream, propNamed, refusalClause, sourceEditRefusal, sourceEditRefused, sourceJudgesValues, sourceOfferedEditor, sourceSetOffered, sourceValueRefusal, UNWORDED } from './BaseNode.js';
 import type { PropClass, SourceOfferedEditor } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
@@ -644,6 +644,11 @@ export default class DataNode extends BaseNode {
         validValue: (this as unknown as { Description?: string }).Description || '',
       };
     }
+    // In a dictionary, a key no row of this node takes an edit of (_unofferedKeyRefusal).
+    const unoffered = this._unofferedKeyRefusal(propName, stringValue);
+    if (unoffered) {
+      return unoffered;
+    }
     const self = this as unknown as Record<string, unknown>;
     const current = self[resolved];
     const type = typeof current;
@@ -694,6 +699,50 @@ export default class DataNode extends BaseNode {
     }
     this._markModified();
     return true;
+  }
+
+  /**
+   * The refusal of an edit of `propName` in a dictionary that no row of this node takes an edit of,
+   * or null: a key that is no column or Property Inspector row of it, or one that is shown read-only
+   * (getPropInfo, what the table and the Property Inspector both read). The tail of setProperty
+   * wrote any key as a field of the node and answered as if the edit were taken: a Simulink.Parameter
+   * took `Bogus` and `StorageClass`, which the save wrote nowhere, a `DataType` of 'notAType!' and a
+   * `Unit`, both shown as labels, which it wrote, and `dataType` threw. Said as a MAT-file's save
+   * says it, `<path>.<Property> ...`, where the class has a reason of its own (_coWrittenWhy). The
+   * keys a setter takes before its tail (a Value, a Min, a schema column) do not come here, nor an
+   * edit inside a MAT stream holding objects, whose own gate answered for every key already
+   * (BaseNode.sourceEditRefusal, mcosStream): it writes a Unit and a Signal's DataType.
+   */
+  _unofferedKeyRefusal(propName: string, stringValue: string): SetPropertyResult | null {
+    const format = this._ownerFormat();
+    if ((format !== 'json' && format !== 'xml') || inMcosStream(this)) {
+      return null;
+    }
+    const rows = [this._propFor(propName), this._piPropFor(propName)].filter((p): p is PropClass => p !== undefined);
+    const shown = rows.map((p) => this._rowShown(p));
+    if (shown.some((s) => s.editable)) {
+      return null;
+    }
+    const coWritten = this._coWrittenWhy(propName);
+    let why: string;
+    if (coWritten) {
+      why = `${this.matlabPath}.${coWritten.property} ${coWritten.why}`;
+    } else if (rows.length > 0) {
+      why = `the ${rows[0].displayName} of ${this.matlabPath} is read-only here`;
+    } else {
+      why = `${this.matlabPath}.${propName} is not one this editor writes into ${classPhrase(this.className)}`;
+    }
+    const entry = (this.owningEntry ?? this).name;
+    return { error: true, reason: `Cannot edit "${entry}": ${why}.`, invalidValue: stringValue, validValue: shown[0]?.text ?? '' };
+  }
+
+  /**
+   * A property of this node's class that MATLAB keeps as its Value's and refuses set on its own,
+   * named as MATLAB names it, with why, where `propName` names one in any case; or null. None but
+   * a Simulink.Parameter's (ParameterNode).
+   */
+  _coWrittenWhy(_propName: string): { property: string; why: string } | null {
+    return null;
   }
 
   /**

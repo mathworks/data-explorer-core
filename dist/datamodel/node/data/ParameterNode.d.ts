@@ -12,6 +12,7 @@ export default class ParameterNode extends DataNode {
     Max: number | undefined;
     Unit: string;
     Description: string;
+    _classFollowed?: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
@@ -31,6 +32,16 @@ export default class ParameterNode extends DataNode {
     _shapeRestorer(): () => void;
     _followValueShape(): void;
     _followSourceDataType(): void;
+    /**
+     * The DataType this Parameter holds once its Value is of the class it is now, as MATLAB's own
+     * `p.Value = v` makes it (McosPropertyRules.parameterDataTypeAfter) of the Value class this last
+     * followed and the DataType it shows, an edit's included. A Parameter added holds MATLAB's
+     * default, an empty double. The rule a MAT-file's object is shown by
+     * (matObjectEdit.dataTypeShownFor). Null for a Value of no class this knows (an enumeration
+     * value's), whose DataType it leaves as it is.
+     */
+    _followedDataType(): string | null;
+    _valueClass(): string | null;
     _shapeFromValue(): {
         dims: number[];
         complexity: string | null;
@@ -38,6 +49,10 @@ export default class ParameterNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _coWrittenWhy(propName: string): {
+        property: string;
+        why: string;
+    } | null;
     _refuseValueForSource(stringValue: string): SetPropertyResult | null;
     _refuseValueForStream(stringValue: string): SetPropertyResult | null;
     _valueMadeBy(stringValue: string): BaseNode | null;
