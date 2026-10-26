@@ -239,7 +239,8 @@ interface AllowlistCase {
   rules?: RulesWritten;
 }
 // How many cases each way: held to the probe's bytes, or to the rules' own (named in the truth file).
-const COUNTS = { sessionBytes: 91, sessionRules: 56, rulesBytes: 0, rulesOwn: 71, refusedAtEdit: 31, refusedByRules: 5 };
+// One of the rules' own is a Value no row offers an editor of (g3_numeric_from_struct: a struct).
+const COUNTS = { sessionBytes: 91, sessionRules: 55, rulesBytes: 0, rulesOwn: 72, refusedAtEdit: 31, refusedByRules: 5 };
 const ALLOWLIST_TRUTH: { cases: AllowlistCase[] } = JSON.parse(readFileSync(join(ALLOWLIST, 'allowlist.truth.json'), 'utf8'));
 
 const TEXT_PROPERTIES = new Set(['Description', 'Unit', 'InitialValue', 'DataType']);
@@ -448,7 +449,10 @@ describe("the allow-list probe: each case MATLAB judged, as a save writes it", (
     const pinned = c.rules?.subsystemSha256 ?? c.subsystemSha256;
     it(label, () => {
       const original = read(ALLOWLIST, c.original);
-      if (typedByHost) {
+      // Nor a property whose row offers no editor of it: a Parameter's struct Value, shown as its
+      // size and class (DataNode._offerRefusal).
+      const probe = opened(original);
+      if (typedByHost && c.edits.every((e) => probe.object(e.path)._offers(e.prop))) {
         const { object, edit, save } = opened(original);
         const answers = c.edits.map((e, i) => edit(object(e.path), e.prop, texts[i]!));
         if (c.matlab === 'PASS' || c.matlab === 'NOSWAP') {

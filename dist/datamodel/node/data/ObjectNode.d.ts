@@ -52,7 +52,8 @@ export default class ObjectNode extends DataNode {
     get descriptionApplies(): boolean;
     _descriptionText(): string;
     _descriptionChild(): DataNode | undefined;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     serializeValue(): unknown;

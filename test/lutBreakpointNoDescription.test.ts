@@ -26,7 +26,6 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest, type SerializedSource } from '../src/index.js';
 import LookupTableNode from '../src/datamodel/node/data/LookupTableNode.js';
 import BreakpointNode from '../src/datamodel/node/data/BreakpointNode.js';
-import { resolveSourcePath } from '../src/datamodel/schema/index.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -129,10 +128,10 @@ for (const c of CLASSES) {
           expect(textPath(node)).not.toHaveProperty('Description');
 
           // An unrelated edit rewrites the entry from the node, so the save reaches the writer
-          // (a binary entry nobody edited is written as the bytes it was read from).
-          expect(node.setProperty('storageClass', 'ExportedGlobal')).toBe(true);
-          const bag = savedBag(saved(session, source), c.entry);
-          expect(resolveSourcePath(bag, 'CoderInfo.StorageClass')).toBe('ExportedGlobal');
+          // (a binary entry nobody edited is written as the bytes it was read from): a rename, as
+          // the class's Storage Class is shown read-only, and so takes no edit (DataNode._offerRefusal).
+          expect(node.setProperty('Name', c.entry + 'Renamed')).toBe(true);
+          const bag = savedBag(saved(session, source), c.entry + 'Renamed');
           expect(bag).not.toHaveProperty('Description');
         });
 
@@ -159,12 +158,11 @@ for (const c of CLASSES) {
           expect(other.editable).toBe(false);
 
           expectRefused(node, c.className, 'changed');
-          expect(node.setProperty('storageClass', 'ExportedGlobal')).toBe(true);
+          expect(node.setProperty('Name', c.entry + 'Renamed')).toBe(true);
           expect(binaryPath(node).Description).toBe('kept');
           expect(textPath(node).Description).toBe('kept');
 
-          const bag = savedBag(saved(session, source), c.entry);
-          expect(resolveSourcePath(bag, 'CoderInfo.StorageClass')).toBe('ExportedGlobal');
+          const bag = savedBag(saved(session, source), c.entry + 'Renamed');
           expect(bag.Description).toBe('kept');
         });
       });

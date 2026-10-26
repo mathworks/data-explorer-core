@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from './BaseNode.js';
+import type { SourceOfferedEditor } from './BaseNode.js';
 
 // Which nodes hold a dictionary value that is a MAT stream with MCOS objects in it, and what
 // answers for an edit inside one: a binary dictionary's hex value, or the cdata this package
@@ -25,6 +26,8 @@ const gateByHolder = new WeakMap<object, McosStreamGate>();
  */
 export interface McosStreamGate {
   _editRefusal(entry: BaseNode, node: BaseNode, key: string): string | null;
+  // And the editor it offers of a property a dictionary shows read-only (MatNode._offeredEditor).
+  _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
   _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
   _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
   _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;

@@ -274,8 +274,9 @@ describe('and at the node: setProperty with the text a property shows changes no
   // (setProperty with the node's own displayed text changes nothing), for callers other than
   // vscode". Each class with a setProperty of its own, and each property it takes an edit of.
   const CASES: [string, string, string[]][] = [
-    ['typeLink.sldd', 'Kp', ['Name', 'Value', 'Min', 'Max', 'Description', 'storageClass']],
-    ['typeLink.sldd', 'TightSig', ['Name', 'Min', 'Max', 'Description', 'storageClass']],
+    // Not their Storage Class: they hold no CoderInfo for it, so it takes no edit (schemaBridge.leafHeld).
+    ['typeLink.sldd', 'Kp', ['Name', 'Value', 'Min', 'Max', 'Description']],
+    ['typeLink.sldd', 'TightSig', ['Name', 'Min', 'Max', 'Description']],
     ['typeLink.sldd', 'vtSpeed', ['Name', 'complexity', 'dimensionsMode', 'Min', 'Max', 'Description']],
     ['typeLink.sldd', 'artFsAimCmd/speed', ['Name', 'complexity', 'dimensionsMode', 'Min', 'Max', 'Description']],
     ['sparse/hexobj_text.sldd', 'objs/vc', ['Name', 'Value']],

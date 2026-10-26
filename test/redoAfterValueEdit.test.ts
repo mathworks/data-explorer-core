@@ -120,16 +120,17 @@ describe('an undo or a redo whose setter refuses what it sets again', () => {
     const p = o.at('aParam');
     o.session.setActive(o.root, p);
     expect(o.session.editProperty(p.id, 'Min', '-5')).toBe(true);
-    const set = p.setProperty.bind(p);
+    // The setter the undo and the redo ask, past the gate of what the row offers (DataNode._setProperty).
+    const set = p._setProperty.bind(p);
     const refuse = (_key: string, text: string) => ({ error: true, reason: 'Cannot edit "aParam": it is held to refuse this.', invalidValue: text, validValue: '' });
-    p.setProperty = refuse;
+    p._setProperty = refuse;
     o.session.setActive(o.root, null);
     expect(() => o.session.undo()).toThrow('Cannot undo the edit of Min of "aParam": it is held to refuse this.');
     expect([o.session.canUndo(), o.session.canRedo()]).toEqual([true, false]);
-    p.setProperty = set;
+    p._setProperty = set;
     o.session.undo();
     expect([o.session.canUndo(), o.session.canRedo()]).toEqual([false, true]);
-    p.setProperty = refuse;
+    p._setProperty = refuse;
     expect(() => o.session.redo()).toThrow('Cannot redo the edit of Min of "aParam": it is held to refuse this.');
     expect(o.session.canRedo()).toBe(true);
   });

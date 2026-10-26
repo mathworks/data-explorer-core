@@ -121,10 +121,10 @@ function toPropClass(prop, column, editorOverride) {
         pc.sourceEditable = true;
     }
     if (isAlignment(prop)) {
-        pc.editableFor = (node) => storageClassOf(node) !== 'Auto' && !heldOpaqueRefusal(node, prop);
+        pc.editableFor = (node) => storageClassOf(node) !== 'Auto' && !heldOpaqueRefusal(node, prop) && leafHeld(node, prop);
     }
     else if (prop.sourcePath.startsWith('CoderInfo.')) {
-        pc.editableFor = (node) => !heldOpaqueRefusal(node, prop);
+        pc.editableFor = (node) => !heldOpaqueRefusal(node, prop) && leafHeld(node, prop);
     }
     return pc;
 }
@@ -194,20 +194,16 @@ export function trySetSchemaProperty(node, key, stringValue) {
         return null;
     }
     const resolved = getSchema(className);
-    const prop = resolved?.find((p) => p.key === key && p.projected === true);
-    if (!prop || prop.editor === 'label') {
-        const shownOnly = resolved?.find((p) => p.key === key && p.editor === 'label');
-        return shownOnly ? shownOnlyRefusal(node, className, shownOnly, stringValue) : null;
+    const prop = writableSchemaProp(className, key);
+    const refused = schemaEditRefusal(node, key, stringValue);
+    if (!prop || refused) {
+        return refused;
     }
     // The writable projected props are the enumerated 'select's (Storage Class) and
     // Alignment, a 'text' with a rule of its own. A prop of some other editor would
     // fall through below unvalidated, so adding one means adding its validation
     // alongside; there is deliberately no generic branch for a type (notably `int`:
     // Number.isInteger accepts 3, which MATLAB refuses as an Alignment).
-    const opaque = heldOpaqueRefusal(node, prop);
-    if (opaque) {
-        return { error: true, reason: opaque, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(shownOf(node), prop)) };
-    }
     if (isAlignment(prop)) {
         return setAlignment(node, prop, stringValue);
     }
@@ -226,11 +222,8 @@ export function trySetSchemaProperty(node, key, stringValue) {
             return sourceRefusal;
         }
     }
-    const props = propertiesOf(node);
-    const ok = writeSourcePath(props, prop.sourcePath, stringValue);
-    if (!ok) {
-        return { error: true, reason: 'Cannot set ' + prop.label + ' (target property is absent)', invalidValue: stringValue, validValue: '' };
-    }
+    // Into the bag schemaEditRefusal found the node holds (leafHeld).
+    writeSourcePath(propertiesOf(node), prop.sourcePath, stringValue);
     // MATLAB resets Alignment to -1 when StorageClass becomes 'Auto' (and warns
     // "Alignment is ignored when StorageClass is 'Auto'.", which has no channel here).
     // Undoing this edit restores the StorageClass and not the Alignment, as in MATLAB.
@@ -242,6 +235,43 @@ export function trySetSchemaProperty(node, key, stringValue) {
     }
     node._markModified?.();
     return true;
+}
+// The schema-projected property `key` of the class an edit writes, or undefined: none, or one shown
+// read-only (a 'label').
+function writableSchemaProp(className, key) {
+    const prop = getSchema(className)?.find((p) => p.key === key && p.projected === true);
+    return prop && prop.editor !== 'label' ? prop : undefined;
+}
+/**
+ * Why an edit of `key`, a property the schema of the node's class shows, is refused whatever the
+ * file, in the words trySetSchemaProperty refuses it with, before it writes anything: a row shown
+ * of another property MATLAB saves (shownOnlyRefusal), a property of a CoderInfo held as MATLAB's
+ * handle data (heldOpaqueRefusal), one of a CoderInfo the node holds none of (leafHeld), and an
+ * Alignment MATLAB refuses, by its value and then under StorageClass 'Auto'. Null where none of
+ * them refuses it, and for a key no schema of the class shows. Changes nothing:
+ * DataNode._offerRefusal asks it of a row that offers no editor of `key`, to say why as the setter
+ * would.
+ */
+export function schemaEditRefusal(node, key, stringValue) {
+    const className = node.className;
+    if (!className) {
+        return null;
+    }
+    const prop = writableSchemaProp(className, key);
+    if (!prop) {
+        const shownOnly = getSchema(className)?.find((p) => p.key === key && p.editor === 'label');
+        return shownOnly ? shownOnlyRefusal(node, className, shownOnly, stringValue) : null;
+    }
+    const refuse = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(shownOf(node), prop)) });
+    const opaque = heldOpaqueRefusal(node, prop);
+    if (opaque) {
+        return refuse(opaque);
+    }
+    if (!leafHeld(node, prop)) {
+        const holder = prop.sourcePath.split('.')[0];
+        return refuse('Cannot edit "' + entryNameOf(node) + '": ' + node.matlabPath + ' holds no ' + holder + ' for its ' + prop.label + ', and this editor makes none.');
+    }
+    return isAlignment(prop) ? alignmentRefusal(node, prop, stringValue) : null;
 }
 // Why an edit of `prop`, a property of the node's CoderInfo, is refused because that CoderInfo is a
 // 'handle' opaque (MATLAB R2024b and earlier, and objects made from the R2023b templates), whose
@@ -283,18 +313,27 @@ function shownOnlyRefusal(node, className, prop, stringValue) {
     if (!shown) {
         return null;
     }
-    // The entry, by DataNode.owningEntryOf's walk, which this module cannot import: DataNode imports
-    // it, and the cycle is one test/moduleBoundaries.test.ts forbids.
+    return {
+        error: true,
+        reason: 'Cannot edit "' + entryNameOf(node) + '": ' + node.matlabPath + '.' + shown.property + ' is read-only here, shown of the ' + shown.saved + ' MATLAB saves.',
+        invalidValue: stringValue,
+        validValue: formatSchemaValue(hydrate(shownOf(node), prop)),
+    };
+}
+// The name of the entry `node` is in, by DataNode.owningEntryOf's walk, which this module cannot
+// import: DataNode imports it, and the cycle is one test/moduleBoundaries.test.ts forbids.
+function entryNameOf(node) {
     let entry = node;
     while (entry && !entry.isEntry) {
         entry = entry.parent;
     }
-    return {
-        error: true,
-        reason: 'Cannot edit "' + (entry ?? node).name + '": ' + node.matlabPath + '.' + shown.property + ' is read-only here, shown of the ' + shown.saved + ' MATLAB saves.',
-        invalidValue: stringValue,
-        validValue: formatSchemaValue(hydrate(shownOf(node), prop)),
-    };
+    return (entry ?? node).name;
+}
+// Whether the bag `prop` is written into is one `node` holds: a CoderInfo's property is written into
+// the CoderInfo, which a save writes as the node holds it and no edit makes (schema.sourceLeaf). An
+// element of an object array, and a hand-written dictionary's Signal, can hold none.
+function leafHeld(node, prop) {
+    return sourceLeaf(propertiesOf(node), prop.sourcePath) !== null;
 }
 // ---- Alignment (CoderInfo.Alignment on a Simulink.Parameter or Simulink.Signal) ----
 //
@@ -353,9 +392,10 @@ function toInt32(x) {
 function isAlignmentBoundary(n) {
     return n === -1 || (n >= 1 && n <= ALIGNMENT_MAX && (n & (n - 1)) === 0);
 }
-function setAlignment(node, prop, stringValue) {
-    const shown = formatSchemaValue(hydrate(shownOf(node), prop));
-    const refuse = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: shown });
+// MATLAB's refusal of the Alignment `stringValue`, by its value and then under StorageClass 'Auto',
+// or null where it takes it.
+function alignmentRefusal(node, prop, stringValue) {
+    const refuse = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: formatSchemaValue(hydrate(shownOf(node), prop)) });
     const x = alignmentNumber(stringValue);
     if (x === null) {
         return refuse(ALIGNMENT_NOT_NUMERIC);
@@ -364,9 +404,12 @@ function setAlignment(node, prop, stringValue) {
     if (!isAlignmentBoundary(n)) {
         return refuse(n + ' is not a valid alignment boundary. The alignment boundary must be either -1 or a power of two.');
     }
-    if (n !== -1 && storageClassOf(node) === 'Auto') {
-        return refuse(ALIGNMENT_AUTO);
-    }
+    return n !== -1 && storageClassOf(node) === 'Auto' ? refuse(ALIGNMENT_AUTO) : null;
+}
+// An Alignment MATLAB takes (alignmentRefusal, asked first), written as MATLAB writes it.
+function setAlignment(node, prop, stringValue) {
+    const shown = formatSchemaValue(hydrate(shownOf(node), prop));
+    const n = toInt32(alignmentNumber(stringValue));
     // And by the node's source, which writes some alignments and not others (a MAT-file's object
     // takes one up to 128: DataNode._refuseSourceValue).
     const refuseSource = node._refuseSourceValue;
@@ -374,10 +417,8 @@ function setAlignment(node, prop, stringValue) {
     if (sourceRefusal) {
         return sourceRefusal;
     }
+    // The bag schemaEditRefusal found the node holds (leafHeld).
     const leaf = sourceLeaf(propertiesOf(node), prop.sourcePath);
-    if (!leaf) {
-        return refuse('Cannot set ' + prop.label + ' (target property is absent)');
-    }
     const before = JSON.stringify(leaf.bag[leaf.key]);
     writeAlignment(node, prop, n);
     // Setting the value it already holds (-1 where there is no key, or under Auto) is no

@@ -4,6 +4,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { setMcosStreamGate } from '../mcosStream.js';
 import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
+import { dictEditorOf } from './dictObjectEdit.js';
 import { classRefusal, memberRefusal, mirrorTwins, nodeFollowedDataType, nodePropertyValue, objectEditsOf, objectNodeAt, objectNodesUnder, objectStateOf, objectSubsystemEdit, propertyAt, shownDataType, twinGroupByNode, twinGroupsOf, twinMasterRefusal, twinsTouching, McosPropertyVerdicts, } from './mcosObjectEdit.js';
 import { hasEditRules, objectEditCells, savedNameOf } from '../../parser/McosEditRules.js';
 import { objectIdOf, readMcosSubsystem } from '../../parser/McosSubsystemEdit.js';
@@ -99,6 +100,16 @@ class McosStream {
         }
         const refused = classRefusal(state, object) ?? this._propertyVerdicts.of(state, object, at.property) ?? this._twinRefusal(object);
         return refused ? cannotEdit(entry.name, refused) : null;
+    }
+    /**
+     * The editor the stream offers of `key` at `node`, a property of one of its objects a dictionary
+     * shows read-only (a Unit, a Signal's DataType), where its save writes it (_editRefusal): as a
+     * dictionary offers one of an object outside a stream (dictObjectEdit.dictEditorOf), so that a
+     * row offers the edit the stream takes, and no other (DataNode._offerRefusal).
+     */
+    _offeredEditor(entry, node, key) {
+        const editor = dictEditorOf(classOf(node), key);
+        return editor && this._editRefusal(entry, node, key) === null ? editor : null;
     }
     /**
      * Why an edit of `key` at `node`, a part of the stream's value that is no object nor in one, is

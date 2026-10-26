@@ -13,28 +13,8 @@ import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { parseComplexNum } from '../../parser/XmlUtils.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { withArticle } from '../BaseNode.js';
+import { objectWhy, withSizeArticle } from '../editRefusal.js';
 import { keptVerdict } from '../valueGeneration.js';
-
-/**
- * A value's size and class with its article, as it is read out: 'a 2x3 double', 'an 8x1 cell',
- * 'an 11x2 struct', where withArticle reads the first letter only.
- */
-export function withSizeArticle(sized: string): string {
-  return (/^(?:8|1[18](?:\d{3})*x)/.test(sized) ? 'an ' : 'a ') + sized;
-}
-
-/**
- * Why a struct or an object of `dims` takes no editor of its text, as a clause, in every format
- * alike: 'it is a struct, whose fields are edited one at a time', 'it is a 1x3 struct array, whose
- * elements are edited one at a time', 'it is a Widget, which no text spells'.
- */
-export function objectWhy(dims: string, cls: string): string {
-  const one = dims === '1x1';
-  if (cls === 'struct') {
-    return one ? 'it is a struct, whose fields are edited one at a time' : 'it is ' + withSizeArticle(dims + ' struct') + ' array, whose elements are edited one at a time';
-  }
-  return 'it is ' + (one ? withArticle(cls) : withSizeArticle(dims + ' ' + cls) + ' array') + ', which no text spells';
-}
 
 /** Is `text` a summary (DisplayConvention.summaryForm), which is no value's text? */
 export function isSummaryText(text: string): boolean {

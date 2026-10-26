@@ -100,7 +100,7 @@ export default class ValueTypeNode extends SimulinkObjectNode {
     // than DataNode's generic numeric path, which wrongly accepts Inf/NaN; the two enums take
     // the shared enumeral check, which reads its legal set from the prop atom's readOptions so
     // the values accepted here and the values the dropdown offers cannot diverge.
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -118,7 +118,7 @@ export default class ValueTypeNode extends SimulinkObjectNode {
         if (propName === 'Min' || propName === 'Max') { return this._setMinMax(propName, stringValue); }
         const notAnEnumeral = this._rejectUnknownEnumeral(propName, stringValue);
         if (notAnEnumeral) { return notAnEnumeral; }
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
     }
     // Keys in MATLAB's own order (alphabetical, as it writes them), so a ValueType that gains
     // a key still reads the way a MATLAB-written one does. Every gate here says the same

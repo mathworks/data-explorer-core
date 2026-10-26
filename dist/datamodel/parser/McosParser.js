@@ -6,7 +6,7 @@ import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
 import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, formatNumLiteral, isExactToken, transposeToColumnMajorND, charNeedsShape, formatMxCharSerial, } from './XmlUtils.js';
+import { binaryEmptyForm, complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, formatNumLiteral, isExactToken, transposeToColumnMajorND, charNeedsShape, formatMxCharSerial, } from './XmlUtils.js';
 const MI_MATRIX = 14;
 const MAX_RECURSION_DEPTH = 32;
 // How many times one variable's decode lays out an object it has already laid out, before it
@@ -584,14 +584,16 @@ function resolveValue(cell, ctx, path, depth, owner, propName) {
             // double, where both dictionaries show logical. formatMatrixSerial spells a 1xN
             // logical `[1, 0, 1]`, as typed_binary.sldd's lglVec is held.
             //
-            // An EMPTY logical is the `[]` it was before C-033 (a double 0x0: DESIGN.md records it),
-            // except where it was typed then too, which is wherever its shape alone says so: at rank
-            // 3 or more, a 2x0x2 is `Matrix(2,0,2)` and shows as a <2x0x2 logical>
+            // An EMPTY logical of rank 2 as the binary reader holds one, `{_type: 'logical', _value:
+            // 'Matrix(1,0)'}` (BinarySlddParser.emptyOf): it was `[]`, a double 0x0, which a
+            // Simulink.Parameter's false(1,0) Value reopened as, read-only, where it showed `<1x0
+            // logical>` once typed (R3 of the 2026-10-26 edit bash). At rank 3 or more, a 2x0x2 is the
+            // typed literal `Matrix(2,0,2)` it always was, and shows as a <2x0x2 logical>
             // (mcosEmptyLogical.test.ts).
             const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
             const shaped = dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1);
             if (val.length === 0 && !shaped)
-                return [];
+                return binaryEmptyForm('logical', dims);
             return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
         }
         return !!val;
@@ -610,8 +612,15 @@ function resolveValue(cell, ctx, path, depth, owner, propName) {
         return typed ? { _type: typed, _value: formatNumLiteral(val, typed) } : val;
     }
     if (Array.isArray(val)) {
-        if (val.length === 0)
-            return [];
+        // An empty of another class than double or another size than 0x0, as a binary dictionary's
+        // reader holds one (BinarySlddParser.emptyOf): read as `[]`, a 0x0 double, a Simulink.Parameter
+        // whose Value is zeros(0,3) was found by its MAT-file's gate not to be the value the file holds,
+        // and took no edit after a save that its Value row took before (R3 of the 2026-10-26 edit bash).
+        if (val.length === 0) {
+            const extents = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [0, 0];
+            const plain = !typed && extents.length === 2 && extents[0] === 0 && extents[1] === 0;
+            return plain ? [] : binaryEmptyForm(cls, extents);
+        }
         const dims = cell.dimensions || [1, val.length];
         // Of a class other than double, every shape is typed, a row as
         // BinarySlddParser.formatTypedVector spells one (formatMatrixSerial's bare `[a, b]`)

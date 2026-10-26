@@ -229,11 +229,23 @@ describe('PI layout — groups and ordered keys, matching MATLAB', () => {
 // an ENFORCEMENT point, not a dropdown decoration. The Parameter assertions below are what
 // prove the override is per-class: if someone "fixes" this by editing the shared descriptor
 // in props/codeGen.json, the LookupTable assertions still pass and these fail.
+//
+// A LookupTable and a Breakpoint show their Storage Class in the Property Inspector alone, which
+// offers no editor of it: their setter is asked here directly (_setProperty), as setProperty refuses
+// what their row offers no editor of (DataNode._offerRefusal).
 describe('the storageClass option list is enforced per class, not shared', () => {
+  it('is refused by setProperty on a LookupTable and a Breakpoint, whose rows offer no editor of it', () => {
+    for (const node of [lut(LUT_CONFIGURED()), bp(BP_CONFIGURED())]) {
+      const before = JSON.stringify(node.serial._properties);
+      expect(node.setProperty('storageClass', 'FileScope')).toMatchObject({ error: true, reason: expect.stringMatching(/the Storage Class of .* is read-only here\.$/) });
+      expect(JSON.stringify(node.serial._properties)).toBe(before);
+    }
+  });
+
   it('accepts all 17 values MATLAB accepts on a LookupTable', () => {
     for (const value of LUT_STORAGE_CLASSES) {
       const node = lut(LUT_CONFIGURED());
-      expect(node.setProperty('storageClass', value), value).toBe(true);
+      expect(node._setProperty('storageClass', value), value).toBe(true);
       expect(resolveSourcePath(node.serial._properties, 'CoderInfo.StorageClass'), value).toBe(value);
     }
   });
@@ -242,7 +254,7 @@ describe('the storageClass option list is enforced per class, not shared', () =>
     for (const value of ['SimulinkGlobal', 'Custom']) {
       const node = lut(LUT_CONFIGURED());
       const before = JSON.stringify(node.serial._properties);
-      const r = node.setProperty('storageClass', value);
+      const r = node._setProperty('storageClass', value);
       expect(r, value).not.toBe(true);
       expect((r as any).error, value).toBe(true);
       // A refusal must not half-apply: the bag is byte-identical afterwards.
@@ -255,9 +267,9 @@ describe('the storageClass option list is enforced per class, not shared', () =>
     // Lut.m and Bp.m, taking its allowed values from the same `dataCache('StorageClass')`
     // with no class-conditional narrowing — so the two classes share one list.
     const ok = bp(BP_CONFIGURED());
-    expect(ok.setProperty('storageClass', 'FileScope')).toBe(true);
+    expect(ok._setProperty('storageClass', 'FileScope')).toBe(true);
     expect(resolveSourcePath(ok.serial._properties, 'CoderInfo.StorageClass')).toBe('FileScope');
-    expect((bp(BP_CONFIGURED()).setProperty('storageClass', 'Custom') as any).error).toBe(true);
+    expect((bp(BP_CONFIGURED())._setProperty('storageClass', 'Custom') as any).error).toBe(true);
   });
 
   it('leaves Simulink.Parameter with its own list — Custom still accepted', () => {

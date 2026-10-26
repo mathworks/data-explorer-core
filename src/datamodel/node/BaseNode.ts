@@ -443,6 +443,12 @@ export function sourceOfferedEditor(node: BaseNode, key: string): SourceOfferedE
   if (!entry) {
     return null;
   }
+  // Inside a dictionary value's MAT stream holding objects, the stream answers, as it answers for
+  // what it takes (sourceEditRefusal).
+  const stream = mcosStreamGateAbove(node);
+  if (stream) {
+    return stream._offeredEditor(entry, node, key);
+  }
   const offer = (source as unknown as { _offeredEditor?: (entry: BaseNode, node: BaseNode, key: string) => SourceOfferedEditor | null } | null)?._offeredEditor;
   return typeof offer === 'function' ? offer.call(source, entry, node, key) : null;
 }
@@ -463,6 +469,22 @@ export function sourceSetOffered(node: BaseNode, key: string, text: string): Sou
   }
   const set = (source as unknown as { _setOffered?: (entry: BaseNode, node: BaseNode, key: string, text: string) => SourceSetResult | null } | null)?._setOffered;
   return typeof set === 'function' ? set.call(source, entry, node, key, text) : null;
+}
+
+/**
+ * Why the source `node` is in offers no editor of `key` at `node` now, a property it offers one of in
+ * another state (sourceOfferedEditor), in its words, or null: a dictionary's Parameter's DataType
+ * over a Value of another class than double, say (a MAT-file says it as sourceEditRefusal). Asked
+ * of a row that offers no editor of `key` (DataNode._offerRefusal), as the source's setter refuses
+ * the edit.
+ */
+export function sourceUnofferedRefusal(node: BaseNode, key: string): string | null {
+  const { entry, source } = sourceOf(node);
+  if (!entry) {
+    return null;
+  }
+  const why = (source as unknown as { _unofferedRefusal?: (entry: BaseNode, node: BaseNode, key: string) => string | null } | null)?._unofferedRefusal;
+  return typeof why === 'function' ? why.call(source, entry, node, key) : null;
 }
 
 /**

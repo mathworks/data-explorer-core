@@ -8,7 +8,7 @@ import type BaseNode from '../BaseNode.js';
 import { sourceFollowedProperty, sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
+import { binaryEmptyForm, formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -64,6 +64,25 @@ function refusedAsField(parsed: ParsedValue): boolean {
         return parsed.value === '';
     }
     return parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 0;
+}
+
+// A numeric or logical empty of another class than double or another size than 0x0 (`zeros(0,3)`,
+// `zeros(1,0,'int8')`, `false(1,0)`), as the binary reader holds one (binaryEmptyForm); null for
+// any other value, a 0x0 double's `[]` among them.
+function shapedEmptyOf(parsed: ParsedValue): Record<string, unknown> | null {
+    if (!Array.isArray(parsed.value) || parsed.value.length !== 0) {
+        return null;
+    }
+    let cls: string;
+    if (parsed.type === 'logical') {
+        cls = 'logical';
+    } else if (parsed.type === 'double') {
+        cls = parsed.cls ?? 'double';
+    } else {
+        return null;
+    }
+    const dims = parsed.dims ?? [0, 0];
+    return cls === 'double' && dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? null : binaryEmptyForm(cls, dims);
 }
 
 export default class ParameterNode extends DataNode {
@@ -150,6 +169,13 @@ export default class ParameterNode extends DataNode {
             return false;
         }
         return super.valueEditable;
+    }
+
+    // Why its Value takes no edit, where valueEditable says why, as its setter refuses one
+    // (DataNode._offerRefusal): read from a MAT stream that is shown and not edited, or an
+    // enumeration value, as its own row says it (ObjectNode).
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult | null {
+        return this._refuseStreamValue(stringValue) ?? (this._valueIsEnum() ? this._valueNode!._unofferedValueRefusal(stringValue) : null);
     }
 
     // The Value written out whole where it shows a summary for its size (MatlabVariableNode._editText),
@@ -437,7 +463,11 @@ export default class ParameterNode extends DataNode {
     // kept [1 3] and 'complex'. So after every edit they are set from the Value as it stands
     // (_shapeFromValue), as MATLAB sets them, each where the file holds one, except that MATLAB
     //   - keeps a symbolic Dimensions ('[1,N]');
-    //   - keeps both for an empty Value: [] typed over pRow leaves [1 3] and 'complex';
+    //   - keeps both for an empty Value: [] typed over pRow leaves [1 3] and 'complex'; but an empty
+    //     typed where the Dimensions held are an empty's, a 0 in them, sets them to its size
+    //     (zeros(1,0) and then [] leaves [0 0], and 5, then zeros(0,3), then [] leaves [1 1]:
+    //     measured, R2027a and R2023b; _emptyOverEmptyShape), as a MAT-file's save writes them
+    //     (McosPropertyRules);
     //   - keeps the Complexity of a struct Value: [] and then a struct typed over pRow leaves
     //     'complex'.
     // An undo puts back the Value, and these with it as they were before the edit, by what it
@@ -449,7 +479,7 @@ export default class ParameterNode extends DataNode {
     _followValueShape(): void {
         this._followSourceDataType();
         const sp = this.serial._properties as Record<string, unknown> | undefined;
-        const shape = sp ? this._shapeFromValue() : null;
+        const shape = sp ? this._shapeFromValue() ?? this._emptyOverEmptyShape(sp) : null;
         if (!sp || !shape) {
             return;
         }
@@ -554,6 +584,24 @@ export default class ParameterNode extends DataNode {
         return { dims: (dims as number[]).slice(), complexity };
     }
 
+    // The shape an empty Value typed where the Dimensions held are an empty's, a 0 in them, leaves
+    // (_followValueShape): its size, and its Complexity as it was; null for any other Value, and
+    // where the Dimensions held have no 0 in them, which MATLAB leaves as they were.
+    _emptyOverEmptyShape(sp: Record<string, unknown>): { dims: number[]; complexity: string | null } | null {
+        const held = sp.Dimensions;
+        const valueNode = this._valueNode as (DataNode & { dims?: unknown }) | null;
+        let dims: unknown = null;
+        if (valueNode) {
+            dims = valueNode.dims;
+        } else if (Array.isArray(this.Value) && this.Value.length === 0) {
+            dims = [0, 0];
+        }
+        if (!Array.isArray(held) || !held.includes(0) || !Array.isArray(dims) || !dims.includes(0)) {
+            return null;
+        }
+        return { dims: (dims as number[]).slice(), complexity: null };
+    }
+
     // This node's one child IS the class's `Value` property, exactly as an object's
     // children are its properties — so its name is fixed by the class, not chosen by the
     // user. Saying so here is what makes the Value row's Name cell read-only, through the
@@ -571,7 +619,7 @@ export default class ParameterNode extends DataNode {
     // PI layout is now declarative — see schema/classes/parameter.json `layout`,
     // resolved by the inherited BaseNode.getPILayout via buildPILayout.
 
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
             return true;
@@ -610,7 +658,7 @@ export default class ParameterNode extends DataNode {
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
             // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
             if (this._valueIsEnum()) {
-                return this._valueNode!.setProperty(propName, stringValue);
+                return this._valueNode!._setProperty(propName, stringValue);
             }
             const raw = MatlabValueParser.parse(stringValue);
             if (!raw) {
@@ -631,6 +679,25 @@ export default class ParameterNode extends DataNode {
             // refused: a file that holds the wrapper still reads, displays and saves.
             if (refusedAsValue(parsed)) {
                 return { error: true, reason: PARAM_INVALID_VALUE, invalidValue: stringValue, validValue: this.displayValue };
+            }
+            // Nor, in a text dictionary, an empty its format reads back as a 0x0 one (_refuseValueForText).
+            const textRefusal = this._refuseValueForText(stringValue);
+            if (textRefusal) {
+                return textRefusal;
+            }
+            // A numeric or logical empty of another class than double or another size than 0x0
+            // (shapedEmptyOf): the Value MATLAB's `p.Value = v` holds, as a binary dictionary's
+            // reader holds one (BinarySlddParser.emptyOf), which its Value node reads as itself. Held
+            // as the parser's bare `[]`, it was saved a 0x0 double (R3 of the 2026-10-26 edit bash).
+            // Its Dimensions and Complexity stay as they were, as MATLAB leaves them for an empty
+            // (_shapeFromValue).
+            const shapedEmpty = shapedEmptyOf(parsed);
+            if (shapedEmpty) {
+                this._adoptValueNode(shapedEmpty, true);
+                this.Value = [];
+                this._markModified();
+                this._followValueShape();
+                return true;
             }
             // A logical ARRAY keeps its class AND its shape through the typed envelope —
             // the same one an entry writes for the same value. Without this arm it fell
@@ -754,7 +821,7 @@ export default class ParameterNode extends DataNode {
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);
         }
-        return DataNode.prototype.setProperty.call(this, propName, stringValue);
+        return DataNode.prototype._setProperty.call(this, propName, stringValue);
     }
 
     // MATLAB keeps a Parameter's Dimensions and Complexity as its Value's (_followValueShape): it
@@ -777,6 +844,27 @@ export default class ParameterNode extends DataNode {
         }
         const valueNode = this._valueMadeBy(stringValue);
         const refused = valueNode ? sourceValueRefusal(this, 'Value', valueNode) : null;
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
+    }
+
+    // The refusal of the Value `stringValue` makes by a text dictionary, which writes no empty of
+    // another size than 0x0 that MATLAB's own text format reads back as itself (SectionNode._valueRefusal,
+    // the D15 ruling): asked of the value the text makes as an entry's Value would be made, of its
+    // size and class, which this setter does not keep of an empty.
+    _refuseValueForText(stringValue: string): SetPropertyResult | null {
+        let entry: BaseNode = this;
+        let source: BaseNode | null = this.parent;
+        while (source && !(source as unknown as { isContainer?: boolean }).isContainer) {
+            entry = source;
+            source = source.parent;
+        }
+        const refuse = (source as unknown as { _valueRefusal?: (entry: BaseNode, node: BaseNode, value: BaseNode, path: string) => string | null } | null)?._valueRefusal;
+        const read = typeof refuse === 'function' && this._ownerFormat() === 'json' ? MatlabValueParser.parseTyped(stringValue) : null;
+        if (!read || 'why' in read) {
+            return null;
+        }
+        const made = (NodeRegistry.parseValue([], 'Value', null) as unknown as MatlabVariableNode)._valueMadeOf(read.parsed);
+        const refused = refuse!.call(source, entry, this, made, this.matlabPath + '.Value');
         return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
     }
 
@@ -804,7 +892,7 @@ export default class ParameterNode extends DataNode {
         const element = (raw?._elements as Record<string, unknown>[] | undefined)?.[0];
         const props = { ...((element?._properties as Record<string, unknown> | undefined) ?? {}), Value: undefined };
         const twin = ParameterNode.parse({ ...raw, _elements: [{ ...element, _properties: props }] }, this.name, null);
-        if (twin.setProperty('Value', stringValue) !== true || (twin.Value === undefined && !twin._valueNode)) {
+        if (twin._setProperty('Value', stringValue) !== true || (twin.Value === undefined && !twin._valueNode)) {
             return null;
         }
         return twin._valueNode ?? NodeRegistry.parseValue(twin.Value === undefined ? [] : twin.Value, 'Value', null);
@@ -848,6 +936,13 @@ export default class ParameterNode extends DataNode {
         let innerValue: unknown;
         if (this._valueNode) {
             innerValue = this._valueNode.serializeValue();
+            // A numeric or logical empty of another class than double or another size than 0x0, which
+            // its node writes as `[]`, a 0x0 double: as the binary reader holds one, which both
+            // writers spell as the empty it is (MatlabVariableNode._emptyHeader).
+            const empty = (this._valueNode as unknown as { _emptyHeader?: () => unknown })._emptyHeader?.();
+            if (empty && Array.isArray(innerValue) && innerValue.length === 0) {
+                innerValue = empty;
+            }
         } else {
             innerValue = this.Value;
         }

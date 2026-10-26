@@ -203,7 +203,7 @@ const E2 = new Map(
 );
 
 describe('the gate is the writer, for every object of every fixture', () => {
-  const totals = { taken: 0, refusedByValue: 0, refused: 0, structural: 0, objects: 0 };
+  const totals = { taken: 0, refusedByValue: 0, refusedByRow: 0, refused: 0, structural: 0, objects: 0 };
   const metE2: string[] = [];
   // The Adds and removals of an element of a Simulink.Parameter's array Value, by file and Value.
   const valueRows: { add: string[]; remove: string[] } = { add: [], remove: [] };
@@ -267,6 +267,19 @@ describe('the gate is the writer, for every object of every fixture', () => {
               }
               expect(sameBytes(save(), original), label + ': the file as it was').toBe(true);
               totals.refusedByValue++;
+            } else if (sourceEditRefusal(seen, key) === null && !seen._offers(key)) {
+              // One the file's gate would write that the row offers no editor of (a `<missing>`, a
+              // sparse or N-D Value, a Parameter's struct Value): refused by the row, every value,
+              // through the session and the node's setter, and the file is the file
+              // (DataNode._offerRefusal, S9 of the 2026-10-26 edit bash).
+              const { session, root, edit } = refusing;
+              const node = at(root, path);
+              for (const value of candidates(seen, objectSeen, key)) {
+                expect(edit(node, key, value), label + ' = ' + value).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot (edit|rename) (the Value of )?"|^'/) });
+                expect(node.setProperty(key, value), label + ' = ' + value).toMatchObject({ error: true });
+              }
+              expect([root.dirty, session.canUndo()], label).toEqual([false, false]);
+              totals.refusedByRow++;
             } else if (sourceEditRefusal(seen, key) === null) {
               let taken = 0;
               for (const value of candidates(seen, objectSeen, key)) {
@@ -376,10 +389,12 @@ describe('the gate is the writer, for every object of every fixture', () => {
   it('reaches every kind of edit: values taken and refused by value, properties refused, Adds and removals', () => {
     expect(metE2.sort()).toEqual([...E2.keys()].sort());
     // 338 objects, 2951 edits taken, 39 refused by their value, 11373 properties refused, 84 Adds
-    // and removals, when written.
+    // and removals, when written; and 49 keys the file would write that their row offers no
+    // editor of, refused (S9 of the 2026-10-26 edit bash).
     expect(totals.objects).toBeGreaterThanOrEqual(300);
     expect(totals.taken).toBeGreaterThanOrEqual(2500);
     expect(totals.refusedByValue).toBeGreaterThanOrEqual(30);
+    expect(totals.refusedByRow).toBeGreaterThanOrEqual(45);
     expect(totals.refused).toBeGreaterThanOrEqual(10000);
     expect(totals.structural).toBeGreaterThanOrEqual(70);
     // Among them, an element added to and one removed from a Parameter's array Value, each saved

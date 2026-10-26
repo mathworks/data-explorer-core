@@ -202,15 +202,6 @@
         ]
       ]
     },
-    "typed_empty_on_struct": {
-      "file": "complex_binary.sldd",
-      "steps": [
-        [
-          "typed",
-          "[]"
-        ]
-      ]
-    },
     "typed_empty_then_row": {
       "file": "complex_binary.sldd",
       "steps": [
@@ -261,15 +252,6 @@
       ]
     },
     "typed_over_scalar": {
-      "file": "complex_binary.sldd",
-      "steps": [
-        [
-          "typed",
-          "[1 2 3 4]"
-        ]
-      ]
-    },
-    "typed_over_struct": {
       "file": "complex_binary.sldd",
       "steps": [
         [
@@ -365,7 +347,9 @@
     "typed_empty_then_struct": "core has no way to make a struct Value of another one: MatlabValueParser reads no struct(...), and an empty Value has no row to Add on.",
     "typed_struct_over_complex": "as typed_empty_then_struct.",
     "dimensions_set_other": "MATLAB refuses it (UDDData_CannotSetCustomDimensions); core shows Dimensions as a label, with no editor.",
-    "complexity_set_real": "MATLAB refuses it (UDDData_CannotSetComplexity); core shows Complexity as a label, with no editor."
+    "complexity_set_real": "MATLAB refuses it (UDDData_CannotSetComplexity); core shows Complexity as a label, with no editor.",
+    "typed_empty_on_struct": "core's row of a struct Value shows it as its size and class and offers no editor of it, so it takes no Value typed over it whole (DataNode._offerRefusal).",
+    "typed_over_struct": "core's row of a struct Value shows it as its size and class and offers no editor of it, so it takes no Value typed over it whole (DataNode._offerRefusal)."
   },
   "readsDiffer": {
     "elements_all_real": "not the shape: core's binary writer spells a complex array whose elements are all real now as <P Name=\"Value\" Class=\"double\" IsComplex=\"1\">[7.0, 8.0, 9.0]</P>, with no Dimension (as on main 38c20de), which MATLAB reads as a 1x1 complex Value, and gives that Value's [1 1] and complex."

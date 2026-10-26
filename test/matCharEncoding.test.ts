@@ -190,8 +190,9 @@ const DESCRIPTIONS = [...TEXTS.filter(([typed]) => typed.startsWith("'") && type
 describe('text of every width typed into a MAT-file', () => {
   for (const release of ['r2027a', 'r2023b']) {
     const plain = read(`fixtures/string-containers/${release}/plain.mat`);
-    // A variable, a struct field, a cell element and a struct in a cell in a struct.
-    const PLACES = ['st', 'st.a', 'ce{2}', 'nest.c{2}.g'];
+    // A variable (the cell, typed over whole: the file's structs offer no editor of their Value), a
+    // struct field, a cell element and a struct in a cell in a struct.
+    const PLACES = ['ce', 'st.a', 'ce{2}', 'nest.c{2}.g'];
     it(`${release}: in a variable, a struct field, a cell and deeper, reads back as typed`, () => {
       for (const place of PLACES) {
         for (const [typed, text] of TEXTS) {

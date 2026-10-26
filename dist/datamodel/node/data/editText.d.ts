@@ -1,15 +1,4 @@
 import type MatlabVariableNode from './MatlabVariableNode.js';
-/**
- * A value's size and class with its article, as it is read out: 'a 2x3 double', 'an 8x1 cell',
- * 'an 11x2 struct', where withArticle reads the first letter only.
- */
-export declare function withSizeArticle(sized: string): string;
-/**
- * Why a struct or an object of `dims` takes no editor of its text, as a clause, in every format
- * alike: 'it is a struct, whose fields are edited one at a time', 'it is a 1x3 struct array, whose
- * elements are edited one at a time', 'it is a Widget, which no text spells'.
- */
-export declare function objectWhy(dims: string, cls: string): string;
 /** Is `text` a summary (DisplayConvention.summaryForm), which is no value's text? */
 export declare function isSummaryText(text: string): boolean;
 /**

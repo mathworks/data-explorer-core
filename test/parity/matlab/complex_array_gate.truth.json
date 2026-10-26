@@ -115,22 +115,6 @@
     },
     {
       "file": "cx_text.sldd",
-      "entry": "eleven",
-      "literal": "[1 - 2i 3]",
-      "matlab": "[1 - 2i 3]",
-      "control": false,
-      "class": "double",
-      "isreal": false,
-      "size": [
-        1,
-        2
-      ],
-      "same": true,
-      "warning": "",
-      "extra": ""
-    },
-    {
-      "file": "cx_text.sldd",
       "entry": "exactly10",
       "literal": "{[1+2i 3] 4}",
       "matlab": "{[1+2i 3] 4}",
@@ -163,7 +147,7 @@
     },
     {
       "file": "cx_text.sldd",
-      "entry": "long30",
+      "entry": "kp",
       "literal": "[1+2i 3]",
       "matlab": "[1+2i 4]",
       "control": true,
@@ -307,22 +291,6 @@
     },
     {
       "file": "cx_binary.sldd",
-      "entry": "eleven",
-      "literal": "[1 - 2i 3]",
-      "matlab": "[1 - 2i 3]",
-      "control": false,
-      "class": "double",
-      "isreal": false,
-      "size": [
-        1,
-        2
-      ],
-      "same": true,
-      "warning": "",
-      "extra": ""
-    },
-    {
-      "file": "cx_binary.sldd",
       "entry": "exactly10",
       "literal": "{[1+2i 3] 4}",
       "matlab": "{[1+2i 3] 4}",
@@ -355,7 +323,7 @@
     },
     {
       "file": "cx_binary.sldd",
-      "entry": "long30",
+      "entry": "kp",
       "literal": "[1+2i 3]",
       "matlab": "[1+2i 4]",
       "control": true,
@@ -499,22 +467,6 @@
     },
     {
       "file": "cx_cases.mat",
-      "entry": "eleven",
-      "literal": "[1 - 2i 3]",
-      "matlab": "[1 - 2i 3]",
-      "control": false,
-      "class": "double",
-      "isreal": false,
-      "size": [
-        1,
-        2
-      ],
-      "same": true,
-      "warning": "",
-      "extra": ""
-    },
-    {
-      "file": "cx_cases.mat",
       "entry": "exactly10",
       "literal": "{[1+2i 3] 4}",
       "matlab": "{[1+2i 3] 4}",
@@ -547,7 +499,7 @@
     },
     {
       "file": "cx_cases.mat",
-      "entry": "long30",
+      "entry": "kp",
       "literal": "[1+2i 3]",
       "matlab": "[1+2i 4]",
       "control": true,

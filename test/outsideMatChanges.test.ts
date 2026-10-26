@@ -39,17 +39,22 @@ describe('outside a MAT-file', () => {
     expect(['signedness', 'fractionLength', 'slope', 'wordLength', 'dataTypeMode'].some((k) => inspector(nt, k).editable)).toBe(false);
   });
 
-  it("a dictionary LookupTable's storage class, edited in its Property Inspector and undone, is as it was, and saved so", () => {
+  it("a dictionary Parameter's storage class, edited and undone, is as it was, and saved so; a LookupTable's, shown read-only, takes no edit", () => {
     const original = read('mcos/complex.sldd');
     const session = createSession();
     const root: any = ingest(session, bufferOf(original), { filename: 'complex.sldd' });
     const lut = allNodes(root).find((n) => n.className === 'Simulink.LookupTable');
     const before = (session.serializeSource(root.name) as { text: string }).text;
+    // Shown in its Property Inspector alone, which offers no editor of it (DataNode._offerRefusal).
     session.setActive(root, lut);
-    expect(session.editProperty(lut.id, 'storageClass', 'ExportedGlobal')).toBe(true);
-    expect(inspector(lut, 'storageClass').displayValue).toBe('ExportedGlobal');
+    expect(session.editProperty(lut.id, 'storageClass', 'ExportedGlobal')).toMatchObject({ error: true });
+    expect([inspector(lut, 'storageClass').displayValue, session.canUndo()]).toEqual(['Auto', false]);
+    const p = allNodes(root).find((n) => n.name === 'pScalar');
+    session.setActive(root, p);
+    expect(session.editProperty(p.id, 'storageClass', 'ExportedGlobal')).toBe(true);
+    expect(inspector(p, 'storageClass').displayValue).toBe('ExportedGlobal');
     session.undo();
-    expect(inspector(lut, 'storageClass').displayValue).toBe('Auto');
+    expect(inspector(p, 'storageClass').displayValue).toBe('Auto');
     // But the entry's modified time, which every edit stamps and its undo does not take back.
     const stamped = (text: string) => text.replace(/"lastmod": "\d{8}T\d{6}\.\d+"/g, '"lastmod": ""');
     const after = (session.serializeSource(root.name) as { text: string }).text;

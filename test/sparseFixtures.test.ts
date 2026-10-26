@@ -514,10 +514,13 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
 
   it('in a text dictionary, a value typed in whole is the full array MATLAB makes of the literal', () => {
     // `x = [1 2 3]` is full in MATLAB whatever x was, so the node stops being sparse: the
-    // stream it would otherwise write is a different variable.
+    // stream it would otherwise write is a different variable. Of the setter itself: the row
+    // shows its summary and offers no editor, so setProperty refuses it (DataNode._offerRefusal).
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     const spRow = textEntry(design, 'spRow');
-    expect(spRow.setProperty('Value', '[1 2 3]')).toBe(true);
+    expect(spRow.setProperty('Value', '[1 2 3]')).toMatchObject({ error: true, reason: 'Cannot edit the Value of "spRow": it is a sparse array, which no text spells: its non-zeros are edited one at a time.' });
+    expect(spRow.isSparse).toBe(true);
+    expect(spRow._setProperty('Value', '[1 2 3]')).toBe(true);
     expect(spRow.isSparse).toBe(false);
     expect(JSON.parse(JSON.stringify(spRow.serializeValue()))).toEqual([1, 2, 3]);
   });
@@ -595,12 +598,14 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
 
   it('a value typed over the largest of them is that value, and no longer sparse', () => {
     // spTall, 10000000x2 with two non-zeros, shows its summary, unquoted; a char typed over
-    // it is a char, and is shown as one.
+    // it is a char, and is shown as one. Of the setter itself: the row offers no editor of its
+    // summary, so setProperty refuses it (DataNode._offerRefusal).
     for (const file of ['../fixtures/sparse/sparse_values.mat', '../fixtures/sparse/sparse_text.sldd']) {
       const root = loadFile(file);
       const spTall = file.endsWith('.mat') ? root.children.find((e: any) => e.name === 'spTall') : textEntry(root.getSection('design'), 'spTall');
       expect(spTall.displayValue, file).toBe('<10000000x2 sparse double>');
-      expect(spTall.setProperty('Value', "'abc'"), file).toBe(true);
+      expect(spTall.setProperty('Value', "'abc'"), file).toMatchObject({ error: true });
+      expect(spTall._setProperty('Value', "'abc'"), file).toBe(true);
       expect([spTall.displayValue, spTall.className, spTall.isSparse, spTall.serializeValue()], file).toEqual(["'abc'", 'char', false, 'abc']);
     }
   });
@@ -659,7 +664,9 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
         [1, 4, 4, 0],
       ],
     ]);
-    expect(spRow.setProperty('Value', '[1 2 3]')).toBe(true);
+    // Of the setter itself: the row offers no editor of its summary (DataNode._offerRefusal).
+    expect(spRow.setProperty('Value', '[1 2 3]')).toMatchObject({ error: true });
+    expect(spRow._setProperty('Value', '[1 2 3]')).toBe(true);
     const typed = decode(encodeMatVariable(spRow._var));
     expect([typed.isSparse ?? false, typed.className, typed.value]).toEqual([false, 'double', [1, 2, 3]]);
   });

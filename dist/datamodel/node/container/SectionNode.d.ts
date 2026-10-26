@@ -28,6 +28,17 @@ export default class SectionNode extends ContainerNode {
     _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
     _setOffered(entry: BaseNode, node: BaseNode, key: string, text: string): SourceSetResult | null;
     _offeredRestorer(entry: BaseNode, node: BaseNode, key: string): (() => void) | null;
+    _unofferedRefusal(entry: BaseNode, node: BaseNode, key: string): string | null;
+    /**
+     * Why `value`, a node built of the text an edit typed in for `node` (of `entry`), cannot be
+     * written into this dictionary, or null where it can (MatlabVariableNode._refuseUnwritableValue,
+     * as a MAT-file's _valueRefusal is asked): of a text dictionary, a numeric, logical or char empty
+     * of another size than 0x0, whole or in a cell or a struct, which MATLAB's own text format reads
+     * back as a 0x0 one (MatlabVariableNode._textDictionaryLostEmpty, the D15 ruling of the 2026-10-26
+     * edit bash). A MAT stream it is written into keeps its size, and so does a binary dictionary.
+     * Said of `path`, the node's own unless a Parameter names its Value.
+     */
+    _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode, path?: string): string | null;
     _namespaceHolds(name: string): number;
     addChild(child: BaseNode, index?: number): BaseNode;
     removeChild(child: BaseNode): void;

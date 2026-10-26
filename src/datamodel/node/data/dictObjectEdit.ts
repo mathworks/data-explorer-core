@@ -114,17 +114,37 @@ export function dictOfferedEditor(entry: BaseNode, node: BaseNode, key: string):
   if (!editor) {
     return null;
   }
-  // A Parameter's DataType over a Value that is not a double is its Value's class (the rules refuse
-  // another), as a MAT-file offers none.
-  if (classOf(node) === 'Simulink.Parameter' && editor.property === 'DataType' && classOfValue(nodePropertyValue(node, 'Value')) !== 'double') {
-    return null;
+  // Nor where what keeps it from being offered now says so (unofferedWhy), as a MAT-file offers none.
+  return unofferedWhy(node, editor, key) === null ? offeredEditorOf(classOf(node), editor) : null;
+}
+
+/**
+ * Why a dictionary offers no editor of `key` at `node` (of `entry`) now, a property it offers one of
+ * in another state (dictOfferedEditor), as a MAT-file says it: `Cannot edit "<entry>": <why>.`; null
+ * for any other (BaseNode.sourceUnofferedRefusal).
+ */
+export function dictUnofferedRefusal(entry: BaseNode, node: BaseNode, key: string): string | null {
+  const editor = editorAt(entry, node, key);
+  const why = editor ? unofferedWhy(node, editor, objectPathOf(node) + '.' + editor.property) : null;
+  return why ? 'Cannot edit "' + entry.name + '": ' + why + '.' : null;
+}
+
+// What keeps the editor of `editor`'s property at `node` (`named`) from being offered now, as a
+// MAT-file says it of what it offers no editor of: an object whose Value the rules do not read, a
+// Parameter's DataType over a Value of another class than double, a NumericType's property its mode
+// keeps. Null where nothing does.
+function unofferedWhy(node: BaseNode, editor: DictEditor, named: string): string | null {
+  // The Value the rules judge every edit of the object with (ruleObjectOf), of a class that has one.
+  const value = rowsOf(classOf(node)).some((r) => r.property === 'Value') ? nodePropertyValue(node, 'Value') : null;
+  if (typeof value === 'string') {
+    return named + ' is written with the rest of the object, which this editor cannot write: ' + node.matlabPath + '.Value ' + value;
   }
-  // A NumericType's property its DataTypeMode keeps as the mode's setter left it, as a MAT-file
-  // offers none.
-  if (modeGate(node, editor.property)) {
-    return null;
+  const valueClass = classOf(node) === 'Simulink.Parameter' && editor.property === 'DataType' && value ? classOfValue(value) : null;
+  if (valueClass && valueClass !== 'double') {
+    return named + ' follows its Value, of class ' + valueClass + ': set to another, MATLAB converts the Value to double, with a warning on every load';
   }
-  return offeredEditorOf(classOf(node), editor);
+  const gate = modeGate(node, editor.property);
+  return gate ? named + ' ' + gate : null;
 }
 
 /**
@@ -148,15 +168,9 @@ export function dictSetOffered(entry: BaseNode, node: BaseNode, key: string, tex
   if (typeof parsed === 'string') {
     return refused(named + ' ' + parsed);
   }
-  // As a MAT-file says it of what it offers no editor of: a Parameter's DataType over a Value of
-  // another class than double, a NumericType's property its mode keeps.
-  const valueClass = cls === 'Simulink.Parameter' && editor.property === 'DataType' ? classOfValue(nodePropertyValue(node, 'Value')) : null;
-  if (valueClass && valueClass !== 'double') {
-    return refused(named + ' follows its Value, of class ' + valueClass + ': set to another, MATLAB converts the Value to double, with a warning on every load');
-  }
-  const gate = modeGate(node, editor.property);
-  if (gate) {
-    return refused(named + ' ' + gate);
+  const unoffered = unofferedWhy(node, editor, named);
+  if (unoffered) {
+    return refused(unoffered);
   }
   const value = variableOf(parsed.value);
   const object = ruleObjectOf(node);
@@ -233,6 +247,16 @@ function editorAt(entry: BaseNode, node: BaseNode, key: string): DictEditor | nu
     }
   }
   return editor;
+}
+
+/**
+ * The editor a dictionary offers of `key` on a node of `cls`, of a property it writes into an
+ * object's bag (dictOfferedEditor), whatever the node holds now: what a MAT stream holding objects
+ * offers of one of them, where its own gate takes the edit (mcosStreamEdit).
+ */
+export function dictEditorOf(cls: string, key: string): SourceOfferedEditor | null {
+  const editor = editorOf(cls, key);
+  return editor ? offeredEditorOf(cls, editor) : null;
 }
 
 // The editor of `key` on a node of `cls`, by the key its row shows the property under (a table

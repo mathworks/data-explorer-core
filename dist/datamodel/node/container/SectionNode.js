@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import { withArticle } from '../BaseNode.js';
-import { dictOfferedEditor, dictOfferedRestorer, dictSetOffered } from '../data/dictObjectEdit.js';
+import { dictOfferedEditor, dictOfferedRestorer, dictSetOffered, dictUnofferedRefusal } from '../data/dictObjectEdit.js';
+import { withSizeArticle } from '../editRefusal.js';
 // Not a static import of NodeClassMap: NodeRegistry is the deliberately
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
@@ -171,7 +172,7 @@ export default class SectionNode extends ContainerNode {
     }
     // The editors a dictionary offers of an object's properties a MAT-file's object takes an edit of
     // (a Signal's Dimensions, a BusElement's DataType, a Bus's HeaderFile), its source's
-    // (BaseNode.sourceOfferedEditor, sourceSetOffered, sourceRestorerFor): judged by the rules a
+    // (BaseNode.sourceOfferedEditor, sourceSetOffered, sourceRestorerFor, sourceUnofferedRefusal): judged by the rules a
     // MAT-file's save holds them to, and written into the object's bag (dictObjectEdit).
     _offeredEditor(entry, node, key) {
         return dictOfferedEditor(entry, node, key);
@@ -181,6 +182,34 @@ export default class SectionNode extends ContainerNode {
     }
     _offeredRestorer(entry, node, key) {
         return dictOfferedRestorer(entry, node, key);
+    }
+    _unofferedRefusal(entry, node, key) {
+        return dictUnofferedRefusal(entry, node, key);
+    }
+    /**
+     * Why `value`, a node built of the text an edit typed in for `node` (of `entry`), cannot be
+     * written into this dictionary, or null where it can (MatlabVariableNode._refuseUnwritableValue,
+     * as a MAT-file's _valueRefusal is asked): of a text dictionary, a numeric, logical or char empty
+     * of another size than 0x0, whole or in a cell or a struct, which MATLAB's own text format reads
+     * back as a 0x0 one (MatlabVariableNode._textDictionaryLostEmpty, the D15 ruling of the 2026-10-26
+     * edit bash). A MAT stream it is written into keeps its size, and so does a binary dictionary.
+     * Said of `path`, the node's own unless a Parameter names its Value.
+     */
+    _valueRefusal(entry, node, value, path = node.matlabPath) {
+        // Not in a MAT stream of a value above it, which writes it into the stream: its own is written as
+        // its value's form says (_textDictionaryLostEmpty).
+        const at = node;
+        const made = value;
+        const stream = at._openStream?.();
+        if (at._ownerFormat?.() !== 'json' || (stream && stream !== node) || typeof made._textDictionaryLostEmpty !== 'function') {
+            return null;
+        }
+        const lost = made._textDictionaryLostEmpty();
+        if (!lost) {
+            return null;
+        }
+        const what = withSizeArticle((lost._dims ?? []).join('x') + ' ' + (lost.className ?? ''));
+        return 'Cannot edit "' + entry.name + '": ' + path + (lost === made ? ' would be ' : ' would hold ') + what + ', which a text dictionary holds only as a 0x0 one.';
     }
     // How many entries named `name` share this section's namespace: how many times
     // _namespaceEntryNames would list it, and the question an entry rename asks

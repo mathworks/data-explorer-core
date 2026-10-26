@@ -131,14 +131,16 @@ describe('MAT struct array write-back', () => {
   });
 
   it('survives an element that no longer has the field, keeping the other elements aligned', () => {
-    // A whole-value edit ON an element node is accepted by setProperty and
-    // _applyParsed clears that node's children, so element 1 stops having a field
-    // `a` while element 2 still does. The rebuild must not throw on the way to the
-    // writer — a save that crashes loses the whole file, not one field — and the
-    // surviving element must stay in ITS slot rather than sliding forward.
+    // A whole-value edit ON an element node, made by its setter (_setProperty: setProperty refuses
+    // it, as the element's row offers no editor of its Value, DataNode._offerRefusal), and
+    // _applyParsed clears that node's children, so element 1 stops having a field `a` while
+    // element 2 still does. The rebuild must not throw on the way to the writer — a save that
+    // crashes loses the whole file, not one field — and the surviving element must stay in ITS
+    // slot rather than sliding forward.
     const v = structArray([1, 2], [{ a: 1 }, { a: 2 }]);
     const node = MatlabVariableNode.parseMatVariable(v, 's', null);
-    (node.children[0] as any).setProperty('Value', '11');
+    expect((node.children[0] as any).setProperty('Value', '11')).toMatchObject({ error: true });
+    (node.children[0] as any)._setProperty('Value', '11');
 
     const rebuilt = (node as any)._var;
     const aField = rebuilt.fields.a;

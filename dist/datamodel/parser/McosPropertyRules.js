@@ -970,8 +970,11 @@ function checkBounds(o, dt, min, max, busRefuses, property) {
 }
 /**
  * Simulink.Parameter. Its Value is written in its own class, never cast; MATLAB's `p.Value = v`
- * changes with it: Dimensions to size(v), unless v is empty and the old Value is not; DataType as
- * parameterDataTypeAfter re-derives it ('auto' removes the triple); Complexity to v's. A DataType set
+ * changes with it: Dimensions to size(v), unless v is empty and the Dimensions held are no empty's,
+ * a 0 in none of them (5, then zeros(0,3), then [] leaves [1 1]: measured, R2027a and R2023b, across
+ * a save and a load too); DataType as
+ * parameterDataTypeAfter re-derives it ('auto' removes the triple); Complexity to v's, unless v is
+ * empty (measured, R2027a and R2023b: [1+2i 3-4i] set to [] or zeros(0,3) stays complex). A DataType set
  * with it, or alone, is held to the Value the edits leave: over a Value that is not double only its
  * own class's name (MATLAB converts the Value to double otherwise, with a warning), and a bus only
  * over an empty Value or a struct. Then the Value is held to its builtin DataType's range, and the
@@ -1004,7 +1007,7 @@ function parameter(o, edits, rules) {
         const was = d && classOf(d) === 'double' ? partsOf(d)?.re : undefined;
         if (was) {
             const size = sizeOf(value);
-            if ((numelOf(value) !== 0 || numelOf(old) === 0) && (was.length !== size.length || was.some((x, i) => x !== size[i]))) {
+            if ((numelOf(value) !== 0 || was.includes(0)) && (was.length !== size.length || was.some((x, i) => x !== size[i]))) {
                 o.put(co.Dimensions.saved, 'cell', doubleRow(size));
             }
         }
@@ -1012,7 +1015,7 @@ function parameter(o, edits, rules) {
             o.put(co.DataType.saved, 'cell', charValue(parameterDataTypeAfter(classOf(old), classOf(value), oldDt)));
         }
         const cls = classOf(value);
-        if (NUMERIC.has(cls) || cls === 'logical') {
+        if ((NUMERIC.has(cls) || cls === 'logical') && numelOf(value) !== 0) {
             o.put(co.Complexity.saved, 'str', value.isComplex ? 'complex' : 'real');
         }
     }

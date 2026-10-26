@@ -437,12 +437,21 @@ describe('DataNode.setProperty — name validation', () => {
     expect(parent.serial._fields).toEqual(['Kd', 'Ki']);
   });
 
+  // The setter's own tail (_setProperty): setProperty refuses a field no row of the node shows,
+  // before any setter is asked (DataNode._offerRefusal).
+  it('refuses a field no row of the node shows', () => {
+    const n = new DataNode('n', null) as DataNode & { myNum: number };
+    n.myNum = 5;
+    expect(n.setProperty('myNum', '10')).toMatchObject({ error: true, reason: 'Cannot edit "n": n.myNum is not one this editor writes.' });
+    expect(n.myNum).toBe(5);
+  });
+
   it('assigns a numeric field from a numeric string', () => {
     // A numeric property round-trips through Number(), so the stored value must
     // be the number 10 (not the string '10') or the next serialize would change type.
     const n = new DataNode('n', null) as DataNode & { myNum: number };
     n.myNum = 5;
-    expect(n.setProperty('myNum', '10')).toBe(true);
+    expect(n._setProperty('myNum', '10')).toBe(true);
     expect(n.myNum).toBe(10);
     expect(typeof n.myNum).toBe('number');
   });
@@ -450,7 +459,7 @@ describe('DataNode.setProperty — name validation', () => {
   it('rejects a non-numeric string for a numeric field', () => {
     const n = new DataNode('n', null) as DataNode & { myNum: number };
     n.myNum = 5;
-    const r = n.setProperty('myNum', 'abc') as { error: boolean; reason: string; validValue: string };
+    const r = n._setProperty('myNum', 'abc') as { error: boolean; reason: string; validValue: string };
     expect(r.error).toBe(true);
     expect(r.reason).toContain('numeric');
     expect(r.validValue).toBe('5');
@@ -462,9 +471,9 @@ describe('DataNode.setProperty — name validation', () => {
     // '1', 'yes') must yield false, because the serializer writes a JS boolean.
     const n = new DataNode('b', null) as DataNode & { flag: boolean };
     n.flag = true;
-    expect(n.setProperty('flag', 'false')).toBe(true);
+    expect(n._setProperty('flag', 'false')).toBe(true);
     expect(n.flag).toBe(false);
-    expect(n.setProperty('flag', 'true')).toBe(true);
+    expect(n._setProperty('flag', 'true')).toBe(true);
     expect(n.flag).toBe(true);
   });
 });

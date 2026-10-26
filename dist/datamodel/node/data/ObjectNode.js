@@ -412,7 +412,7 @@ export default class ObjectNode extends DataNode {
     // rows, never from that field: taken, the edit marked the entry, pushed an undo step, answered
     // `true` and was gone from the save. Its value is edited through its property rows. One still
     // in the encoded stream it was read from keeps that refusal's own reason.
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         // Its Description is its property of that name, a row of it: the edit is that row's, or
         // adds the row where the bag holds none (the property at its default, ''), which the save
         // writes with the rest (_rebuiltProperties). Typed into the column, it went into a field
@@ -420,7 +420,7 @@ export default class ObjectNode extends DataNode {
         if (this._resolveProperty(propName) === 'Description' && this.descriptionEditable) {
             const child = this._descriptionChild();
             if (child) {
-                return child.setProperty('Value', formatMatlabChar(stringValue));
+                return child._setProperty('Value', formatMatlabChar(stringValue));
             }
             this.addChild(NodeRegistry.parseValue(stringValue, 'Description', this));
             this._markModified();
@@ -428,21 +428,19 @@ export default class ObjectNode extends DataNode {
         }
         if (this._resolveProperty(propName) === 'Value') {
             if (isEnumBag(this.serial._rawVal) || this._textEnum()) {
-                return {
-                    error: true,
-                    reason: `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`,
-                    invalidValue: stringValue,
-                    validValue: this.displayValue,
-                };
+                return this._unofferedValueRefusal(stringValue);
             }
-            return (this._refuseEncodedEdit(propName, stringValue) ?? {
-                error: true,
-                reason: `'${this.displayName}' is an object of class ${this.arrayClass}, whose value this editor shows but cannot change.`,
-                invalidValue: stringValue,
-                validValue: this.displayValue,
-            });
+            return this._refuseEncodedEdit(propName, stringValue) ?? this._unofferedValueRefusal(stringValue);
         }
-        return super.setProperty(propName, stringValue);
+        return super._setProperty(propName, stringValue);
+    }
+    // Why its Value takes no edit, as its setter says it: an enumeration value, or an object edited
+    // through its property rows (DataNode._offerRefusal).
+    _unofferedValueRefusal(stringValue) {
+        const why = isEnumBag(this.serial._rawVal) || this._textEnum()
+            ? `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`
+            : `'${this.displayName}' is an object of class ${this.arrayClass}, whose value this editor shows but cannot change.`;
+        return { error: true, reason: why, invalidValue: stringValue, validValue: this.displayValue };
     }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropObjectDescription];

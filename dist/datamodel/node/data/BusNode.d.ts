@@ -24,7 +24,7 @@ export declare class BusElementNode extends BaseBusElementNode {
         group: string;
         items: (PropClass | typeof PropUnit | typeof PropDescription | typeof PropComplexity)[];
     })[];
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }
 export declare class BusNode extends BaseBusNode {

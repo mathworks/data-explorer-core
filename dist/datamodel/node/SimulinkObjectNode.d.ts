@@ -59,7 +59,7 @@ export default class SimulinkObjectNode extends DataNode {
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
      * The write-back gate for properties whose absence from the file is meaningful: keep a
      * candidate when the FILE already carried its key, or when the node now holds a value for

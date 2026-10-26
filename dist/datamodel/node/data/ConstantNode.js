@@ -43,7 +43,7 @@ export default class ConstantNode extends MatlabVariableNode {
     // (NodeClassMap.wrapDerivedVariable leaves it the node that writes the stream back), and
     // a Constant is only ever an entry, so none is ever under one either. Both arms below end
     // in a setProperty that asks anyway.
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         if (propName === 'Value') {
             const parsed = MatlabValueParser.parse(stringValue);
             if (!parsed) {
@@ -63,10 +63,10 @@ export default class ConstantNode extends MatlabVariableNode {
                 };
             }
             // Valid scalar-numeric value: apply via the variable machinery.
-            return super.setProperty(propName, stringValue);
+            return super._setProperty(propName, stringValue);
         }
         // Non-Value edits (name, description, data type) follow the generic path.
-        return DataNode.prototype.setProperty.call(this, propName, stringValue);
+        return DataNode.prototype._setProperty.call(this, propName, stringValue);
     }
     static get defaultName() {
         return 'Const';

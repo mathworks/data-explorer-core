@@ -162,9 +162,9 @@ describe('a value holding strings, one of whose strings refuses its text', () =>
     const { root, at, edit, save } = opened(bytes);
     const was = at('ce{2}');
     const refusal = { error: true, reason: 'Cannot edit "ce": refused for the test.', invalidValue: '"b"', validValue: '"b"' };
-    const real = MatlabVariableNode.prototype.setProperty;
+    const real = MatlabVariableNode.prototype._setProperty;
     let strings = 0;
-    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementation(function (this: MatlabVariableNode, key: string, text: string) {
+    const spy = vi.spyOn(MatlabVariableNode.prototype, '_setProperty').mockImplementation(function (this: MatlabVariableNode, key: string, text: string) {
       const set = real.call(this, key, text);
       return this._isOpaque && ++strings === 2 ? refusal : set;
     });

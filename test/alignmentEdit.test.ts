@@ -259,8 +259,9 @@ describe("Alignment is edited in its table cell by MATLAB's rule, and saved as M
         expect(node.setProperty('alignment', '1.5')).toEqual(refusal(AUTO, '1.5', '-1'));
         // MATLAB checks the value before the storage class: 3 under Auto is refused as 3.
         expect(node.setProperty('alignment', '3')).toEqual(refusal(invalid(3), '3', '-1'));
-        // -1 is accepted under Auto, as MATLAB accepts it, and it is already the value.
-        expect(node.setProperty('alignment', '-1')).toBe(true);
+        // -1, which MATLAB accepts under Auto, is already the value, and the cell offers no editor
+        // under Auto: refused as any other text the row offers no editor of (DataNode._offerRefusal).
+        expect(node.setProperty('alignment', '-1')).toEqual(refusal('Cannot edit "pNo": the Alignment of pNo is read-only here.', '-1', '-1'));
         expect(cell(node)).toBe('-1');
         expect(node.status).not.toBe('Modified');
         expect(saved(session, source)).toEqual(before);

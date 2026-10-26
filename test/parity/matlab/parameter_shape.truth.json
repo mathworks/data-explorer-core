@@ -1537,25 +1537,6 @@
       }
     },
     {
-      "file": "core_typed_empty_on_struct.sldd",
-      "id": "typed_empty_on_struct",
-      "entry": "pStruct",
-      "error": "",
-      "after": {
-        "dimensions": [
-          1,
-          1
-        ],
-        "complexity": "real",
-        "valueClass": "double",
-        "valueSize": [
-          0,
-          0
-        ],
-        "isreal": true
-      }
-    },
-    {
       "file": "core_typed_empty_string.sldd",
       "id": "typed_empty_string",
       "entry": "pRow",
@@ -1654,25 +1635,6 @@
       "file": "core_typed_over_scalar.sldd",
       "id": "typed_over_scalar",
       "entry": "pScalar",
-      "error": "",
-      "after": {
-        "dimensions": [
-          1,
-          4
-        ],
-        "complexity": "real",
-        "valueClass": "double",
-        "valueSize": [
-          1,
-          4
-        ],
-        "isreal": true
-      }
-    },
-    {
-      "file": "core_typed_over_struct.sldd",
-      "id": "typed_over_struct",
-      "entry": "pStruct",
       "error": "",
       "after": {
         "dimensions": [

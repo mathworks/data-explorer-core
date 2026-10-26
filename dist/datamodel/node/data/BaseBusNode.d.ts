@@ -16,7 +16,8 @@ export declare class BaseBusElementNode extends DataNode {
     get displayValue(): string;
     get disabled(): boolean;
     get valueEditable(): boolean;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _unofferedValueRefusal(stringValue: string): SetPropertyResult;
     serializeValue(): unknown;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }
@@ -27,7 +28,7 @@ export declare class BaseBusNode extends DataNode {
     get displayValue(): string;
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
-    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     getProperties(): PropClass[];
     _getSerializedProperties(): Record<string, unknown>;
     /**

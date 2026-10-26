@@ -221,8 +221,8 @@ describe('a MAT-file variable retype the variable put in place refuses', () => {
     const held = creations(root);
     const was = by(name);
     // Refused once its every gate has judged the text, as a refusal of the setter's own would be.
-    const real = MatlabVariableNode.prototype.setProperty;
-    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementationOnce(function (this: MatlabVariableNode, key: string, text: string) {
+    const real = MatlabVariableNode.prototype._setProperty;
+    const spy = vi.spyOn(MatlabVariableNode.prototype, '_setProperty').mockImplementationOnce(function (this: MatlabVariableNode, key: string, text: string) {
       real.call(this, key, text);
       return REFUSAL;
     });
@@ -246,7 +246,7 @@ describe('a MAT-file variable retype the variable put in place refuses', () => {
     const bytes = plainFile();
     const { session, root, by, edit, save } = opened(bytes);
     const was = by('y');
-    const spy = vi.spyOn(MatlabVariableNode.prototype, 'setProperty').mockImplementationOnce(() => {
+    const spy = vi.spyOn(MatlabVariableNode.prototype, '_setProperty').mockImplementationOnce(() => {
       throw new Error('thrown for the test');
     });
     try {

@@ -83,9 +83,9 @@ export default class SimulinkObjectNode extends DataNode {
     getPropInfo(PropClassRef) {
         return this._inlineBagPropInfo(super.getPropInfo(PropClassRef));
     }
-    setProperty(propName, stringValue) {
+    _setProperty(propName, stringValue) {
         // A Description the class has none of first, as every setter answers it (DataNode._noDescriptionRefusal).
-        return this._noDescriptionRefusal(propName, stringValue) ?? this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+        return this._noDescriptionRefusal(propName, stringValue) ?? this._refuseInlineBagEdit(propName, stringValue) ?? super._setProperty(propName, stringValue);
     }
     /**
      * The write-back gate for properties whose absence from the file is meaningful: keep a

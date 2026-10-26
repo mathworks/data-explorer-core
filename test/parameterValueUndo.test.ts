@@ -188,18 +188,14 @@ const NOT_THEIR_TEXT: [file: string, name: string, what: string][] = [
   [COMPLEX_BINARY, 'pInt8', 'an int8 complex scalar, which read back as a double'],
   [COMPLEX_BINARY, 'pInt64', 'an int64 complex scalar, which read back as the nearest double'],
   [COMPLEX_BINARY, 'pThird', "a double whose 17 digits read back as the shortest text's"],
-  [COMPLEX_BINARY, 'pNd', 'an N-D complex array, shown as its size and class'],
-  [COMPLEX_BINARY, 'pStruct', 'a struct, shown as its size and class'],
   ['mcos/typed_mcos_binary.sldd', 'pInt8', 'an int8 scalar, which read back as a double'],
   ['mcos/typed_mcos_binary.sldd', 'pSingleRow', 'a single row'],
   ['mcos/typed_mcos_binary.sldd', 'pUint8Mat', 'a uint8 matrix'],
   ['mcos/typed_mcos_binary.sldd', 'pUint64Max', 'the largest uint64, which read back as the nearest double'],
-  ['mcos/typed_mcos_binary.sldd', 'pInt16Nd', 'an N-D int16 array'],
   ['mcos/typed_mcos.sldd', 'pInt8', 'an int8 scalar, in a text dictionary'],
   ['mcos/typed_mcos.sldd', 'pSingleRow', 'a single row, in a text dictionary'],
   ['mcos/typed_mcos.sldd', 'pInt32Col', 'an int32 column, in a text dictionary'],
   ['mcos/typed_mcos.sldd', 'pUint64Max', 'the largest uint64, in a text dictionary'],
-  ['mcos/complex.sldd', 'pStruct', 'a struct, in a text dictionary'],
   // The Parameter twin of undoRestoresValue.test.ts's empties: a 1x0 complex empty shows
   // `[ ]`, which read back as a 0x0 double, and was written `Class="double" Dimension="0*0"`.
   ['display/dispcat_bin.sldd', 'dx_param_complex_1x0', 'a 1x0 complex empty'],
@@ -207,6 +203,29 @@ const NOT_THEIR_TEXT: [file: string, name: string, what: string][] = [
   // back from its `[ ]`, it was written as `"Value": []`.
   ['display/dispcat_text.sldd', 'dx_param_empty', 'a default Value the file does not hold, in a text dictionary'],
 ];
+
+// A Value shown as its size and class offers no editor (valueEditable), and so takes no edit, which
+// no undo has then to put back: refused, and nothing changes (DataNode._offerRefusal).
+const SHOWN_AS_SUMMARY: [file: string, name: string, what: string][] = [
+  [COMPLEX_BINARY, 'pNd', 'an N-D complex array'],
+  [COMPLEX_BINARY, 'pStruct', 'a struct'],
+  ['mcos/typed_mcos_binary.sldd', 'pInt16Nd', 'an N-D int16 array'],
+  ['mcos/complex.sldd', 'pStruct', 'a struct, in a text dictionary'],
+];
+
+describe("a Parameter's Value shown as its size and class", () => {
+  for (const [file, name, what] of SHOWN_AS_SUMMARY) {
+    it(`${file}: ${name}, ${what}, takes no edit`, () => {
+      const session = createSession();
+      const root = open(file, session);
+      const entry = entryOf(root, name);
+      const before = { written: written(root, entry), shown: shown(entry) };
+      expect(entry.toRow()._valueEditable, name).toBe(false);
+      expect(edit(session, root, entry, '5'), name).toMatchObject({ error: true, reason: expect.stringMatching(new RegExp(`^Cannot edit the Value of "${name}": it is an? `)) });
+      expect([shown(entry), written(root, entry), session.canUndo()], name).toEqual([before.shown, before.written, false]);
+    });
+  }
+});
 
 describe("undoing an edit of a Parameter's Value whose text is not its value restores it", () => {
   for (const [file, name, what] of NOT_THEIR_TEXT) {

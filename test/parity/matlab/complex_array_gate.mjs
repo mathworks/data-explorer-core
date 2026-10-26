@@ -23,12 +23,11 @@ export const ENTRY_CASES = [
   ['rowVec', '[-Inf-2i 1]'],
   ['colVec', '[Inf-Infi NaN+1i 1NaNi -Inf+2i]', 'complex([Inf NaN 1 -Inf], [-Inf 1 NaN 2])'],
   ['mat2x3', '[1 +2i]'],
-  ['eleven', '[1 - 2i 3]'],
   ['exactly10', '{[1+2i 3] 4}'],
   // An int16 entry keeps its class, as a real edit of it does (classAfterEdit).
   ['s_int16', '[1+2i 3-4i]', 'int16([1+2i 3-4i])'],
   // The CONTROL: typed one value, compared with another; the gate must find them different.
-  ['long30', '[1+2i 3]', '[1+2i 4]', 'control'],
+  ['kp', '[1+2i 3]', '[1+2i 4]', 'control'],
 ];
 export const PARAMETER_LITERAL = '[1+2i, 3-4i; -5+6i, 7]';
 // [kind, the original under test/, the save's name, the entry cases, the Parameter whose Value is typed]

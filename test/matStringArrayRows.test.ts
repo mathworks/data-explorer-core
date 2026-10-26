@@ -100,9 +100,11 @@ describe('a MAT-file string array', () => {
       expect(o.session.deleteNodeById(o.at(del).id)).toBe(true);
       o.undo();
       expect(held(o.at('sMissing')).texts).toEqual(before);
-      expect(o.edit(kept, kept === 'sMissing(2)' ? '"z"' : '"z"')).toBe(true);
-      const want = kept === 'sMissing(2)' ? [null, 'z'] : ['z', 'x'];
-      expect(held(o.reopen().at('sMissing')).texts).toEqual(want);
+      // Its other element edited: the <missing> one shows `<missing>`, and offers no editor of it
+      // (DataNode._offerRefusal).
+      expect(o.edit('sMissing(1)', '"z"'), kept).toMatchObject({ error: true });
+      expect(o.edit('sMissing(2)', '"z"'), kept).toBe(true);
+      expect(held(o.reopen().at('sMissing')).texts, kept).toEqual([null, 'z']);
     }
   });
 

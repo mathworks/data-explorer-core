@@ -118,6 +118,13 @@ export function propertySourcesOf(element) {
  */
 export const BINARY_EMPTY_KEY = '_binary_empty';
 /**
+ * The empty of class `cls` and extents `dims` as the binary reader holds one (BinarySlddParser.emptyOf),
+ * `{_type: 'int8', _value: 'Matrix(0,3)'}`, under its mark (BINARY_EMPTY_KEY).
+ */
+export function binaryEmptyForm(cls, dims) {
+    return { _type: cls, _value: 'Matrix(' + dims.join(',') + ')', [BINARY_EMPTY_KEY]: true };
+}
+/**
  * The extents of `text` when it is the bare `Matrix(…)` header of an empty, a 0 among them and
  * no body (`Matrix(0,3)`), the form the binary reader holds a classed or shaped empty in
  * (BinarySlddParser.emptyOf); null for any other text. Trailing singletons past the second are
