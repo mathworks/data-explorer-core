@@ -1,0 +1,703 @@
+{
+  "version": "23.2.0.3186351 (R2023b) Update 11",
+  "release": "2023b",
+  "values": [
+    {
+      "name": "dScalar",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dRow",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "d2x3",
+      "group": "leaf",
+      "class": "double",
+      "size": "2x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dNegZero",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dInf",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dNaN",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dNonFinite",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "zScalar",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "zArray",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "zZeroImag",
+      "group": "leaf",
+      "class": "double",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "zInt8",
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i8",
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i16",
+      "group": "leaf",
+      "class": "int16",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i32",
+      "group": "leaf",
+      "class": "int32",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i64",
+      "group": "leaf",
+      "class": "int64",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i64Max",
+      "group": "leaf",
+      "class": "int64",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "u8",
+      "group": "leaf",
+      "class": "uint8",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "u16",
+      "group": "leaf",
+      "class": "uint16",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "u32",
+      "group": "leaf",
+      "class": "uint32",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "u64",
+      "group": "leaf",
+      "class": "uint64",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "u64Max",
+      "group": "leaf",
+      "class": "uint64",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sgl",
+      "group": "leaf",
+      "class": "single",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sglRow",
+      "group": "leaf",
+      "class": "single",
+      "size": "1x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "lScalar",
+      "group": "leaf",
+      "class": "logical",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "lArray",
+      "group": "leaf",
+      "class": "logical",
+      "size": "1x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "chRow",
+      "group": "leaf",
+      "class": "char",
+      "size": "1x5",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "chEmpty",
+      "group": "leaf",
+      "class": "char",
+      "size": "0x0",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "ch2Row",
+      "group": "leaf",
+      "class": "char",
+      "size": "2x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "strScalar",
+      "group": "leaf",
+      "class": "string",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "strEmpty",
+      "group": "leaf",
+      "class": "string",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "strRow",
+      "group": "leaf",
+      "class": "string",
+      "size": "1x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "str2x2",
+      "group": "leaf",
+      "class": "string",
+      "size": "2x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "dEmpty0x3",
+      "group": "leaf",
+      "class": "double",
+      "size": "0x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "i8Empty1x0",
+      "group": "leaf",
+      "class": "int8",
+      "size": "1x0",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "cEmpty",
+      "group": "leaf",
+      "class": "cell",
+      "size": "0x0",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sNoFields",
+      "group": "leaf",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sEmpty0x0",
+      "group": "leaf",
+      "class": "struct",
+      "size": "0x0",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "nd2x2x2",
+      "group": "leaf",
+      "class": "double",
+      "size": "2x2x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "strMissing",
+      "group": "dictionary-edge",
+      "class": "string",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: <missing> string element not supported."
+    },
+    {
+      "name": "spMatrix",
+      "group": "dictionary-edge",
+      "class": "double",
+      "size": "2x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "fnHandle",
+      "group": "dictionary-edge",
+      "class": "function_handle",
+      "size": "1x1",
+      "matFile": "handles.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: Values of class 'function_handle' are not accepted in the 'Design_Data' section of the dictionary."
+    },
+    {
+      "name": "enumOn",
+      "group": "dictionary-edge",
+      "class": "matlab.lang.OnOffSwitchState",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sLeaves",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sArr",
+      "group": "container",
+      "class": "struct",
+      "size": "1x3",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "cLeaves",
+      "group": "container",
+      "class": "cell",
+      "size": "1x38",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "c2x2",
+      "group": "container",
+      "class": "cell",
+      "size": "2x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sNest",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "cNest",
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "saCell",
+      "group": "container",
+      "class": "struct",
+      "size": "1x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "deep4",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "strMissingInStruct",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: <missing> string element not supported."
+    },
+    {
+      "name": "strMissingInCell",
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: <missing> string element not supported."
+    },
+    {
+      "name": "spMatrixInStruct",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "spMatrixInCell",
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "fnHandleInStruct",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "handles.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: Data dictionary cannot store function handles."
+    },
+    {
+      "name": "fnHandleInCell",
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "matFile": "handles.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "refused: Data dictionary cannot store function handles."
+    },
+    {
+      "name": "enumOnInStruct",
+      "group": "container",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "enumOnInCell",
+      "group": "container",
+      "class": "cell",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pStruct",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pStructArr",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pInt8",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pComplex",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pMatrix",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "pProps",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sig",
+      "group": "object",
+      "class": "Simulink.Signal",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "sHoldsParam",
+      "group": "object",
+      "class": "struct",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "cHoldsParam",
+      "group": "object",
+      "class": "cell",
+      "size": "1x2",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "bus",
+      "group": "object",
+      "class": "Simulink.Bus",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    },
+    {
+      "name": "numType",
+      "group": "object",
+      "class": "Simulink.NumericType",
+      "size": "1x1",
+      "matFile": "values.mat",
+      "mat": "same",
+      "text": "n/a: Unrecognized property 'FileFormat' for class 'Simulink.data.Dictionary'.",
+      "binary": "same"
+    }
+  ],
+  "notConstructed": [
+    {
+      "name": "pStructCell",
+      "what": "Simulink.Parameter whose Value is struct('a', 1, 'c', {{1, 2}})",
+      "error": "A valid structure must be numeric"
+    }
+  ]
+}

@@ -165,6 +165,34 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_edit_bash_r2023b_values_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 63,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_edit_bash_r2023b_values_binary_older.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 63,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_edit_bash_r2027a_values_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 63,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_edit_bash_r2027a_values_binary_older.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 63,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_lossy_empties_readback_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -5314,6 +5342,3280 @@
         "unedited": {
           "checked": 75,
           "same": 75,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_1.sldd",
+      "section": "design",
+      "entry": "dScalar",
+      "kind": "double",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "dScalarM9",
+      "refused": "",
+      "save": {
+        "chunk": "32e8f21bfbf8bffa93fa90652b21970d7a9d096d8b15495e3a1e0b7937bb1aaf",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_2.sldd",
+      "section": "design",
+      "entry": "zScalar",
+      "kind": "double/complex",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "zScalarM9",
+      "refused": "",
+      "save": {
+        "chunk": "8530d95c94a0f967410328b9f316b8b18ca60924d6ef46441f54996616c1d2c9",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_3.sldd",
+      "section": "design",
+      "entry": "zInt8",
+      "kind": "int8/complex",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "zInt8M9",
+      "refused": "",
+      "save": {
+        "chunk": "0ef708f2b8f9fd02f2244d68453d6561f835393f1124c3eb277fb94a4367ab7b",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_4.sldd",
+      "section": "design",
+      "entry": "i8",
+      "kind": "int8",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i8M9",
+      "refused": "",
+      "save": {
+        "chunk": "6bff6624a1d753087d237490ff2cbe9fff81c4a6978829d7b4c54bf3ed35a6d8",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_5.sldd",
+      "section": "design",
+      "entry": "i16",
+      "kind": "int16",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i16M9",
+      "refused": "",
+      "save": {
+        "chunk": "8673e697a32b00f7e4e9663106db70a04db8061ee2f6219a2c7b743a50b4b5e0",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int16",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_6.sldd",
+      "section": "design",
+      "entry": "i32",
+      "kind": "int32",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i32M9",
+      "refused": "",
+      "save": {
+        "chunk": "23822adf645898e2a85442670533518d1f61be78b6caecd09133d84be02e169d",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int32",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_7.sldd",
+      "section": "design",
+      "entry": "i64",
+      "kind": "int64",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i64M9",
+      "refused": "",
+      "save": {
+        "chunk": "1522b43fef3f839081e69078bd72f4cb5a136984c6c989d5d85e815ab699d4fc",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int64",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_8.sldd",
+      "section": "design",
+      "entry": "u8",
+      "kind": "uint8",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u8M9",
+      "refused": "",
+      "save": {
+        "chunk": "0f13baf24ed35c6c1449978b800ddf8a3da269bdfcf1b92eca92b87d33ae6fbd",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_9.sldd",
+      "section": "design",
+      "entry": "u16",
+      "kind": "uint16",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u16M9",
+      "refused": "",
+      "save": {
+        "chunk": "04773ea79a531b8f7e4cb5f079f5bc7feff6e2fc124c891f8857f941561c4acc",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint16",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_10.sldd",
+      "section": "design",
+      "entry": "u32",
+      "kind": "uint32",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u32M9",
+      "refused": "",
+      "save": {
+        "chunk": "c0c547ed646aa8f56d6dd5dc67d6b1733d1d48cedb1cac8d2802bfb6a445eb78",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint32",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_11.sldd",
+      "section": "design",
+      "entry": "u64",
+      "kind": "uint64",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u64M9",
+      "refused": "",
+      "save": {
+        "chunk": "d365b143407e014c97419b1e7a69df88346f30a2b371d2459223d40db0926503",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint64",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_12.sldd",
+      "section": "design",
+      "entry": "sgl",
+      "kind": "single",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sglM9",
+      "refused": "",
+      "save": {
+        "chunk": "5e118a1d3b09897c342a16709a9e3b024ade76fa4718ffc15c13289b83317db1",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "single",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_13.sldd",
+      "section": "design",
+      "entry": "lScalar",
+      "kind": "logical",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "lScalarM9",
+      "refused": "",
+      "save": {
+        "chunk": "b9b778088780b6dee1cd4767ee3ef4a5b79a1914318000692e5d7f4ea9701d79",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "logical",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_14.sldd",
+      "section": "design",
+      "entry": "chRow",
+      "kind": "char",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "chRowM9",
+      "refused": "",
+      "save": {
+        "chunk": "b4486c4079f3a2aefa26bcc8723db3374233a069adb84ee9869d9da2e4ce0317",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "char",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_15.sldd",
+      "section": "design",
+      "entry": "strEmpty",
+      "kind": "string",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "strEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "baef62583bb319e383a2dc6f96e096e17ee89e22b62102d8cb7be092d1ddc791",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "string",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_16.sldd",
+      "section": "design",
+      "entry": "dEmpty0x3",
+      "kind": "double/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "dEmpty0x3M9",
+      "refused": "",
+      "save": {
+        "chunk": "6970465a8faf841f13c4970bfb4feaa4d952c601564e3a893431e5886f246580",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_17.sldd",
+      "section": "design",
+      "entry": "i8Empty1x0",
+      "kind": "int8/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i8Empty1x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "e20074d6b547b5fbb870565fb7b9aff573991d6b413035049eecba6ca1592f93",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_18.sldd",
+      "section": "design",
+      "entry": "cEmpty",
+      "kind": "cell/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "aed03030716be80dbe064d83633625b21425ccae1f81ffb1e0f23fdd3437b7b0",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_19.sldd",
+      "section": "design",
+      "entry": "sNoFields",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sNoFieldsM9",
+      "refused": "",
+      "save": {
+        "chunk": "27935aa37aef446469514eed7c3ac2b4b46e6f784e1f47888935f8e2ab12f4cf",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_20.sldd",
+      "section": "design",
+      "entry": "sEmpty0x0",
+      "kind": "struct/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sEmpty0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "7414dde88f962fd90a1e4df10c34c2f9d03758ff4dae8d8ebe94ec7647acaa6a",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_21.sldd",
+      "section": "design",
+      "entry": "nd2x2x2",
+      "kind": "double/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "nd2x2x2M9",
+      "refused": "",
+      "save": {
+        "chunk": "a053b770a5d41e0e725c80f04136811171429d3ee33e5658b20e74c075539439",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_22.sldd",
+      "section": "design",
+      "entry": "enumOn",
+      "kind": "matlab.lang.OnOffSwitchState",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "enumOnM9",
+      "refused": "",
+      "save": {
+        "chunk": "2dd719608142f9079ec0d4f896298641cd1a1ee91547b32fdfa1c37eba26a2cc",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "matlab.lang.OnOffSwitchState",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_23.sldd",
+      "section": "design",
+      "entry": "cLeaves",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cLeavesM9",
+      "refused": "",
+      "save": {
+        "chunk": "ea1830e15ccd1fbeeb27b48df5a0c2ee949d3bcfcad9a471e4d57ed9dff28e95",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_24.sldd",
+      "section": "design",
+      "entry": "pStruct",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pStructM9",
+      "refused": "",
+      "save": {
+        "chunk": "5dc615871957889339839a728720874dc1a973a728f7b75fa24155e9b5e6c9f0",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_25.sldd",
+      "section": "design",
+      "entry": "pStruct",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "6a8eff1bd1c7896751021697e25fa4c35ba895862da94a7ec98cd11c008605e7",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_26.sldd",
+      "section": "design",
+      "entry": "sig",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sigM9",
+      "refused": "",
+      "save": {
+        "chunk": "cb9271dd2c8dcb905abb667a778a0d45787e8e69888b11021b3fdbe6b63ec461",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_27.sldd",
+      "section": "design",
+      "entry": "sig",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "b80b4e4aaf1e54315da3832b60dd659e7b518a95a93f486e6f8e5bc99b3289c8",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_28.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "busM9",
+      "refused": "",
+      "save": {
+        "chunk": "ed66e2e72256473d590e83ea59613089cf923078f38e1039d9f3955fe9ed1a3d",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_29.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "cfba5aca48cd7f6dc1aed3da93d95cd3e4cf1e65e9853fce4a8486b79c457be5",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_30.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": {
+        "index": 1,
+        "name": "e1"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "042d15ee39dee47b128a4244c5bc6da47cca6ba3fe7d27a754c4a2e9c28d154b",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_31.sldd",
+      "section": "design",
+      "entry": "numType",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "numTypeM9",
+      "refused": "",
+      "save": {
+        "chunk": "1e64ea83187161be306049d0632047a94d7d1e60bb319f8e199f64ba87e00bfa",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2023b_values_binary.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_32.sldd",
+      "section": "design",
+      "entry": "numType",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "ebf642fc2c539232c457cdf99093ad1f048a5a497bf790d18faa6971167fce21",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2023b_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_older_1.sldd",
+      "section": "design",
+      "entry": "strEmpty",
+      "kind": "string",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "strEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "e228e2080db40d9848a3c0da7c777d9ce97efbb6ab457cb027a94724cf0fb46b",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "string",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2023b_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_older_2.sldd",
+      "section": "design",
+      "entry": "sNoFields",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sNoFieldsM9",
+      "refused": "",
+      "save": {
+        "chunk": "64291afea40590013861ab74ce3a72b798a3b1122149c93b1409ca36c5a60c31",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2023b/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2023b_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2023b_values_binary_older_3.sldd",
+      "section": "design",
+      "entry": "cLeaves",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cLeavesM9",
+      "refused": "",
+      "save": {
+        "chunk": "56f9f1279a7c315ddcff50d750ef4c69610f91bac76e2ad11862f2df05dbc30b",
+        "parts": "aa0e615468793f6a85b9c4f3b88083f6a85efd1b61e93e063a7a92fe144bf795"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_1.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "busM9",
+      "refused": "",
+      "save": {
+        "chunk": "2ffff4545cf0d2cf449e0f478acf167cfe327b5aa782ccd6b43b46229bf7dcf7",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_2.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "d56f6dc4f14b50963f6241054bbcf3ebcba828b4d6bebe140a19a9910d625f43",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_3.sldd",
+      "section": "design",
+      "entry": "bus",
+      "kind": "Simulink.Bus",
+      "path": {
+        "index": 1,
+        "name": "e1"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "0c3002320ea874f709328e7859e04fc7faf2bf8518bc47845a9153a25b2c8bcb",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_4.sldd",
+      "section": "design",
+      "entry": "cLeaves",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cLeavesM9",
+      "refused": "",
+      "save": {
+        "chunk": "49522ae0ad2aa108242092e5d44bb1e0dd9ecf40fa8a67a9364c42ab3f4d1a94",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_5.sldd",
+      "section": "design",
+      "entry": "cEmpty",
+      "kind": "cell/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "23966579d1f1dd323230bb411569f18455efae7b5d72da4d6b1d4d12b1ee8f33",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_6.sldd",
+      "section": "design",
+      "entry": "ch2Row",
+      "kind": "char",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ch2RowM9",
+      "refused": "",
+      "save": {
+        "chunk": "eb8c42ad9aebf710ff1e13aa78b531e21731fb3c5df8b3266c67f8db85e7a0bf",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "char",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_7.sldd",
+      "section": "design",
+      "entry": "d2x3",
+      "kind": "double",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "d2x3M9",
+      "refused": "",
+      "save": {
+        "chunk": "43894f91ef5aa9229beeca2cf51e940bb2eb9a8132cedb8f764a088777361e4e",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_8.sldd",
+      "section": "design",
+      "entry": "dEmpty0x3",
+      "kind": "double/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "dEmpty0x3M9",
+      "refused": "",
+      "save": {
+        "chunk": "fa0552c8bb966140c3976d8cb44ae2cd00bf0b187fe38affa037d4edfba8523b",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_9.sldd",
+      "section": "design",
+      "entry": "sLeaves",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sLeavesM9",
+      "refused": "",
+      "save": {
+        "chunk": "a981d008f78805208d42da3205e2ecb5cd7a3e4e7be0c015ffbf5a393d450f9f",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_10.sldd",
+      "section": "design",
+      "entry": "sLeaves",
+      "kind": "struct",
+      "path": {
+        "field": "dScalar"
+      },
+      "edit": "field",
+      "prop": "Value",
+      "value": "5",
+      "refused": "",
+      "save": {
+        "chunk": "01f440b0be6d6fe4b0c96208a15189c81255e93f85965d0668a63afe238bd626",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_11.sldd",
+      "section": "design",
+      "entry": "enumOn",
+      "kind": "matlab.lang.OnOffSwitchState",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "enumOnM9",
+      "refused": "",
+      "save": {
+        "chunk": "db4bf88e1fa769cc7f98f36a68e4384ad9ebea7c7b718cece73cff935bf6ca43",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "matlab.lang.OnOffSwitchState",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_12.sldd",
+      "section": "design",
+      "entry": "i16",
+      "kind": "int16",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i16M9",
+      "refused": "",
+      "save": {
+        "chunk": "b703ad5d6153f487010f6b13d224bd571b2d1cf5cd9f8f15b7a66b898a1aeb42",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int16",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_13.sldd",
+      "section": "design",
+      "entry": "i32",
+      "kind": "int32",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i32M9",
+      "refused": "",
+      "save": {
+        "chunk": "b53ba7d70246c0c9b7798905c9d1915c3019b06a313e2c2614cf46a69cf3ad33",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int32",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_14.sldd",
+      "section": "design",
+      "entry": "i64",
+      "kind": "int64",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i64M9",
+      "refused": "",
+      "save": {
+        "chunk": "00025b964f28fe9564a9eaca116296b681a420134d3a872e2bf2d15c9e8b0a72",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int64",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_15.sldd",
+      "section": "design",
+      "entry": "i8",
+      "kind": "int8",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i8M9",
+      "refused": "",
+      "save": {
+        "chunk": "f900e21f93d1ebe72f8c2ec8800d7f0e5776d8c2066823f95e453290a5d4e7ea",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_16.sldd",
+      "section": "design",
+      "entry": "i8Empty1x0",
+      "kind": "int8/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "i8Empty1x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "14fcbf5e585e80a46014e6f47ad41f20dadb0c77b1eaceb4fed3a8313a75f717",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_17.sldd",
+      "section": "design",
+      "entry": "lArray",
+      "kind": "logical",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "lArrayM9",
+      "refused": "",
+      "save": {
+        "chunk": "a3cfe7114222ae9925ccf774916ce6349276b9bbca00bb6c6807aed0332b2468",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "logical",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_18.sldd",
+      "section": "design",
+      "entry": "nd2x2x2",
+      "kind": "double/nd",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "nd2x2x2M9",
+      "refused": "",
+      "save": {
+        "chunk": "c4a52fad62a2f0860b04d387111b3226a14796777e83e3092ec119f7a2bf47fe",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_19.sldd",
+      "section": "design",
+      "entry": "numType",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "numTypeM9",
+      "refused": "",
+      "save": {
+        "chunk": "2615a1186216d29ed6b56c149b2163faafc2c783cc096592ac6792503e6d5e82",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_20.sldd",
+      "section": "design",
+      "entry": "numType",
+      "kind": "Simulink.NumericType",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "f2683032af00b8cf73128790d5542d00eac1fff75aafff3dea272ea08f1aceb8",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.NumericType",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_21.sldd",
+      "section": "design",
+      "entry": "pComplex",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pComplexM9",
+      "refused": "",
+      "save": {
+        "chunk": "263b2a55f1d04a4e5da162a19bc52a4762a6bfd21123d3f044efb5f96ef6d7ad",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_22.sldd",
+      "section": "design",
+      "entry": "pComplex",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "56c3890a5568ac315ee356c0195a418d733d580e761cb941db9916550de21622",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_23.sldd",
+      "section": "design",
+      "entry": "sEmpty0x0",
+      "kind": "struct/empty",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sEmpty0x0M9",
+      "refused": "",
+      "save": {
+        "chunk": "7cf0bbd10fb2ca54e6918e03535a4d768116f3bb1db2f3ec1b73a1c7a2ae0ddb",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_24.sldd",
+      "section": "design",
+      "entry": "sgl",
+      "kind": "single",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sglM9",
+      "refused": "",
+      "save": {
+        "chunk": "8c16580ad40f9d2dff050cd631aa1274d80477553880000eac3bd45409571366",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "single",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_25.sldd",
+      "section": "design",
+      "entry": "sig",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sigM9",
+      "refused": "",
+      "save": {
+        "chunk": "8672b1a8491e1d5ee72f38d3e9c3507889407ab93871e1c86b9d2478d6754566",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_26.sldd",
+      "section": "design",
+      "entry": "sig",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "0a4452443e1b8377efe905dc9f1d19ee4485e0186265d5fe2108edf0e51bfc75",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_27.sldd",
+      "section": "design",
+      "entry": "strEmpty",
+      "kind": "string",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "strEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "677c96058a7f4ec065325ad1769cbc91e0174078d30600b0cf8f3c431b8af8ac",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "string",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_28.sldd",
+      "section": "design",
+      "entry": "u16",
+      "kind": "uint16",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u16M9",
+      "refused": "",
+      "save": {
+        "chunk": "6c69ade1300306fa85201e28e2992da69db89f4a4481564d860689373b12044f",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint16",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_29.sldd",
+      "section": "design",
+      "entry": "u32",
+      "kind": "uint32",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u32M9",
+      "refused": "",
+      "save": {
+        "chunk": "2a8d946d37d566651ab5bf12315e920a5d6ea6b674faec5d5a6c0d379eeaf9c0",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint32",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_30.sldd",
+      "section": "design",
+      "entry": "u64",
+      "kind": "uint64",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u64M9",
+      "refused": "",
+      "save": {
+        "chunk": "57b1e441398311ce6f349129e637125c4c541b9fdfdf8f3363de02188fbf810b",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint64",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_31.sldd",
+      "section": "design",
+      "entry": "u8",
+      "kind": "uint8",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "u8M9",
+      "refused": "",
+      "save": {
+        "chunk": "e5fdc6fafc8b86920df32a23e7ee81317978a142e62d1da87916c42f25c37f24",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "uint8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_32.sldd",
+      "section": "design",
+      "entry": "zArray",
+      "kind": "double/complex",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "zArrayM9",
+      "refused": "",
+      "save": {
+        "chunk": "fa68e3a0e774dc9aa4ff755caaa0c1817169332e891f68cb3a9c13e8f318f937",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "",
+      "original": "orig_edit_bash_r2027a_values_binary.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_33.sldd",
+      "section": "design",
+      "entry": "zInt8",
+      "kind": "int8/complex",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "zInt8M9",
+      "refused": "",
+      "save": {
+        "chunk": "9e6041e406daca379de9b7bcd75d3768ef97f068e111aa33f64b67aee9436287",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": false,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "int8",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2027a_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_older_1.sldd",
+      "section": "design",
+      "entry": "cLeaves",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cLeavesM9",
+      "refused": "",
+      "save": {
+        "chunk": "d876cef3306a541eb8eff6fcd6fcf6dd114f9e429391e86881f772e66451d20d",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2027a_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_older_2.sldd",
+      "section": "design",
+      "entry": "deep4",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "deep4M9",
+      "refused": "",
+      "save": {
+        "chunk": "ea05dc4db43f4483c03b1ab04b1d65f03b0f874a75368764d03c75782b1bc969",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/edit-bash/r2027a/values_binary.sldd",
+      "variant": "older save",
+      "original": "orig_edit_bash_r2027a_values_binary_older.sldd",
+      "file": "m9_edit_bash_r2027a_values_binary_older_3.sldd",
+      "section": "design",
+      "entry": "strEmpty",
+      "kind": "string",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "strEmptyM9",
+      "refused": "",
+      "save": {
+        "chunk": "6dafecab15b9c316df0bd3d25cf199bb3a36a6f1edf2936dbf9e0d5f9941ac26",
+        "parts": "599407611f9d3f21aadd0b4eafeffcca3c7dfb0011dbcd778db9c86ae58edcc9"
+      },
+      "merged": true,
+      "untouched": [
+        62,
+        62
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "string",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 62,
+          "same": 62,
           "bySignature": 0,
           "differ": []
         },
