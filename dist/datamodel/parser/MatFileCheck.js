@@ -39,7 +39,10 @@
 //     load(f)`, 'end' loads as 'end_', and a name that is not UTF-8 crashed MATLAB;
 //   * char data is miUTF8 holding as many UTF-16 units as the array's elements, or miUTF16, or
 //     miUINT16 below U+0100: miUTF32, miUINT8 and miINT8 fail, a surrogate in miUINT16 fails,
-//     and CJK in miUINT16 loads keeping only the low byte of each unit, with no warning;
+//     and CJK in miUINT16 loads keeping only the low byte of each unit, with no warning. And
+//     R2023b fails the load of miUTF8 holding a character of three UTF-8 bytes (U+0800 to U+FFFF:
+//     'ࠀ', '日'), where it reads one of one, two or four (measured, R2023b Update 11); MATLAB
+//     itself writes miUTF8 only for text below U+0080, and miUTF16 for any other;
 //   * every element is readable: one bad variable fails the whole-file load.
 //
 // Some rules were not probed, deliberately: what MATLAB writes is plain, and a file that breaks
@@ -1066,6 +1069,12 @@ function charBody(check, space, head, end) {
             if (text !== null && text.length !== numel) {
                 check.report('utf8-count', space, head.p, `the char array's miUTF8 data is ${text.length} UTF-16 unit(s) of text, `
                     + `and the array has ${numel} element(s): MATLAB fails the load`);
+            }
+            const wide = text === null ? -1 : text.search(/[\u0800-\ud7ff\ue000-\uffff]/);
+            if (wide >= 0) {
+                const unit = text.charCodeAt(wide);
+                check.report('utf8-wide', space, head.p, `the char array's miUTF8 data holds U+${unit.toString(16).toUpperCase().padStart(4, '0')}, `
+                    + 'a character of three UTF-8 bytes: MATLAB R2023b fails the load. MATLAB writes text beyond U+007F as miUTF16');
             }
             break;
         }

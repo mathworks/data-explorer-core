@@ -3568,7 +3568,16 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "a3da2bea7dcb1454b81a30b1de3586b13c39d903dcafe8af3ddfb0e81d800534"
+   "subsystemSha256": "a3da2bea7dcb1454b81a30b1de3586b13c39d903dcafe8af3ddfb0e81d800534",
+   "rules": {
+    "subsystemSha256": "06f2f675121269f8fa520b7ac17306e8537eeb5312d8aef6abdd24d159bfb2ea",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_long_to_short",
@@ -3739,7 +3748,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "81681614ca0ce0d09933f9a4f1c3636b28267933432f6c31c9c332668835f082"
+   "subsystemSha256": "81681614ca0ce0d09933f9a4f1c3636b28267933432f6c31c9c332668835f082",
+   "rules": {
+    "subsystemSha256": "31a7b9a8b76a3aad6358c898297d6c99a6b7bf4f18e3a8099f0265947fa7a46a",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_nonascii_to_nonascii",
@@ -3754,7 +3772,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "d0db2c243119d7e154d1dea9ff6496c6e8362e55dd2ea88c1fc4136583a45fcc"
+   "subsystemSha256": "d0db2c243119d7e154d1dea9ff6496c6e8362e55dd2ea88c1fc4136583a45fcc",
+   "rules": {
+    "subsystemSha256": "86940909207bb1cc6834dd7e3b5f38d99cb073c619365fbc2d79fc28813ab97c",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_nonascii_to_ascii",
@@ -3784,7 +3811,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "858feb50db65c9cecb0227bc54b294aaa72e2a41e83e190eb7d777c7dc7c8e17"
+   "subsystemSha256": "858feb50db65c9cecb0227bc54b294aaa72e2a41e83e190eb7d777c7dc7c8e17",
+   "rules": {
+    "subsystemSha256": "1d70d118e9eaa537ba67533edcab00da243ea66fdfba3b23315288e9da75d32e",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_unit_nonascii",
@@ -3799,7 +3835,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "fe483ddaf4a2fa36d399b8cf7fa190e3aa4ea92ace47f89e585abbc9169043d9"
+   "subsystemSha256": "fe483ddaf4a2fa36d399b8cf7fa190e3aa4ea92ace47f89e585abbc9169043d9",
+   "rules": {
+    "subsystemSha256": "b8a81d6b9e7aa5153f66457dc4b5aa98c5fd066e6fc9e16867b5c1390ce9f899",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_unit_nonascii2",
@@ -3814,7 +3859,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "bc70e30d1e73fc11f73e4d8c28cb2e602d44dfbd62d92cae53891560bab21a6a"
+   "subsystemSha256": "bc70e30d1e73fc11f73e4d8c28cb2e602d44dfbd62d92cae53891560bab21a6a",
+   "rules": {
+    "subsystemSha256": "b39a5cdf95898f1d0d0a8497425c26433665fdcab33da06b6de046629da3c89c",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g5_latin1_only",
@@ -3829,7 +3883,16 @@
    ],
    "variant": "utf8",
    "matlab": "PASS",
-   "subsystemSha256": "a55ddae3ee694dce9fd0b855c966ac94bd2fa8c87d30a785fe00f2c959db900e"
+   "subsystemSha256": "a55ddae3ee694dce9fd0b855c966ac94bd2fa8c87d30a785fe00f2c959db900e",
+   "rules": {
+    "subsystemSha256": "79bfaba4816aa4e78542fc7dfd17f555d2e8cd5c45c19b88a359cd51e9da8258",
+    "by": "session",
+    "matlab": {
+     "R2027a": "PASS",
+     "R2023b": "PASS",
+     "R2024b": "PASS"
+    }
+   }
   },
   {
    "name": "g6_struct_typed_resize",
@@ -4493,16 +4556,7 @@
    ],
    "variant": "lit",
    "matlab": "PASS",
-   "subsystemSha256": "3ea2c3d359baf8d7d9ca3a125f2fbe531bfc06323b341b5d9b6ec3cf9b8923dc",
-   "rules": {
-    "subsystemSha256": "42e49693d1e7c1cedf1ca6352975da41a15c4935777db4d6cb449fd2aaf55666",
-    "by": "session",
-    "matlab": {
-     "R2027a": "PASS",
-     "R2023b": "PASS",
-     "R2024b": "PASS"
-    }
-   }
+   "subsystemSha256": "3ea2c3d359baf8d7d9ca3a125f2fbe531bfc06323b341b5d9b6ec3cf9b8923dc"
   },
   {
    "name": "r3_tF_above",

@@ -455,6 +455,33 @@ function readString(view: DataView, sub: SubElement): string {
     return new TextDecoder().decode(bytes).replace(/\0/g, '');
 }
 
+// A char's miUTF8 data. A leading U+FEFF is a character of the text, as it is to MATLAB, not
+// a byte-order mark to drop: this package once wrote every char as miUTF8.
+const utf8Text = new TextDecoder('utf-8', { ignoreBOM: true });
+
+// String.fromCharCode is applied to a slice of the units; a long text spread into one call
+// overflows the stack.
+const FROM_CHAR_CODE_CHUNK = 4096;
+
+// A char's miUTF16 or miUINT16 data, two bytes a UTF-16 unit, little-endian, as the units it
+// holds: a surrogate on its own is the unit it is, and a leading U+FEFF a character, as MATLAB
+// loads them. A TextDecoder made each such surrogate U+FFFD and dropped the U+FEFF, so MATLAB's
+// char([97 55357]) read as 'a' U+FFFD, and an edit of anything beside it wrote that back. A byte
+// left over is no unit, and reads as the U+FFFD it always did (MatFileCheck reports its size).
+function textOfUnits(bytes: Uint8Array): string {
+    const units: number[] = [];
+    let text = '';
+    for (let i = 0; i + 1 < bytes.length; i += 2) {
+        units.push(bytes[i] | (bytes[i + 1] << 8));
+        if (units.length === FROM_CHAR_CODE_CHUNK) {
+            text += String.fromCharCode(...units);
+            units.length = 0;
+        }
+    }
+    text += String.fromCharCode(...units);
+    return bytes.length % 2 ? text + '\ufffd' : text;
+}
+
 // MATLAB stores array data column-major; the data model reads it row-major. A
 // vector needs no reordering, which is why a singleton dimension returns as-is.
 //
@@ -1279,9 +1306,9 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
             offset += charSub.totalSize;
             const charBytes = new Uint8Array(view.buffer, view.byteOffset + charSub.dataOffset, charSub.bytes);
             if (charSub.type === MI_UTF8 || charSub.type === MI_UINT8 || charSub.type === MI_INT8) {
-                result.value = new TextDecoder().decode(charBytes);
+                result.value = utf8Text.decode(charBytes);
             } else if (charSub.type === MI_UTF16 || charSub.type === MI_UINT16) {
-                result.value = new TextDecoder('utf-16le').decode(charBytes);
+                result.value = textOfUnits(charBytes);
             } else {
                 result.value = new TextDecoder().decode(charBytes);
             }
