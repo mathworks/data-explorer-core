@@ -10,7 +10,7 @@ import { EDIT_TEXT_MAX_CHARS, effectiveDims, elementCount, spelledWhole } from '
 import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { parseComplexNum } from '../../parser/XmlUtils.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
-import { withArticle } from '../BaseNode.js';
+import { refusalClause, withArticle } from '../BaseNode.js';
 import { objectWhy, withSizeArticle } from '../editRefusal.js';
 import { keptVerdict } from '../valueGeneration.js';
 /** Is `text` a summary (DisplayConvention.summaryForm), which is no value's text? */
@@ -48,7 +48,12 @@ function judged(node) {
     if (print === null) {
         return { why: HOLDS_UNSPELLED };
     }
-    const text = spelledWhole(() => node.displayValue);
+    // An empty that shows its size and class as MATLAB's Workspace browser does, `<1x0 logical>` (the
+    // 2026-10-15 ruling, MatlabVariableNode._formatEmptyArray), is spelled as MATLAB makes it,
+    // `false(1,0)` (_emptySpelled), as it is in a cell's text, where that text is taken as its Value.
+    const shown = spelledWhole(() => node.displayValue);
+    const empty = isSummaryText(shown) && node._kind === 'array' ? node._emptySpelled() : null;
+    const text = empty ?? shown;
     if (isSummaryText(text)) {
         return { why: spelledSummaryWhy(node, text) };
     }
@@ -58,7 +63,11 @@ function judged(node) {
     if (text.length > EDIT_TEXT_MAX_CHARS) {
         return { why: TOO_LONG };
     }
-    return madeBy(node, text) === print ? { text } : { why: INEXACT };
+    const made = madeBy(node, text, empty !== null);
+    if ('why' in made) {
+        return made;
+    }
+    return made.print === print ? { text } : { why: INEXACT };
 }
 const ONE_AT_A_TIME = ': its elements are edited one at a time';
 const HOLDS_UNSPELLED = 'it holds an element no text spells' + ONE_AT_A_TIME;
@@ -104,20 +113,25 @@ function unspelledWhy(node) {
     }
     return null;
 }
-// What `text` makes as `node`'s Value, as its setter makes it (MatlabVariableNode.setProperty), on a
-// node that holds nothing else and stands nowhere: the class the value keeps through a numeric edit
-// (classAfterEdit), and nothing of `node` changed. Its print (valuePrint), or null where the text is
-// refused.
-function madeBy(node, text) {
+// What `text` makes as `node`'s Value, as its setter makes it (MatlabVariableNode._setProperty), on
+// a node that holds nothing else and stands nowhere (_valueMadeOf): its print (valuePrint), null
+// where the text reads as no value. And, for an empty's spelling (`asEmpty`), why its setter refuses
+// it, as a clause, so that no editor is seeded with a text its commit is refused: what holds the
+// value, the file it is in (a text dictionary holds a shaped empty typed only as a 0x0 one: the D15
+// ruling), a stream it is written into. A value's text written out whole is the edit a reader made
+// of it, which those rules take; a MAT-file's string in it is made by its retype (MatNode._retype).
+function madeBy(node, text, asEmpty) {
     const read = MatlabValueParser.parseTyped(text);
     if (!read || 'why' in read) {
-        return null;
+        return { print: null };
     }
-    const Value = node.constructor;
-    const back = new Value(node.name, null, {});
-    back._scalarType = node._scalarType;
-    back._applyParsed(read.parsed);
-    return valuePrint(back);
+    const refused = asEmpty
+        ? (node._valueHolderRefusal(read.parsed, text) ?? node._refuseUnwritableValue(read.parsed, text) ?? node._refuseStreamWrite(read.parsed, text))
+        : null;
+    if (refused) {
+        return { why: refusalClause(refused.reason) };
+    }
+    return { print: valuePrint(node._valueMadeOf(read.parsed)) };
 }
 /**
  * `node`'s value as an exact edit of it leaves it: its kind, class and size and each element, a -0

@@ -91,8 +91,9 @@ describe("a Parameter's Value typed as an empty shows, after the edit, what it s
           const back = view(opened(file, o.save()), 'pComplex');
           expect(back, c.to + ' reopened').toEqual(after);
           expect([after.dimensions, after.complexity], c.to).toEqual([matrix(c.dimensions), c.complexity]);
-          // An empty the row shows as `[ ]` takes an edit; a logical one is its summary, which takes none.
-          expect([after.held, after.editable], c.to).toEqual([HELD[c.to], c.to !== 'false(1,0)']);
+          // An empty the row shows as `[ ]` takes an edit, and so does a logical one, shown as its
+          // summary: an editor of the text MATLAB makes it of, `false(1,0)` (the D13 ruling).
+          expect([after.held, after.editable], c.to).toEqual([HELD[c.to], true]);
         }
       });
     }
