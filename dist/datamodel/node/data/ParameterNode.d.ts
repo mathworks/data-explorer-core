@@ -21,6 +21,7 @@ export default class ParameterNode extends DataNode {
     get valueEditable(): boolean;
     _unofferedValueRefusal(stringValue: string): SetPropertyResult | null;
     _editText(): string | null;
+    _plainValueNode(): MatlabVariableNode | null;
     _editTextWhy(): string | null;
     get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
