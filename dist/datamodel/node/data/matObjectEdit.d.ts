@@ -98,6 +98,7 @@ export interface MatObjectState extends McosObjectState {
     objects: Map<string, MatHeldObject>;
     spots: Map<string, MatSpotState>;
     payload?: number;
+    valueString?: MatParameterString;
     valueAsRead?: MatVariable;
     elementRows?: BaseNode[];
     structure?: {
@@ -116,6 +117,13 @@ export interface MatObjectState extends McosObjectState {
 export declare function spotValue(holder: BaseNode, property: string, field?: {
     value: unknown;
 }): MatVariable | string;
+/** A Parameter's Value MATLAB saved as a string (MatObjectState.valueString), and its text. */
+export interface MatParameterString {
+    objectId: number;
+    payload: number;
+    cell: number;
+    text: string;
+}
 /**
  * What the object at `node` holds in `records`, read, and what its node offers and shows of it as
  * it stands; or why no edit of it can be written, as a clause naming it. Made once a node, the first
