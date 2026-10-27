@@ -145,7 +145,14 @@ one handle as one object, every edit of it made through the first of them
 edited. The save writes the stream again with only the cells of those
 properties replaced, every other byte as it was read: the hex's `EncodedLength`
 is the new byte count, and the cdata's text is the new stream's own. An edit
-undone writes the stream as it was read.
+undone writes the stream as it was read. A Parameter's DataType or Complexity the
+stream holds no cell of, which MATLAB derives from the Value as it loads it, is
+shown as MATLAB loads it: `'abc'` typed shows DataType `string`, `int8([1 2])`
+`int8`, and `[1+2i 3]` Complexity `complex`, then and once the file is opened again.
+An empty Value keeps the Complexity and Dimensions the Parameter has, the edits before
+it included (`3+4i` and then `[]` leaves `complex`), which the save writes; a stream that
+holds the Complexity in no cell an edit swaps (R2027a's) refuses the empty Value where
+MATLAB keeps another Complexity than the file holds.
 
 ### A value typed in
 
@@ -168,7 +175,8 @@ In every format, a value typed in is what MATLAB makes of the same assignment.
   where MATLAB's `x = 9007199254740993` is the nearest double.
 - A `Simulink.Parameter`'s Value, typed in its Value cell or on its Value row, is what
   `p.Value = v` makes it: `[4 5 6]` over an `int8` Value is a double, its DataType `auto`, and
-  `int8([4 5 6])` an `int8`.
+  `int8([4 5 6])` an `int8`. Text, `''` and `""` included, is a string, and leaves the
+  Complexity `real`, over a complex Value too.
 - An element of an array takes a number in the array's class, and a conversion as the number
   it converts to, as `x(2) = int8(300)` does. A complex number makes the array complex, and the
   array is real again once no imaginary part is left that is not 0, as MATLAB's assignment

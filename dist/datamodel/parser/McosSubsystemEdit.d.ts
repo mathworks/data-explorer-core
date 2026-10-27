@@ -57,6 +57,7 @@ export interface McosStoredProperty {
     flag: number;
     cellIndex: number | null;
     refusal: McosEditRefusal | null;
+    text?: string;
 }
 export type McosStoredResult = {
     ok: true;

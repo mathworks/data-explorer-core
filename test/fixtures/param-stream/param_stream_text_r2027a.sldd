@@ -1,0 +1,198 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "cObj",
+						"metadata": {
+							"uuid": "a8b396f6-5fd1-4dba-a856-1418bd84916c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261027T011636.541023",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								4
+							],
+							"_elements": [
+								{
+									"_array_class": "Simulink.Parameter",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "1",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "2",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "3",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "real",
+												"Dimensions": [
+													1,
+													1
+												],
+												"Value": 5
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.Parameter",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "4",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "5",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "6",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "complex",
+												"Dimensions": [
+													1,
+													2
+												],
+												"Value": {
+													"_type": "cdata",
+													"_value": "  %)30     .    6     8    (    !@@        %    \"     $    \"     0         )    $            / _        \"$ )    $             !         $, \u0000\u0000"
+												}
+											}
+										}
+									]
+								},
+								7,
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": true,
+											"_id": "7"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sObj",
+						"metadata": {
+							"uuid": "4a0988f4-2dfa-45fc-a7e9-bc63ce06b396",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261027T011636.545000",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"e": {
+										"_array_class": "matlab.lang.OnOffSwitchState",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_enum_value": true,
+												"_id": "4"
+											}
+										]
+									},
+									"n": 4,
+									"p": {
+										"_array_class": "Simulink.Parameter",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "1",
+												"_properties": {
+													"CoderInfo": {
+														"_id": "2",
+														"_object_class": "Simulink.CoderInfo",
+														"_properties": {
+															"CSCPackageName": "Simulink",
+															"CustomAttributes": {
+																"_id": "3",
+																"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																"_properties": {}
+															},
+															"CustomStorageClass": "Default",
+															"ParameterOrSignal": "Parameter",
+															"StorageClass": "Auto"
+														}
+													},
+													"Complexity": "real",
+													"Dimensions": [
+														1,
+														1
+													],
+													"Value": 3
+												}
+											}
+										]
+									}
+								}
+							],
+							"_fields": [
+								"p",
+								"n",
+								"e"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

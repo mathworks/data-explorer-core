@@ -825,17 +825,17 @@ function blame(edits, ...candidates) {
 }
 /**
  * A Simulink.Parameter's Value: numeric of any class and size, an empty and an N-D one included,
- * real or complex; a real logical; a non-empty char row (which MATLAB loads as a string scalar);
- * a struct, whose every field holds one of those, or a char of any shape, at any depth. Not a cell,
- * a sparse array, an object (a string among them), a function handle, nor a value this package
- * could not write.
+ * real or complex; a real logical; a char row (which MATLAB loads as a string scalar), an empty one
+ * written 1x0, which MATLAB loads as "" (R2027a and R2023b); a struct, whose every field holds one
+ * of those, or a char of any shape, at any depth. Not a cell, a sparse array, an object (a string
+ * among them), a function handle, nor a value this package could not write.
  */
 function parameterValue(v, named) {
     const what = parameterValueRefusal(v, false);
     if (what) {
         refuse(named + ' would be ' + what + ', which this editor does not write into ' + classPhrase('Simulink.Parameter'));
     }
-    return { ...v, name: '' };
+    return classOf(v) === 'char' && numelOf(v) === 0 ? { ...v, name: '', dimensions: [1, 0] } : { ...v, name: '' };
 }
 /**
  * What a Simulink.Parameter's Value `v` is that these rules write none of (`a cell`, `a sparse
@@ -862,9 +862,11 @@ export function parameterValueRefusal(v, inStruct) {
     if (cls === 'char' && inStruct) {
         return heldChar(v);
     }
+    // A char row, and an empty char of any shape, which MATLAB's setter makes the string "" (R2027a
+    // and R2023b: '', char(zeros(2,0)), char(zeros(0,3))).
     if (cls === 'char') {
         const t = textOf(v);
-        return dimsOf(v)[0] === 1 && t !== null && t !== '' && !loneSurrogate(t) ? null : 'a char that is not one row of text';
+        return t !== null && (dimsOf(v)[0] === 1 || t === '') && !loneSurrogate(t) ? null : 'a char that is not one row of text';
     }
     if (cls === 'struct') {
         for (const held of Object.values(v.fields ?? {})) {
@@ -974,7 +976,12 @@ function checkBounds(o, dt, min, max, busRefuses, property) {
  * a 0 in none of them (5, then zeros(0,3), then [] leaves [1 1]: measured, R2027a and R2023b, across
  * a save and a load too); DataType as
  * parameterDataTypeAfter re-derives it ('auto' removes the triple); Complexity to v's, unless v is
- * empty (measured, R2027a and R2023b: [1+2i 3-4i] set to [] or zeros(0,3) stays complex). A DataType set
+ * empty, which keeps the one the Parameter has (measured, R2027a and R2023b: [1+2i 3-4i] set to []
+ * or zeros(0,3) stays complex; 3+4i and then [] is complex), and 'real'
+ * for text, which the setter makes a string ('abc', "x" or '' set over [1+2i 3-4i] leaves 'real',
+ * R2027a and R2023b, across a save and a load too; it was saved 'complex'). Text is never an empty
+ * Value: '' and "" are the string "", Dimensions [1 1], written as a 1x0 char that MATLAB loads so
+ * (R2027a and R2023b). A DataType set
  * with it, or alone, is held to the Value the edits leave: over a Value that is not double only its
  * own class's name (MATLAB converts the Value to double otherwise, with a warning), and a bus only
  * over an empty Value or a struct. Then the Value is held to its builtin DataType's range, and the
@@ -1003,20 +1010,32 @@ function parameter(o, edits, rules) {
     if (value) {
         current = 'Value';
         o.put(valueSaved, 'cell', value);
+        const cls = classOf(value);
+        // Text is a string scalar, never empty: '' is "", whose Dimensions are [1 1].
+        const text = cls === 'char' || cls === 'string';
         const d = o.value(co.Dimensions.saved);
         const was = d && classOf(d) === 'double' ? partsOf(d)?.re : undefined;
         if (was) {
+            // Of an empty Value, the Dimensions the Parameter has, the edits before it included (3+4i and
+            // then [] over [1+2i 3-4i] leaves [1 1], measured, R2027a and R2023b; written [1 2], the file's).
             const size = sizeOf(value);
-            if ((numelOf(value) !== 0 || was.includes(0)) && (was.length !== size.length || was.some((x, i) => x !== size[i]))) {
-                o.put(co.Dimensions.saved, 'cell', doubleRow(size));
+            const kept = o.kept?.dimensions ?? was;
+            const target = text || numelOf(value) !== 0 || kept.includes(0) ? size : kept;
+            if (was.length !== target.length || was.some((x, i) => x !== target[i])) {
+                o.put(co.Dimensions.saved, 'cell', doubleRow([...target]));
             }
         }
         if (!dt) {
             o.put(co.DataType.saved, 'cell', charValue(parameterDataTypeAfter(classOf(old), classOf(value), oldDt)));
         }
-        const cls = classOf(value);
-        if ((NUMERIC.has(cls) || cls === 'logical') && numelOf(value) !== 0) {
+        if (text || ((NUMERIC.has(cls) || cls === 'logical') && numelOf(value) !== 0)) {
             o.put(co.Complexity.saved, 'str', value.isComplex ? 'complex' : 'real');
+        }
+        else if ((NUMERIC.has(cls) || cls === 'logical') && o.kept?.complexity !== undefined && o.kept.complexity !== o.text(co.Complexity.saved)) {
+            // An empty Value keeps the Complexity the Parameter has, the edits before it included (3+4i
+            // and then [] leaves 'complex', measured, R2027a and R2023b), where the file holds another,
+            // which MATLAB's load takes of an empty Value: it was written as the file's.
+            o.put(co.Complexity.saved, 'str', o.kept.complexity);
         }
     }
     const final = o.value(valueSaved) ?? EMPTY_DOUBLE;
@@ -1033,7 +1052,11 @@ function parameter(o, edits, rules) {
         }
         o.put(co.DataType.saved, 'cell', dt);
     }
-    const fdt = o.text(co.DataType.saved);
+    // The DataType MATLAB loads: one saved as 'auto' beside a Value of another class than double is the
+    // one its load derives of the Value (mcosShown.withParameterValueShown, as the node shows it), whose
+    // range a Min or a Max is held to: -10 under a logical Value is outside 'boolean's.
+    const savedDt = o.text(co.DataType.saved);
+    const fdt = savedDt === null || savedDt === 'auto' ? parameterDataTypeAfter('double', finalCls, 'auto') : savedDt;
     // The Value held to its DataType's range where an edit set either: a file's own, MATLAB loaded.
     if (finalCls === 'double' && fdt !== null && fdt !== 'auto' && (value || dt)) {
         current = blame(edits, 'Value', 'DataType');
@@ -1419,6 +1442,7 @@ export function planPropertyEdits(targets) {
             key = k;
             current = edits[0]?.property ?? '';
             const o = new Working(k, target.object);
+            o.kept = target.kept;
             working.set(k, o);
             if (!hasPropertyRules(o.className)) {
                 refuse(k + ' is ' + classPhrase(o.className) + ', whose properties this editor does not write into a MAT-file');

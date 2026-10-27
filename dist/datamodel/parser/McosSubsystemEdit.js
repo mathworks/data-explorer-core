@@ -550,6 +550,7 @@ export function storedProperties(subsystem, objectId) {
             flag: t.flag,
             cellIndex: t.flag === FLAG_CELL ? t.value + 2 : null,
             refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? codecRefusal(s)?.reason ?? null,
+            ...(t.flag === 0 && typeof s.strings[t.value] === 'string' ? { text: s.strings[t.value] } : {}),
         }));
         return { ok: true, className, properties };
     }

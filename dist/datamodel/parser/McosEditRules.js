@@ -198,7 +198,7 @@ function heldWhy(refusal) {
  * after each edit of its Value in turn, written in place of the one derived from the file's Value
  * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export function objectEditCells(held, edits, path, followed) {
+export function objectEditCells(held, edits, path, followed, kept) {
     const refuse = (property, message) => ({ ok: false, property, message });
     const cells = new Map();
     const editedBy = new Map();
@@ -228,7 +228,7 @@ export function objectEditCells(held, edits, path, followed) {
     // What MATLAB's own edit of the Value changes with it.
     const value = cells.get('Value');
     if (held.className === PARAMETER && value) {
-        const co = valueCoWrites(held, value, path, followed);
+        const co = valueCoWrites(held, value, path, followed, kept);
         if (typeof co === 'string') {
             return refuse('Value', co);
         }
@@ -261,7 +261,11 @@ export function objectEditCells(held, edits, path, followed) {
 function cellValueFor(className, saved, value, named) {
     if (saved === 'Value') {
         const what = valueClassRefusal(value, false);
-        return what ? named + ' would be ' + what + ', which this editor does not write into ' + classPhrase(className) : nameless(value);
+        if (what) {
+            return named + ' would be ' + what + ', which this editor does not write into ' + classPhrase(className);
+        }
+        // An empty char as the 1x0 MATLAB loads as "".
+        return classOf(value) === 'char' && count(value) === 0 ? { ...value, name: '', dimensions: [1, 0] } : nameless(value);
     }
     if (saved === 'Min' || saved === 'Max') {
         const n = count(value);
@@ -303,8 +307,9 @@ function cellValueFor(className, saved, value, named) {
 /**
  * Why a Value of `v` is not one a cell swap writes into a Simulink.Parameter, as what it would be
  * (`a cell`), or null where it is: a numeric array of any class, real or complex, of any size, an
- * empty and an N-D one included; a real logical; a char row, which MATLAB loads as a string scalar;
- * and a struct whose every field holds one of those, or a char of any shape, at any depth (heldChar).
+ * empty and an N-D one included; a real logical; a char row, which MATLAB loads as a string scalar,
+ * and an empty char of any shape, the string "" MATLAB's setter makes of it (written 1x0, which
+ * MATLAB loads so: R2027a and R2023b); and a struct whose every field holds one of those, or a char of any shape, at any depth (heldChar).
  * Not a cell, a sparse array (not measured), an object (a string among them: a MAT-file holds one as
  * an object of the file), a function handle or a value this package could not write.
  */
@@ -330,7 +335,8 @@ function valueClassRefusal(v, inStruct) {
     }
     if (cls === 'char') {
         const d = v.dimensions ?? [];
-        return d.length === 2 && d[0] === 1 && d[1] >= 1 && textOf(v) !== null && !loneSurrogate(textOf(v)) ? null : 'a char that is not one row of text';
+        const text = textOf(v);
+        return d.length === 2 && text !== null && (d[0] === 1 || text === '') && !loneSurrogate(text) ? null : 'a char that is not one row of text';
     }
     if (cls === 'struct') {
         for (const held of Object.values(v.fields ?? {})) {
@@ -365,14 +371,42 @@ function valueClassRefusal(v, inStruct) {
  * loads converted, with a warning, every time. `followed` is the DataType MATLAB's edits of the
  * Value one at a time leave, where it is known (objectEditCells), in place of the one derived here.
  */
-function valueCoWrites(held, v, path, followed) {
+function valueCoWrites(held, v, path, followed, kept) {
     const out = new Map();
+    // An empty Value keeps the Complexity the Parameter has, as MATLAB's setter does (3+4i and then []
+    // leaves 'complex'), and MATLAB's load, which derives it of a Value that is not empty, takes an
+    // empty one's from the file: where the file holds another, its cell is swapped for the one kept;
+    // where it holds it in no cell (R2027a saves it as an index into the file's text), the edit is
+    // refused, as a save would load it as the file's.
+    const cls = classOf(v);
+    const empty = count(v) === 0 && (NUMERIC.has(cls) || cls === 'logical');
+    const complexity = kept?.complexity;
+    if (empty && complexity !== undefined) {
+        const c = held.stored.get('Complexity');
+        const stored = c ? (c.value ? textOf(c.value) : c.text ?? null) : 'real';
+        if (stored !== complexity) {
+            if (c && c.refusal === null && c.value && textOf(c.value) !== null) {
+                out.set('Complexity', charCell(complexity));
+            }
+            else {
+                return path + ".Value would be empty, over which MATLAB keeps the Parameter's Complexity '" + complexity + "', and this file holds '"
+                    + (stored ?? 'another') + "' for it in a form this editor does not write, so it would load as that";
+            }
+        }
+    }
+    // Of an empty Value, the Dimensions the Parameter has (the edits before it included: 3+4i and then
+    // [] over [1+2i 3-4i] leaves [1 1]), but size(v) where they are an empty's, a 0 in them, as MATLAB
+    // sets them (ParameterNode._emptyOverEmptyShape).
     const dims = held.stored.get('Dimensions');
     const size = sizeOf(v);
-    if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double' && !size.includes(0)) {
+    if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double') {
         const was = numbersOf(dims.value);
-        if (!was || was.length !== size.length || was.some((d, i) => d !== size[i])) {
-            out.set('Dimensions', rowDouble(size));
+        const keptDims = kept?.dimensions ?? was;
+        const target = !empty || !keptDims || keptDims.includes(0) ? size : keptDims;
+        if (!target.includes(0) || empty) {
+            if (!was || was.length !== target.length || was.some((d, i) => d !== target[i])) {
+                out.set('Dimensions', rowDouble([...target]));
+            }
         }
     }
     const dataType = held.stored.get('DataType');
@@ -401,6 +435,12 @@ function valueCoWrites(held, v, path, followed) {
 export function followedDataType(held, v, before, dt) {
     const cell = held.stored.get('DataType');
     const old = held.stored.get('Value')?.value;
+    // One the object holds no DataType of, its class default 'auto', which MATLAB's load derives of
+    // the Value, whatever the edits before it (mcosShown.withParameterValueShown, as the file opened
+    // again shows it): no cell is written, and the node shows what MATLAB loads.
+    if (held.className === PARAMETER && !cell && old) {
+        return parameterDataTypeAfter('double', classOf(v), 'auto');
+    }
     if (held.className !== PARAMETER || !cell || cell.refusal !== null || !cell.value || textOf(cell.value) === null || !old) {
         return null;
     }

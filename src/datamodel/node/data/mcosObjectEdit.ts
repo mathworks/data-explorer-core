@@ -12,6 +12,7 @@ import { setOwn } from '../../parser/ownKeys.js';
 import { isExactToken, parseComplexNum } from '../../parser/XmlUtils.js';
 import { MatWriteError, classPhrase } from '../../parser/MatWriter.js';
 import { variableDifference, type McosWrittenCell } from '../../parser/MatFileWriter.js';
+import type { McosShapeKept } from '../../parser/McosPropertyRules.js';
 import {
   cellValueAt,
   editMcosObjects,
@@ -232,7 +233,7 @@ export function objectStateOf(subsystem: McosSubsystem, node: BaseNode): McosObj
   const entries = new Map<string, McosHeld>();
   const cellIndex = new Map<string, number>();
   for (const p of stored.properties) {
-    entries.set(p.savedName, { refusal: p.refusal, value: p.cellIndex === null ? null : cellValueAt(subsystem, p.cellIndex) });
+    entries.set(p.savedName, { refusal: p.refusal, value: p.cellIndex === null ? null : cellValueAt(subsystem, p.cellIndex), ...(p.text !== undefined ? { text: p.text } : {}) });
     if (p.cellIndex !== null) {
       cellIndex.set(p.savedName, p.cellIndex);
     }
@@ -563,7 +564,7 @@ export function shownDataType(state: McosObjectState, node: BaseNode): string | 
   if (!found.edits.some((e) => e.property === 'Value') && (followed === null || followed === state.dataType)) {
     return state.dataType;
   }
-  const ruled = objectEditCells(state.held, found.edits, node.matlabPath, followed ?? undefined);
+  const ruled = objectEditCells(state.held, found.edits, node.matlabPath, followed ?? undefined, shapeShown(node));
   if (!ruled.ok) {
     return null;
   }
@@ -585,6 +586,23 @@ export function nodeFollowedDataType(state: McosObjectState, node: BaseNode, val
   }
   const { before, shown } = dataTypeFollowedFrom(node, state.dataType);
   return followedDataType(state.held, v, before, shown);
+}
+
+/**
+ * The Complexity and Dimensions the Simulink.Parameter at `node` shows, which MATLAB's setter keeps
+ * over an empty Value (McosEditRules.valueCoWrites, McosPropertyRules); undefined for another class.
+ */
+export function shapeShown(node: BaseNode): McosShapeKept | undefined {
+  if (classOf(node) !== PARAMETER) {
+    return undefined;
+  }
+  const sp = (node as DataNode).serial?._properties as Record<string, unknown> | undefined;
+  const c = sp?.Complexity;
+  const d = sp?.Dimensions;
+  return {
+    ...(typeof c === 'string' ? { complexity: c } : {}),
+    ...(Array.isArray(d) && d.length >= 2 && d.every((x) => typeof x === 'number') ? { dimensions: d as number[] } : {}),
+  };
 }
 
 /**
@@ -899,7 +917,7 @@ export function objectSubsystemEdit(
     if (edits.size === 0 && followed === null) {
       continue;
     }
-    const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath, followed ?? undefined);
+    const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath, followed ?? undefined, shapeShown(node));
     if (!ruled.ok) {
       return refuse(edits.get(ruled.property)?.node ?? node, ruled.message);
     }

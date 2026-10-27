@@ -1,6 +1,7 @@
 import type BaseNode from '../BaseNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 import { type McosWrittenCell } from '../../parser/MatFileWriter.js';
+import type { McosShapeKept } from '../../parser/McosPropertyRules.js';
 import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
 import { type McosObjectHeld, type McosPropertyEdit } from '../../parser/McosEditRules.js';
 /** What a node's object holds, read once, and what the editor judged of the node before any edit. */
@@ -138,6 +139,11 @@ export declare function shownDataType(state: McosObjectState, node: BaseNode): s
  * holds none of a save writes, and where the rules derive it from the file's.
  */
 export declare function nodeFollowedDataType(state: McosObjectState, node: BaseNode, value?: MatVariable): string | null;
+/**
+ * The Complexity and Dimensions the Simulink.Parameter at `node` shows, which MATLAB's setter keeps
+ * over an empty Value (McosEditRules.valueCoWrites, McosPropertyRules); undefined for another class.
+ */
+export declare function shapeShown(node: BaseNode): McosShapeKept | undefined;
 /**
  * What the Simulink.Parameter at `node` follows its DataType on from at the next edit of its Value,
  * in a MAT-file and in a dictionary's MAT stream alike (matObjectEdit.dataTypeShownFor,

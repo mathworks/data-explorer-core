@@ -20,6 +20,7 @@ import {
   objectStateOf,
   objectSubsystemEdit,
   propertyAt,
+  shapeShown,
   shownDataType,
   twinGroupByNode,
   twinGroupsOf,
@@ -404,7 +405,7 @@ class McosStream implements McosStreamGate {
     }
     // The DataType the edit of the Value is about to follow to (mcosObjectEdit.nodeFollowedDataType).
     const followed = nodeFollowedDataType(state, object, at.property === 'Value' ? pending : undefined);
-    const ruled = objectEditCells(state.held, edits, object.matlabPath, followed ?? undefined);
+    const ruled = objectEditCells(state.held, edits, object.matlabPath, followed ?? undefined, shapeShown(object));
     return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
   }
 
