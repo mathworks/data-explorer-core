@@ -33,7 +33,7 @@ import { classPhrase, classRefusal, emptyDimsHeldForm, encodeMatStream, MatBudge
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { admitRows, buildApart, buildUncut } from './matNodeCeiling.js';
-import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, shownComplexText, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, binaryEmptyForm, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, shownComplexText, formatMatlabNum, formatLiteralNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, binaryEmptyForm, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -1140,12 +1140,39 @@ export default class MatlabVariableNode extends DataNode {
      * the seed, and for a value no text spells or too long to edit as text.
      */
     _editText() {
-        const whole = this._shownIsNoSeed() ? wholeText(this) : null;
-        return whole && 'text' in whole ? whole.text : null;
+        // A Simulink.Parameter's Value row, an edit of which is MATLAB's `p.Value = v`, which keeps no
+        // class (_assignsValueBelow): its seed is the Parameter's own, as its setter makes the Value of
+        // it, `int8([...])` where the bare text makes a double (ParameterNode._editText).
+        const holder = this._seedHolder();
+        if (holder) {
+            return holder._editText();
+        }
+        return this._ownEditText();
     }
     // Why this row, its own text no editor's seed, takes no editor of the value written out whole
     // (editText.wholeText), as a clause; null where it takes one, and where its own text is the seed.
+    // A Parameter's Value row's, the Parameter's (_editText).
     _editTextWhy() {
+        const holder = this._seedHolder();
+        if (holder) {
+            return holder._editTextWhy();
+        }
+        return this._ownEditTextWhy();
+    }
+    // What holds this value and makes an edit typed into its row as an edit of its own Value, and so
+    // seeds its editor (_editText): a Simulink.Parameter, of its Value row; or null.
+    _seedHolder() {
+        const holder = this.parent;
+        return holder?._assignsValueBelow?.(this) && typeof holder._editText === 'function' && typeof holder._editTextWhy === 'function' ? holder : null;
+    }
+    // This value's text written out whole, judged of this value alone (editText.wholeText): the seed
+    // of its own row, and what a Parameter holding it judges its own of (ParameterNode._editText).
+    _ownEditText() {
+        const whole = this._shownIsNoSeed() ? wholeText(this) : null;
+        return whole && 'text' in whole ? whole.text : null;
+    }
+    // _editTextWhy, judged of this value alone.
+    _ownEditTextWhy() {
         const whole = this._shownIsNoSeed() ? wholeText(this) : null;
         return whole && 'why' in whole ? whole.why : null;
     }
@@ -3753,11 +3780,21 @@ export default class MatlabVariableNode extends DataNode {
      * in (`false(0)`) was written `[]`, a double, and so was a shaped one, which a text dictionary
      * now refuses typed in (SectionNode._valueRefusal) and is still given by a value made elsewhere.
      * A binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling.
+     *
+     * So in a binary dictionary a shaped one is given as its reader gives one (BinarySlddParser.emptyOf),
+     * `{"_type": "logical", "_value": "Matrix(1,0)"}` marked as read there (BINARY_EMPTY_KEY), which
+     * heldTextSpelling spells at every place: given as `[]`, an object's property typed `false(1,0)`,
+     * `zeros(0,3)` or `zeros(1,0,'int8')` was saved as the 0x0 of its class.
      */
     _serializeEmpty() {
         const d = effectiveDims(this._dims);
-        if ((TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical') && d.length === 2) {
-            return { _type: this._scalarType, _value: '[]' };
+        const cls = this._scalarType;
+        const numeric = cls === 'double' || TYPED_NUMERIC_CLASS.test(cls) || cls === 'logical';
+        if (numeric && d.length === 2 && !(d[0] === 0 && d[1] === 0) && this._ownerFormat() === 'xml') {
+            return { _type: cls, _value: 'Matrix(' + d.join(',') + ')', [BINARY_EMPTY_KEY]: true };
+        }
+        if ((TYPED_NUMERIC_CLASS.test(cls) || cls === 'logical') && d.length === 2) {
+            return { _type: cls, _value: '[]' };
         }
         return [];
     }
@@ -3799,7 +3836,7 @@ export default class MatlabVariableNode extends DataNode {
         const d = effectiveDims(this._dims);
         const isRow = d.length <= 2 && d[0] === 1;
         if (isRow && elems.some((v) => typeof v === 'number' && !isFinite(v))) {
-            return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
+            return { _type: 'double', _value: '[' + elems.map(formatLiteralNum).join(', ') + ']' };
         }
         // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
         // written that way read back as a 1xN — and because the children are row-major
