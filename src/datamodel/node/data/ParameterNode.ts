@@ -8,7 +8,7 @@ import type BaseNode from '../BaseNode.js';
 import { sourceFollowedProperty, sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { binaryEmptyForm, formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
+import { binaryEmptyForm, formatLiteralNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -836,11 +836,12 @@ export default class ParameterNode extends DataNode {
                     const rowStrs: string[] = [];
                     for (let r = 0; r < rows; r++) {
                         const vals: string[] = [];
-                        // formatMatlabNum, not String: the parser accepts 'Inf'/'NaN' and
+                        // formatLiteralNum, not String: the parser accepts 'Inf'/'NaN' and
                         // hands back the real non-finite numbers, whose JavaScript spelling
                         // ('Infinity') is not a MATLAB literal and is one our own parser
-                        // rejects — so String() here would make the value uneditable.
-                        for (let c = 0; c < cols; c++) { vals.push(formatMatlabNum((parsed.value as number[])[r * cols + c])); }
+                        // rejects — so String() here would make the value uneditable. And a
+                        // -0 keeps its sign, which String() drops.
+                        for (let c = 0; c < cols; c++) { vals.push(formatLiteralNum((parsed.value as number[])[r * cols + c])); }
                         rowStrs.push('[' + vals.join(', ') + ']');
                     }
                     rawValue = { _type: 'double', _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n') };

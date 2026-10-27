@@ -136,6 +136,14 @@ export declare function textEnumValueOf(value: unknown): unknown;
 /** The enumeral `element`, one of an enumeration value's `_elements`, holds, or null. */
 export declare function enumeralOf(element: unknown): Enumeral | null;
 export declare function formatMatlabNum(num: unknown): string;
+/**
+ * A double as a typed literal holds it, in the text of `{"_type": "double", "_value": ...}`: as
+ * formatMatlabNum spells it, but -0 as `-0.0`, as MATLAB writes it there (measured, R2027a:
+ * [NaN Inf -0] is `[NaN, Inf, -0.0]` in a text dictionary, and reads back -0, as it does from a
+ * binary one). String(-0) is '0', and a Parameter's Value [NaN Inf -0], written from that text,
+ * lost the sign in either format.
+ */
+export declare function formatLiteralNum(num: unknown): string;
 export declare function formatComplexNum(re: unknown, im: unknown): string;
 /**
  * formatComplexNum's inverse: one complex element's text back into its two parts, or null

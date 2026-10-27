@@ -98,6 +98,7 @@ import {
   formatComplexNum,
   shownComplexText,
   formatMatlabNum,
+  formatLiteralNum,
   formatMxCharSerial,
   formatNumLiteral,
   formatMatrixSerial,
@@ -4181,7 +4182,7 @@ export default class MatlabVariableNode extends DataNode {
     const d = effectiveDims(this._dims);
     const isRow = d.length <= 2 && d[0] === 1;
     if (isRow && elems.some((v) => typeof v === 'number' && !isFinite(v))) {
-      return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
+      return { _type: 'double', _value: '[' + elems.map(formatLiteralNum).join(', ') + ']' };
     }
     // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
     // written that way read back as a 1xN — and because the children are row-major
