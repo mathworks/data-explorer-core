@@ -559,7 +559,9 @@ export function matObjectStateOf(records, node) {
                 ? flagReference(held)
                 : scalar !== null
                     ? doubleOf(scalar)
-                    : held;
+                    : object.rule.className === PARAMETER && !spot.nested && spot.property === 'DataType'
+                        ? loadedDataTypeOf(object.rule, held) ?? held
+                        : held;
         const v = spotValue(holder, spot.property);
         let exact = null;
         let asRead = null;
@@ -1278,6 +1280,17 @@ function valueUnchanged(state, node) {
 }
 function valueClassOf(v) {
     return v && typeof v !== 'string' ? (v.isLogical ? 'logical' : v.className) : null;
+}
+// The DataType MATLAB's load gives a Parameter that saved `saved` (none: 'auto', its class default)
+// beside its Value, where it is 'auto' and the Value of another class than double: the one the load
+// derives of it, as its node shows it (mcosShown.withParameterValueShown); null where it is the file's.
+function loadedDataTypeOf(rule, saved) {
+    if (textIn(saved, 'auto') !== 'auto') {
+        return null;
+    }
+    const cls = valueClassOf(referenceOf(rule, 'Value'));
+    const derived = cls ? parameterDataTypeAfter('double', cls, 'auto') : 'auto';
+    return derived === 'auto' ? null : charOf(derived);
 }
 // The text of a char reference, or `otherwise`.
 function textIn(v, otherwise) {

@@ -168,7 +168,9 @@ const rows: Row[] = [
   { name: 'a cell Value', of: param({}), edits: [['Value', v('cell', [dbl(1)], [1, 1])]], expect: refused('Value', 'p.Value would be a cell, which this editor does not write into a Simulink.Parameter') },
   { name: 'a sparse Value', of: param({}), edits: [['Value', v('double', [], [2, 2], { isSparse: true })]], expect: refused('Value', /^p\.Value would be a sparse double/) },
   { name: 'a char matrix', of: param({}), edits: [['Value', chr('abcd', [2, 2])]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
-  { name: "the empty char ''", of: param({}), edits: [['Value', chr('')]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
+  // The string "" MATLAB's setter makes of '' (S15 of the 2026-10-26 edit bash), written as the 1x0
+  // char MATLAB loads as it, R2027a and R2023b.
+  { name: "the empty char ''", of: param({}), edits: [['Value', chr('')]], expect: ['Value=char[1 0]:""'] },
   // MATLAB keeps a char a char in a field of a Parameter's struct Value, of any shape (measured,
   // R2027a and R2023b), and refuses an empty one, which the Parameter's own rule says.
   { name: 'a struct with a char field', of: param({}), edits: [['Value', strct({ a: chr('x') })]], expect: ['Value=struct[1 1]:null'] },

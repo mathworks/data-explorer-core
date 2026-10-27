@@ -145,7 +145,10 @@ one handle as one object, every edit of it made through the first of them
 edited. The save writes the stream again with only the cells of those
 properties replaced, every other byte as it was read: the hex's `EncodedLength`
 is the new byte count, and the cdata's text is the new stream's own. An edit
-undone writes the stream as it was read.
+undone writes the stream as it was read. A Parameter's DataType or Complexity the
+stream holds no cell of, which MATLAB derives from the Value as it loads it, is
+shown as MATLAB loads it: `'abc'` typed shows DataType `string`, `int8([1 2])`
+`int8`, and `[1+2i 3]` Complexity `complex`, then and once the file is opened again.
 
 ### A value typed in
 

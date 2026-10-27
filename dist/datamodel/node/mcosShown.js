@@ -8,6 +8,8 @@
 // SignednessBool is 'Auto'); a CoderInfo's Identifier, which it saves as Alias; and a
 // Simulink.Parameter's Value held as a char row, which MATLAB loads as the string scalar it is.
 import { emptyHeaderDims } from '../parser/XmlUtils.js';
+import { parameterDataTypeAfter } from '../parser/McosPropertyRules.js';
+import { isMatCdata } from '../parser/CdataCodec.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { superclassOf } from './registeredSubclasses.js';
 /**
@@ -110,15 +112,71 @@ export function withNumericTypeShown(bag) {
  * Its Complexity is 'real' then, as MATLAB loads a Parameter whose Value is text whatever the file
  * holds (measured, R2027a and R2023b): 'complex' is what a save of this package wrote for text typed
  * over a complex Value, and the file opened again showed it beside the string.
+ *
+ * And a DataType saved as 'auto' (or not saved, its class default) beside a Value of another class
+ * than double is the one MATLAB's load derives of the Value, as its setter does: 'string' of text,
+ * the class of an integer or a single, 'boolean' of a logical (measured, R2027a: a binary
+ * dictionary's stream holding the Parameter(5) of a cell, its Value typed as each, whose object
+ * holds no DataType a save of this package could write, loads so). The file opened again showed
+ * 'auto'. So too its Complexity, which such an object holds as an index into the file's text that
+ * no cell swap writes: 'complex' beside a complex Value, and 'real' beside a real one that is not
+ * empty, as MATLAB loads each (measured, R2027a and R2023b; an empty Value keeps the Complexity it
+ * had, as MATLAB's setter keeps it).
  */
 export function withParameterValueShown(bag) {
+    let cls = valueClassOf(bag.Value);
     if (typeof bag.Value === 'string') {
         bag.Value = [bag.Value];
+        cls = 'char';
         if (typeof bag.Complexity === 'string' && bag.Complexity !== 'real') {
             bag.Complexity = 'real';
         }
     }
+    if (isComplexForm(bag.Value) && bag.Complexity !== 'complex') {
+        bag.Complexity = 'complex';
+    }
+    else if (cls !== null && !isComplexForm(bag.Value) && !isEmptyForm(bag.Value) && bag.Complexity === 'complex') {
+        bag.Complexity = 'real';
+    }
+    if (cls !== null && (bag.DataType === undefined || bag.DataType === 'auto')) {
+        const derived = parameterDataTypeAfter('double', cls, 'auto');
+        if (derived !== 'auto') {
+            bag.DataType = derived;
+        }
+    }
     return bag;
+}
+// The class of a Parameter's Value as a decoded bag holds it, where it is a number or a logical:
+// 'double' of a number or a row of them, 'logical' of a boolean, a numeric class's or a logical's of
+// its typed form ({_type: 'int8', _value: ...}), and a complex one's of its parts (isComplexForm);
+// null for anything else.
+function valueClassOf(v) {
+    if (typeof v === 'number' || (Array.isArray(v) && v.every((x) => typeof x === 'number'))) {
+        return 'double';
+    }
+    if (typeof v === 'boolean') {
+        return 'logical';
+    }
+    if (isComplexForm(v)) {
+        const cls = v._class;
+        return typeof cls === 'string' ? cls : 'double';
+    }
+    const type = v && typeof v === 'object' && !Array.isArray(v) ? v._type : undefined;
+    return typeof type === 'string' && /^(u?int(8|16|32|64)|single|double|logical)$/.test(type) ? type : null;
+}
+// Whether a decoded bag holds `v`, a number or a logical, as an empty one: `[]`, or a header with a
+// 0 extent (`Matrix(0,3)`).
+function isEmptyForm(v) {
+    if (Array.isArray(v)) {
+        return v.length === 0;
+    }
+    const text = v && typeof v === 'object' && !Array.isArray(v) ? v._value : undefined;
+    return typeof text === 'string' && (text.trim() === '[]' || /^Matrix\((?:\d+,)*0(?:,\d+)*\)/.test(text));
+}
+// Whether a decoded bag holds `v` as a complex number or array, `{_type: 'cdata', _value: '1+2i 3+0i'}`
+// (MatlabValueParser.complexBag), not as the MAT stream a cdata also carries.
+function isComplexForm(v) {
+    return !!v && typeof v === 'object' && !Array.isArray(v) && v._type === 'cdata' && typeof v._value === 'string' && !isMatCdata(v);
 }
 /**
  * What MATLAB R2027a holds of a Simulink.NumericType made with nothing set, in MATLAB's own

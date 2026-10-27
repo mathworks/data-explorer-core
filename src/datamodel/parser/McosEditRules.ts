@@ -359,7 +359,11 @@ export function objectEditCells(held: McosObjectHeld, edits: readonly McosProper
 function cellValueFor(className: string, saved: string, value: MatVariable, named: string): MatVariable | string {
   if (saved === 'Value') {
     const what = valueClassRefusal(value, false);
-    return what ? named + ' would be ' + what + ', which this editor does not write into ' + classPhrase(className) : nameless(value);
+    if (what) {
+      return named + ' would be ' + what + ', which this editor does not write into ' + classPhrase(className);
+    }
+    // An empty char as the 1x0 MATLAB loads as "".
+    return classOf(value) === 'char' && count(value) === 0 ? { ...value, name: '', dimensions: [1, 0] } : nameless(value);
   }
   if (saved === 'Min' || saved === 'Max') {
     const n = count(value);
@@ -402,8 +406,9 @@ function cellValueFor(className: string, saved: string, value: MatVariable, name
 /**
  * Why a Value of `v` is not one a cell swap writes into a Simulink.Parameter, as what it would be
  * (`a cell`), or null where it is: a numeric array of any class, real or complex, of any size, an
- * empty and an N-D one included; a real logical; a char row, which MATLAB loads as a string scalar;
- * and a struct whose every field holds one of those, or a char of any shape, at any depth (heldChar).
+ * empty and an N-D one included; a real logical; a char row, which MATLAB loads as a string scalar,
+ * and an empty char of any shape, the string "" MATLAB's setter makes of it (written 1x0, which
+ * MATLAB loads so: R2027a and R2023b); and a struct whose every field holds one of those, or a char of any shape, at any depth (heldChar).
  * Not a cell, a sparse array (not measured), an object (a string among them: a MAT-file holds one as
  * an object of the file), a function handle or a value this package could not write.
  */
@@ -429,7 +434,8 @@ function valueClassRefusal(v: MatVariable, inStruct: boolean): string | null {
   }
   if (cls === 'char') {
     const d = v.dimensions ?? [];
-    return d.length === 2 && d[0] === 1 && d[1] >= 1 && textOf(v) !== null && !loneSurrogate(textOf(v)!) ? null : 'a char that is not one row of text';
+    const text = textOf(v);
+    return d.length === 2 && text !== null && (d[0] === 1 || text === '') && !loneSurrogate(text) ? null : 'a char that is not one row of text';
   }
   if (cls === 'struct') {
     for (const held of Object.values(v.fields ?? {})) {
@@ -501,6 +507,12 @@ function valueCoWrites(held: McosObjectHeld, v: MatVariable, path: string, follo
 export function followedDataType(held: McosObjectHeld, v: MatVariable, before: string | undefined, dt: string): string | null {
   const cell = held.stored.get('DataType');
   const old = held.stored.get('Value')?.value;
+  // One the object holds no DataType of, its class default 'auto', which MATLAB's load derives of
+  // the Value, whatever the edits before it (mcosShown.withParameterValueShown, as the file opened
+  // again shows it): no cell is written, and the node shows what MATLAB loads.
+  if (held.className === PARAMETER && !cell && old) {
+    return parameterDataTypeAfter('double', classOf(v), 'auto');
+  }
   if (held.className !== PARAMETER || !cell || cell.refusal !== null || !cell.value || textOf(cell.value) === null || !old) {
     return null;
   }

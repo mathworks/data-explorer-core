@@ -34,6 +34,16 @@ export declare function withNumericTypeShown(bag: Record<string, unknown>): Reco
  * Its Complexity is 'real' then, as MATLAB loads a Parameter whose Value is text whatever the file
  * holds (measured, R2027a and R2023b): 'complex' is what a save of this package wrote for text typed
  * over a complex Value, and the file opened again showed it beside the string.
+ *
+ * And a DataType saved as 'auto' (or not saved, its class default) beside a Value of another class
+ * than double is the one MATLAB's load derives of the Value, as its setter does: 'string' of text,
+ * the class of an integer or a single, 'boolean' of a logical (measured, R2027a: a binary
+ * dictionary's stream holding the Parameter(5) of a cell, its Value typed as each, whose object
+ * holds no DataType a save of this package could write, loads so). The file opened again showed
+ * 'auto'. So too its Complexity, which such an object holds as an index into the file's text that
+ * no cell swap writes: 'complex' beside a complex Value, and 'real' beside a real one that is not
+ * empty, as MATLAB loads each (measured, R2027a and R2023b; an empty Value keeps the Complexity it
+ * had, as MATLAB's setter keeps it).
  */
 export declare function withParameterValueShown(bag: Record<string, unknown>): Record<string, unknown>;
 /**
