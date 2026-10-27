@@ -10,6 +10,19 @@ import { type EncodedValue } from '../../parser/EncodedValue.js';
 import { MatBudgetError, MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
+/**
+ * A node that rules on a Value edit made below it (MatlabVariableNode._valueHolderRefusal), or makes
+ * one made on its Value row itself (_setValueBelow), and then puts back what it holds for its undo
+ * (_restorerBelow).
+ */
+interface ValueHolder {
+    _refuseValueBelow?: (node: MatlabVariableNode, parsed: ParsedValue, stringValue: string) => SetPropertyResult | null;
+    _setValueBelow?: (node: MatlabVariableNode, stringValue: string) => true | SetPropertyResult | null;
+    _restorerBelow?: (node: MatlabVariableNode) => (() => void) | null;
+    _assignsValueBelow?: (node: MatlabVariableNode) => boolean;
+    _editText?: () => string | null;
+    _editTextWhy?: () => string | null;
+}
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;
     _scalarValue: unknown;
@@ -193,6 +206,9 @@ export default class MatlabVariableNode extends DataNode {
      */
     _editText(): string | null;
     _editTextWhy(): string | null;
+    _seedHolder(): ValueHolder | null;
+    _ownEditText(): string | null;
+    _ownEditTextWhy(): string | null;
     _shownIsNoSeed(): boolean;
     /**
      * Is this a complex scalar whose imaginary part is 0 (or -0), such as a file's complex(1, 0)?
@@ -740,6 +756,11 @@ export default class MatlabVariableNode extends DataNode {
      * in (`false(0)`) was written `[]`, a double, and so was a shaped one, which a text dictionary
      * now refuses typed in (SectionNode._valueRefusal) and is still given by a value made elsewhere.
      * A binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling.
+     *
+     * So in a binary dictionary a shaped one is given as its reader gives one (BinarySlddParser.emptyOf),
+     * `{"_type": "logical", "_value": "Matrix(1,0)"}` marked as read there (BINARY_EMPTY_KEY), which
+     * heldTextSpelling spells at every place: given as `[]`, an object's property typed `false(1,0)`,
+     * `zeros(0,3)` or `zeros(1,0,'int8')` was saved as the 0x0 of its class.
      */
     _serializeEmpty(): unknown;
     _serializeArray(): unknown;
