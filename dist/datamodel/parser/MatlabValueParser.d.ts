@@ -44,6 +44,15 @@ export declare function formatMatlabChar(value: string): string;
 export declare function formatMatlabString(value: string): string;
 export declare function controlsAsOneChar(value: string): string;
 export declare function unquoteMatlabText(text: string): string;
+/**
+ * `parsed`, what the text `text` typed as a whole value reads as, but a complex scalar whose
+ * imaginary part is 0, which is the real double MATLAB makes of the literal (zeroImaginaryAsReal):
+ * `1+0i` is 1, `-0-0i` is -0, measured, R2027a and R2023b, as a variable, a field, a cell member, a
+ * Simulink.Parameter's Value and under a class kept (cast(1+0i, 'int8') is real). It was the complex
+ * 1+0i, saved so. Not of an element of a complex array, which stays complex, as MATLAB's
+ * z(2) = 1+0i leaves it.
+ */
+export declare function zeroImaginaryAsRealValue(parsed: ParsedValue, text: string): ParsedValue;
 declare function parseArray(str: string): ParsedValue | null;
 declare function parseCell(str: string): ParsedValue | null;
 /**
