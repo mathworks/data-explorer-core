@@ -118,18 +118,107 @@ describe('a value typed long, saved and opened again, takes an editor of its who
   }
 });
 
-describe('an empty logical keeps the lock the 2026-10-15 ruling gives it, and says why', () => {
-  // Typed over it, `false(1,0)` is taken, but a dictionary saves it as a 0x0 double (the edit bash's
-  // G2), so its editor is not seeded with that text here.
-  for (const file of ['r2027a/values.mat', 'r2027a/values_binary.sldd']) {
-    it(`${file}: <1x0 logical>`, () => {
-      const o = opened(file);
-      expect(o.edit('lArray', 'false(1,0)')).toBe(true);
-      const re = o.reopen();
-      expect(re.row('lArray')).toEqual({ shown: '<1x0 logical>', editable: false, seed: undefined, cls: 'logical' });
-      expect(re.session.valueEditRefusal(re.at('lArray').id)).toBe('Cannot edit the Value of "lArray": it is an empty logical array, shown as MATLAB shows it and not edited here.');
-    });
+// An empty logical shows its size and class, `<1x0 logical>`, as MATLAB's Workspace browser does (the
+// 2026-10-15 ruling, kept by D12), and its editor is seeded with the text MATLAB makes it of,
+// `false(1,0)`, where that text set as its Value is taken and makes it exactly: everywhere but a
+// text dictionary's shaped one, which a text dictionary holds typed only as a 0x0 one (D15).
+// A Simulink.Parameter's Value row is edited as the Parameter's Value is, MATLAB's `p.Value = v`,
+// which keeps no class: `[1 2 ...]` there makes a double. So the row's seed is the Parameter's own,
+// spelled with its class where the bare text would make another value (the review's G3).
+describe("a Parameter's Value row is seeded as the Parameter is", () => {
+  for (const file of FILES) {
+    for (const cls of ['int8', 'single']) {
+      it(`${file}: a 1x11 ${cls} Value, its seed typed back at the Value row and at the Parameter`, () => {
+        const o = opened(file);
+        const text = cls + '([' + digits(11) + '])';
+        expect(o.edit('pInt8', text)).toBe(true);
+        const re = o.reopen();
+        expect([re.row('pInt8').seed, re.row('pInt8.Value').seed]).toEqual([text, text]);
+        expect(re.session.isUnchangedEdit(re.at('pInt8.Value').id, 'Value', text)).toBe(true);
+        for (const path of ['pInt8.Value', 'pInt8']) {
+          const again = re.reopen();
+          expect(again.edit(path, text + ' ')).toBe(true);
+          const back = again.reopen();
+          expect([path, back.row('pInt8.Value').cls, back.row('pInt8.Value').seed]).toEqual([path, cls, text]);
+        }
+        // As a dictionary's editor sets it, through the node's setter.
+        const direct = re.reopen();
+        const n = direct.at('pInt8.Value');
+        let entry = n;
+        while (!entry.isEntry) entry = entry.parent;
+        expect(direct.session.mutateSubtree(entry, () => n.setProperty('Value', text + ' '))).toBe(true);
+        expect(direct.reopen().row('pInt8.Value').cls).toBe(cls);
+      });
+    }
   }
+});
+
+describe('an empty logical takes an editor of the text MATLAB makes it of', () => {
+  const BINARY_OBJECTS = join(TEST_ROOT, 'fixtures/text_empty_readback_binary.sldd');
+  const cases: [string, string, string, string][] = [
+    ['lArray', 'false(1,0)', '<1x0 logical>', 'false(0,2)'],
+    ['lArray', 'false(0,3)', '<0x3 logical>', 'false(1,0)'],
+    ['lArray', 'false(0,0)', '<0x0 logical>', 'false(2,0)'],
+    ['sLeaves.lArray', 'false(0,3)', '<0x3 logical>', 'false(0,0)'],
+    ['cLeaves{1}', 'false(1,0)', '<1x0 logical>', 'false(0,3)'],
+  ];
+  for (const file of ['r2027a/values.mat', 'r2023b/values.mat', 'r2027a/values_binary.sldd', 'r2023b/values_binary.sldd']) {
+    for (const [path, text, shown, other] of cases) {
+      it(`${file} ${path} := ${text}`, () => {
+        const o = opened(file);
+        expect(o.edit(path, text)).toBe(true);
+        const re = o.reopen();
+        const back = re.row(path);
+        expect(back).toEqual({ shown, editable: true, seed: text, cls: 'logical' });
+        expect([re.session.isUnchangedEdit(re.at(path).id, 'Value', text), re.session.valueEditRefusal(re.at(path).id)]).toEqual([true, null]);
+        expect(re.edit(path, ' ' + text)).toBe(true);
+        expect(re.reopen().row(path)).toEqual(back);
+        expect(re.edit(path, other)).toBe(true);
+        expect(re.reopen().row(path).seed).toBe(other);
+      });
+    }
+  }
+
+  it('in a text dictionary: a 0x0 one keeps its class and its seed; a shaped one is not typed', () => {
+    const o = opened('r2027a/values_text.sldd');
+    expect(o.edit('lArray', 'false(0,0)')).toBe(true);
+    const re = o.reopen();
+    expect(re.row('lArray')).toEqual({ shown: '<0x0 logical>', editable: true, seed: 'false(0,0)', cls: 'logical' });
+    expect(re.edit('lArray', 'false(1,0)')).toMatchObject({ error: true, reason: expect.stringContaining('which a text dictionary holds only as a 0x0 one') });
+  });
+
+  it('in a text dictionary, a shaped one made otherwise takes no editor, and says why as its setter does', () => {
+    const o = opened('r2027a/values_text.sldd');
+    const n = o.at('lArray');
+    // Made as no text dictionary reads one, which a value pasted from another source may be.
+    o.session.mutateSubtree(n, () => {
+      n.children = [];
+      n._elements = [];
+      n._dims = [1, 0];
+    });
+    expect(o.row('lArray')).toEqual({ shown: '<1x0 logical>', editable: false, seed: undefined, cls: 'logical' });
+    expect(o.session.valueEditRefusal(n.id)).toBe(
+      'Cannot edit the Value of "lArray": lArray would be a 1x0 logical, which a text dictionary holds only as a 0x0 one.',
+    );
+  });
+
+  it("an object's property in a binary dictionary, its seed typed again and other shaped empties saved as typed", () => {
+    for (const [text, cls] of [['false(1,0)', 'logical'], ['zeros(0,3)', 'double'], ["zeros(1,0,'int8')", 'int8']]) {
+      const o = opened(BINARY_OBJECTS);
+      expect(o.edit('w_Lg.Scalar', ' ' + text)).toBe(true);
+      const back = o.reopen().at('w_Lg.Scalar');
+      expect([text, back.className, back._dims]).toEqual([text, cls, text === 'zeros(0,3)' ? [0, 3] : [1, 0]]);
+    }
+    const o = opened(BINARY_OBJECTS);
+    expect(o.row('w_Lg.Scalar')).toEqual({ shown: '<1x0 logical>', editable: true, seed: 'false(1,0)', cls: 'logical' });
+  });
+
+  it('an empty enumeration keeps its lock, with its reason', () => {
+    const o = opened(join(TEST_ROOT, 'fixtures/display/dispcat_text.sldd'));
+    expect(o.session.valueEditRefusal(o.at('dx_enum_0x0').id)).toBe(
+      'Cannot edit the Value of "dx_enum_0x0": it is an empty matlab.lang.OnOffSwitchState array, shown as MATLAB shows it and not edited here.',
+    );
+  });
 });
 
 describe('a value too long to edit as text, or one no text spells, keeps its lock, and says why', () => {

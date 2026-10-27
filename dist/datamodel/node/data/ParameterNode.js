@@ -153,11 +153,11 @@ export default class ParameterNode extends DataNode {
     // double here, as MATLAB makes a Parameter's Value of the literal (D9), so it is spelled with its
     // class, `int8([...])`, where this setter takes that. Null where it makes neither.
     _editText() {
-        const value = this._valueNode;
+        const value = this._plainValueNode();
         if (!value || this._valueIsEnum()) {
             return null;
         }
-        const bare = value._editText();
+        const bare = value._ownEditText();
         if (bare === null) {
             return null;
         }
@@ -165,7 +165,12 @@ export default class ParameterNode extends DataNode {
         const judged = keptVerdict(this, () => {
             const print = valuePrint(value);
             const cls = value._typedNumericClass();
+            // Taken by this setter, the source's rules included (a text dictionary's shaped empty: the
+            // D15 ruling), and making this Value.
             const makesThisValue = (text) => {
+                if (value._liveElements().length === 0 && (this._refuseValueForSource(text) ?? this._refuseValueForStream(text))) {
+                    return false;
+                }
                 const node = this._valueMadeBy(text);
                 return print !== null && !!node && typeof node._kind === 'string' && valuePrint(node) === print;
             };
@@ -174,15 +179,21 @@ export default class ParameterNode extends DataNode {
         // A verdict on another text of the Value than this one is not about it.
         return judged.bare === bare ? judged.text : null;
     }
+    // The Value node where it is a MATLAB value (MatlabVariableNode), which spells itself whole; null
+    // for none, and for a dictionary's struct or object Value node, which no text spells.
+    _plainValueNode() {
+        const value = this._valueNode;
+        return value && typeof value._ownEditText === 'function' ? value : null;
+    }
     // Why the Value, shown as a summary, takes no editor of its text written out whole: the Value's
     // own reason (MatlabVariableNode._editTextWhy), or that this setter makes another value of it.
     _editTextWhy() {
-        const value = this._valueNode;
+        const value = this._plainValueNode();
         if (!value) {
             return null;
         }
-        const why = value._editTextWhy();
-        if (why !== null || value._editText() === null || this._editText() !== null) {
+        const why = value._ownEditTextWhy();
+        if (why !== null || value._ownEditText() === null || this._editText() !== null) {
             return why;
         }
         return "its text, set as this Parameter's Value, would not be exactly this value: its elements are edited one at a time";
