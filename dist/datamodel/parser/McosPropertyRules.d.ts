@@ -36,6 +36,12 @@ export interface McosRuleTarget {
         elements: readonly McosRuleObject[];
         index: number;
     };
+    kept?: McosShapeKept;
+}
+/** A Parameter's Complexity and Dimensions as its node shows them (McosRuleTarget.kept). */
+export interface McosShapeKept {
+    complexity?: string;
+    dimensions?: readonly number[];
 }
 /** One change to an object's property list. */
 export type McosTripleOp = {

@@ -12,7 +12,7 @@ import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRe
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
-import { dataTypeFollowedFrom, nodePropertyValue, REFUSED } from './mcosObjectEdit.js';
+import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, shapeShown } from './mcosObjectEdit.js';
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
 // rules (McosPropertyRules) and written through the codec (McosObjectWrite): a property swapped,
 // one at its default given a value (a triple inserted), one set back to it (its triple removed),
@@ -1247,7 +1247,9 @@ export function matObjectEditsOf(state, node, pending, more) {
     const targets = [];
     for (const [nk, edits] of per) {
         const object = state.objects.get(nk);
-        targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}) });
+        // A Parameter's Complexity and Dimensions as its node shows them, which an empty Value keeps (McosRuleTarget.kept).
+        const kept = cls === PARAMETER && nk === '' ? shapeShown(node) : undefined;
+        targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}), ...(kept ? { kept } : {}) });
     }
     return { targets, strings };
 }

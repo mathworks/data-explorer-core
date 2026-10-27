@@ -91,6 +91,15 @@ export interface McosRuleTarget {
   // this one at `index`. MATLAB checks the names of a bus's elements unique at each assignment,
   // and its load does not, so the elements of one bus are judged together.
   bus?: { key: string; elements: readonly McosRuleObject[]; index: number };
+  // For a Simulink.Parameter: the Complexity and Dimensions its node shows, which MATLAB's setter
+  // keeps over an empty Value, the edits before it in the session included.
+  kept?: McosShapeKept;
+}
+
+/** A Parameter's Complexity and Dimensions as its node shows them (McosRuleTarget.kept). */
+export interface McosShapeKept {
+  complexity?: string;
+  dimensions?: readonly number[];
 }
 
 /** One change to an object's property list. */
@@ -536,6 +545,8 @@ class Working {
   readonly now = new Map<string, Now>();
   // The saved names an edit or a setter effect set: the only ones a triple is written for.
   readonly touched = new Set<string>();
+  // The Complexity and Dimensions a Parameter keeps over an empty Value (McosRuleTarget.kept).
+  kept?: McosShapeKept;
 
   constructor(readonly key: string, readonly object: McosRuleObject) {
     for (const [saved, held] of object.held) {
@@ -1217,7 +1228,8 @@ function checkBounds(o: Working, dt: string | null, min: MatVariable | null, max
  * a 0 in none of them (5, then zeros(0,3), then [] leaves [1 1]: measured, R2027a and R2023b, across
  * a save and a load too); DataType as
  * parameterDataTypeAfter re-derives it ('auto' removes the triple); Complexity to v's, unless v is
- * empty (measured, R2027a and R2023b: [1+2i 3-4i] set to [] or zeros(0,3) stays complex), and 'real'
+ * empty, which keeps the one the Parameter has (measured, R2027a and R2023b: [1+2i 3-4i] set to []
+ * or zeros(0,3) stays complex; 3+4i and then [] is complex), and 'real'
  * for text, which the setter makes a string ('abc', "x" or '' set over [1+2i 3-4i] leaves 'real',
  * R2027a and R2023b, across a save and a load too; it was saved 'complex'). Text is never an empty
  * Value: '' and "" are the string "", Dimensions [1 1], written as a 1x0 char that MATLAB loads so
@@ -1254,9 +1266,13 @@ function parameter(o: Working, edits: readonly McosRuleEdit[], rules: ClassRules
     const d = o.value(co.Dimensions.saved);
     const was = d && classOf(d) === 'double' ? partsOf(d)?.re : undefined;
     if (was) {
+      // Of an empty Value, the Dimensions the Parameter has, the edits before it included (3+4i and
+      // then [] over [1+2i 3-4i] leaves [1 1], measured, R2027a and R2023b; written [1 2], the file's).
       const size = sizeOf(value);
-      if ((text || numelOf(value) !== 0 || was.includes(0)) && (was.length !== size.length || was.some((x, i) => x !== size[i]))) {
-        o.put(co.Dimensions.saved, 'cell', doubleRow(size));
+      const kept = o.kept?.dimensions ?? was;
+      const target = text || numelOf(value) !== 0 || kept.includes(0) ? size : kept;
+      if (was.length !== target.length || was.some((x, i) => x !== target[i])) {
+        o.put(co.Dimensions.saved, 'cell', doubleRow([...target]));
       }
     }
     if (!dt) {
@@ -1264,6 +1280,11 @@ function parameter(o: Working, edits: readonly McosRuleEdit[], rules: ClassRules
     }
     if (text || ((NUMERIC.has(cls) || cls === 'logical') && numelOf(value) !== 0)) {
       o.put(co.Complexity.saved, 'str', value.isComplex ? 'complex' : 'real');
+    } else if ((NUMERIC.has(cls) || cls === 'logical') && o.kept?.complexity !== undefined && o.kept.complexity !== o.text(co.Complexity.saved)) {
+      // An empty Value keeps the Complexity the Parameter has, the edits before it included (3+4i
+      // and then [] leaves 'complex', measured, R2027a and R2023b), where the file holds another,
+      // which MATLAB's load takes of an empty Value: it was written as the file's.
+      o.put(co.Complexity.saved, 'str', o.kept.complexity);
     }
   }
   const final = o.value(valueSaved) ?? EMPTY_DOUBLE;
@@ -1280,7 +1301,11 @@ function parameter(o: Working, edits: readonly McosRuleEdit[], rules: ClassRules
     }
     o.put(co.DataType.saved, 'cell', dt);
   }
-  const fdt = o.text(co.DataType.saved);
+  // The DataType MATLAB loads: one saved as 'auto' beside a Value of another class than double is the
+  // one its load derives of the Value (mcosShown.withParameterValueShown, as the node shows it), whose
+  // range a Min or a Max is held to: -10 under a logical Value is outside 'boolean's.
+  const savedDt = o.text(co.DataType.saved);
+  const fdt = savedDt === null || savedDt === 'auto' ? parameterDataTypeAfter('double', finalCls, 'auto') : savedDt;
   // The Value held to its DataType's range where an edit set either: a file's own, MATLAB loaded.
   if (finalCls === 'double' && fdt !== null && fdt !== 'auto' && (value || dt)) {
     current = blame(edits, 'Value', 'DataType');
@@ -1671,6 +1696,7 @@ export function planPropertyEdits(targets: readonly McosRuleTarget[]): McosRuleP
       key = k;
       current = edits[0]?.property ?? '';
       const o = new Working(k, target.object);
+      o.kept = target.kept;
       working.set(k, o);
       if (!hasPropertyRules(o.className)) {
         refuse(k + ' is ' + classPhrase(o.className) + ', whose properties this editor does not write into a MAT-file');

@@ -177,7 +177,7 @@ export function objectStateOf(subsystem, node) {
     const entries = new Map();
     const cellIndex = new Map();
     for (const p of stored.properties) {
-        entries.set(p.savedName, { refusal: p.refusal, value: p.cellIndex === null ? null : cellValueAt(subsystem, p.cellIndex) });
+        entries.set(p.savedName, { refusal: p.refusal, value: p.cellIndex === null ? null : cellValueAt(subsystem, p.cellIndex), ...(p.text !== undefined ? { text: p.text } : {}) });
         if (p.cellIndex !== null) {
             cellIndex.set(p.savedName, p.cellIndex);
         }
@@ -483,7 +483,7 @@ export function shownDataType(state, node) {
     if (!found.edits.some((e) => e.property === 'Value') && (followed === null || followed === state.dataType)) {
         return state.dataType;
     }
-    const ruled = objectEditCells(state.held, found.edits, node.matlabPath, followed ?? undefined);
+    const ruled = objectEditCells(state.held, found.edits, node.matlabPath, followed ?? undefined, shapeShown(node));
     if (!ruled.ok) {
         return null;
     }
@@ -504,6 +504,22 @@ export function nodeFollowedDataType(state, node, value) {
     }
     const { before, shown } = dataTypeFollowedFrom(node, state.dataType);
     return followedDataType(state.held, v, before, shown);
+}
+/**
+ * The Complexity and Dimensions the Simulink.Parameter at `node` shows, which MATLAB's setter keeps
+ * over an empty Value (McosEditRules.valueCoWrites, McosPropertyRules); undefined for another class.
+ */
+export function shapeShown(node) {
+    if (classOf(node) !== PARAMETER) {
+        return undefined;
+    }
+    const sp = node.serial?._properties;
+    const c = sp?.Complexity;
+    const d = sp?.Dimensions;
+    return {
+        ...(typeof c === 'string' ? { complexity: c } : {}),
+        ...(Array.isArray(d) && d.length >= 2 && d.every((x) => typeof x === 'number') ? { dimensions: d } : {}),
+    };
 }
 /**
  * What the Simulink.Parameter at `node` follows its DataType on from at the next edit of its Value,
@@ -781,7 +797,7 @@ export function objectSubsystemEdit(subsystem, nodes, stateOf, entryOf) {
         if (edits.size === 0 && followed === null) {
             continue;
         }
-        const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath, followed ?? undefined);
+        const ruled = objectEditCells(state.held, [...edits].map(([property, { value }]) => ({ property, value })), node.matlabPath, followed ?? undefined, shapeShown(node));
         if (!ruled.ok) {
             return refuse(edits.get(ruled.property)?.node ?? node, ruled.message);
         }

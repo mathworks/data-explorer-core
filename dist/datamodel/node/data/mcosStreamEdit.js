@@ -5,7 +5,7 @@ import MatlabVariableNode from './MatlabVariableNode.js';
 import { setMcosStreamGate } from '../mcosStream.js';
 import { mcosEnumerationOf, mcosPlaceOf } from '../mcosPlace.js';
 import { dictEditorOf } from './dictObjectEdit.js';
-import { classRefusal, memberRefusal, mirrorTwins, nodeFollowedDataType, nodePropertyValue, objectEditsOf, objectNodeAt, objectNodesUnder, objectStateOf, objectSubsystemEdit, propertyAt, shownDataType, twinGroupByNode, twinGroupsOf, twinMasterRefusal, twinsTouching, McosPropertyVerdicts, } from './mcosObjectEdit.js';
+import { classRefusal, memberRefusal, mirrorTwins, nodeFollowedDataType, nodePropertyValue, objectEditsOf, objectNodeAt, objectNodesUnder, objectStateOf, objectSubsystemEdit, propertyAt, shapeShown, shownDataType, twinGroupByNode, twinGroupsOf, twinMasterRefusal, twinsTouching, McosPropertyVerdicts, } from './mcosObjectEdit.js';
 import { hasEditRules, objectEditCells, savedNameOf } from '../../parser/McosEditRules.js';
 import { objectIdOf, readMcosSubsystem } from '../../parser/McosSubsystemEdit.js';
 import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem } from '../../parser/McosStreamEdit.js';
@@ -307,7 +307,7 @@ class McosStream {
         }
         // The DataType the edit of the Value is about to follow to (mcosObjectEdit.nodeFollowedDataType).
         const followed = nodeFollowedDataType(state, object, at.property === 'Value' ? pending : undefined);
-        const ruled = objectEditCells(state.held, edits, object.matlabPath, followed ?? undefined);
+        const ruled = objectEditCells(state.held, edits, object.matlabPath, followed ?? undefined, shapeShown(object));
         return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
     }
     /**

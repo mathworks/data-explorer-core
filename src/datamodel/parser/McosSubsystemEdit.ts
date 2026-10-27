@@ -130,6 +130,8 @@ export interface McosStoredProperty {
   cellIndex: number | null;
   // Why editMcosSubsystem refuses to swap its cell, or null when it takes a swap.
   refusal: McosEditRefusal | null;
+  // The text a string-table index names, for a triple that is one (flag 0).
+  text?: string;
 }
 
 export type McosStoredResult = { ok: true; className: string; properties: McosStoredProperty[] } | McosRefusal;
@@ -778,6 +780,7 @@ export function storedProperties(subsystem: Uint8Array | McosSubsystem, objectId
       flag: t.flag,
       cellIndex: t.flag === FLAG_CELL ? t.value + 2 : null,
       refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? codecRefusal(s)?.reason ?? null,
+      ...(t.flag === 0 && typeof s.strings[t.value] === 'string' ? { text: s.strings[t.value] } : {}),
     }));
     return { ok: true, className, properties };
   } catch (e) {

@@ -149,6 +149,10 @@ undone writes the stream as it was read. A Parameter's DataType or Complexity th
 stream holds no cell of, which MATLAB derives from the Value as it loads it, is
 shown as MATLAB loads it: `'abc'` typed shows DataType `string`, `int8([1 2])`
 `int8`, and `[1+2i 3]` Complexity `complex`, then and once the file is opened again.
+An empty Value keeps the Complexity and Dimensions the Parameter has, the edits before
+it included (`3+4i` and then `[]` leaves `complex`), which the save writes; a stream that
+holds the Complexity in no cell an edit swaps (R2027a's) refuses the empty Value where
+MATLAB keeps another Complexity than the file holds.
 
 ### A value typed in
 

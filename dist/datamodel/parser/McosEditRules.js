@@ -198,7 +198,7 @@ function heldWhy(refusal) {
  * after each edit of its Value in turn, written in place of the one derived from the file's Value
  * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export function objectEditCells(held, edits, path, followed) {
+export function objectEditCells(held, edits, path, followed, kept) {
     const refuse = (property, message) => ({ ok: false, property, message });
     const cells = new Map();
     const editedBy = new Map();
@@ -228,7 +228,7 @@ export function objectEditCells(held, edits, path, followed) {
     // What MATLAB's own edit of the Value changes with it.
     const value = cells.get('Value');
     if (held.className === PARAMETER && value) {
-        const co = valueCoWrites(held, value, path, followed);
+        const co = valueCoWrites(held, value, path, followed, kept);
         if (typeof co === 'string') {
             return refuse('Value', co);
         }
@@ -371,14 +371,42 @@ function valueClassRefusal(v, inStruct) {
  * loads converted, with a warning, every time. `followed` is the DataType MATLAB's edits of the
  * Value one at a time leave, where it is known (objectEditCells), in place of the one derived here.
  */
-function valueCoWrites(held, v, path, followed) {
+function valueCoWrites(held, v, path, followed, kept) {
     const out = new Map();
+    // An empty Value keeps the Complexity the Parameter has, as MATLAB's setter does (3+4i and then []
+    // leaves 'complex'), and MATLAB's load, which derives it of a Value that is not empty, takes an
+    // empty one's from the file: where the file holds another, its cell is swapped for the one kept;
+    // where it holds it in no cell (R2027a saves it as an index into the file's text), the edit is
+    // refused, as a save would load it as the file's.
+    const cls = classOf(v);
+    const empty = count(v) === 0 && (NUMERIC.has(cls) || cls === 'logical');
+    const complexity = kept?.complexity;
+    if (empty && complexity !== undefined) {
+        const c = held.stored.get('Complexity');
+        const stored = c ? (c.value ? textOf(c.value) : c.text ?? null) : 'real';
+        if (stored !== complexity) {
+            if (c && c.refusal === null && c.value && textOf(c.value) !== null) {
+                out.set('Complexity', charCell(complexity));
+            }
+            else {
+                return path + ".Value would be empty, over which MATLAB keeps the Parameter's Complexity '" + complexity + "', and this file holds '"
+                    + (stored ?? 'another') + "' for it in a form this editor does not write, so it would load as that";
+            }
+        }
+    }
+    // Of an empty Value, the Dimensions the Parameter has (the edits before it included: 3+4i and then
+    // [] over [1+2i 3-4i] leaves [1 1]), but size(v) where they are an empty's, a 0 in them, as MATLAB
+    // sets them (ParameterNode._emptyOverEmptyShape).
     const dims = held.stored.get('Dimensions');
     const size = sizeOf(v);
-    if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double' && !size.includes(0)) {
+    if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double') {
         const was = numbersOf(dims.value);
-        if (!was || was.length !== size.length || was.some((d, i) => d !== size[i])) {
-            out.set('Dimensions', rowDouble(size));
+        const keptDims = kept?.dimensions ?? was;
+        const target = !empty || !keptDims || keptDims.includes(0) ? size : keptDims;
+        if (!target.includes(0) || empty) {
+            if (!was || was.length !== target.length || was.some((d, i) => d !== target[i])) {
+                out.set('Dimensions', rowDouble([...target]));
+            }
         }
     }
     const dataType = held.stored.get('DataType');

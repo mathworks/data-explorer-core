@@ -41,7 +41,7 @@ import {
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
-import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, type McosObjectState } from './mcosObjectEdit.js';
+import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, shapeShown, type McosObjectState } from './mcosObjectEdit.js';
 import type { McosHeld } from '../../parser/McosEditRules.js';
 
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
@@ -1425,7 +1425,9 @@ export function matObjectEditsOf(
   const targets: McosRuleTarget[] = [];
   for (const [nk, edits] of per) {
     const object = state.objects.get(nk)!;
-    targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}) });
+    // A Parameter's Complexity and Dimensions as its node shows them, which an empty Value keeps (McosRuleTarget.kept).
+    const kept = cls === PARAMETER && nk === '' ? shapeShown(node) : undefined;
+    targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}), ...(kept ? { kept } : {}) });
   }
   return { targets, strings };
 }

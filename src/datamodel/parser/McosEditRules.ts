@@ -3,7 +3,7 @@
 import type { MatVariable } from './MatParser.js';
 import type { McosEditRefusal } from './McosSubsystemEdit.js';
 import { classPhrase } from './MatWriter.js';
-import { heldChar, parameterDataTypeAfter } from './McosPropertyRules.js';
+import { heldChar, parameterDataTypeAfter, type McosShapeKept } from './McosPropertyRules.js';
 
 // Which properties of a Simulink.Parameter or a Simulink.Signal held in a MAT-file's subsystem a
 // save can change, and which other cells of the object go with each change: the rules a cell swap
@@ -50,6 +50,9 @@ export interface McosHeld {
   refusal: McosEditRefusal | null;
   // What its value cell holds, read; null for a triple with no cell, or a cell that does not read.
   value: MatVariable | null;
+  // The text a triple that is an index into the file's text names (R2027a's Complexity), which no
+  // swap writes.
+  text?: string;
 }
 
 /** An object of a subsystem, as the rules read it. */
@@ -293,7 +296,7 @@ function heldWhy(refusal: McosEditRefusal | null): string {
  * after each edit of its Value in turn, written in place of the one derived from the file's Value
  * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string, followed?: string): McosRulesResult {
+export function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string, followed?: string, kept?: McosShapeKept): McosRulesResult {
   const refuse = (property: string, message: string): McosRulesResult => ({ ok: false, property, message });
   const cells = new Map<string, MatVariable>();
   const editedBy = new Map<string, string>();
@@ -324,7 +327,7 @@ export function objectEditCells(held: McosObjectHeld, edits: readonly McosProper
   // What MATLAB's own edit of the Value changes with it.
   const value = cells.get('Value');
   if (held.className === PARAMETER && value) {
-    const co = valueCoWrites(held, value, path, followed);
+    const co = valueCoWrites(held, value, path, followed, kept);
     if (typeof co === 'string') {
       return refuse('Value', co);
     }
@@ -471,14 +474,41 @@ function valueClassRefusal(v: MatVariable, inStruct: boolean): string | null {
  * loads converted, with a warning, every time. `followed` is the DataType MATLAB's edits of the
  * Value one at a time leave, where it is known (objectEditCells), in place of the one derived here.
  */
-function valueCoWrites(held: McosObjectHeld, v: MatVariable, path: string, followed?: string): Map<string, MatVariable> | string {
+function valueCoWrites(held: McosObjectHeld, v: MatVariable, path: string, followed?: string, kept?: McosShapeKept): Map<string, MatVariable> | string {
   const out = new Map<string, MatVariable>();
+  // An empty Value keeps the Complexity the Parameter has, as MATLAB's setter does (3+4i and then []
+  // leaves 'complex'), and MATLAB's load, which derives it of a Value that is not empty, takes an
+  // empty one's from the file: where the file holds another, its cell is swapped for the one kept;
+  // where it holds it in no cell (R2027a saves it as an index into the file's text), the edit is
+  // refused, as a save would load it as the file's.
+  const cls = classOf(v);
+  const empty = count(v) === 0 && (NUMERIC.has(cls) || cls === 'logical');
+  const complexity = kept?.complexity;
+  if (empty && complexity !== undefined) {
+    const c = held.stored.get('Complexity');
+    const stored = c ? (c.value ? textOf(c.value) : c.text ?? null) : 'real';
+    if (stored !== complexity) {
+      if (c && c.refusal === null && c.value && textOf(c.value) !== null) {
+        out.set('Complexity', charCell(complexity));
+      } else {
+        return path + ".Value would be empty, over which MATLAB keeps the Parameter's Complexity '" + complexity + "', and this file holds '"
+          + (stored ?? 'another') + "' for it in a form this editor does not write, so it would load as that";
+      }
+    }
+  }
+  // Of an empty Value, the Dimensions the Parameter has (the edits before it included: 3+4i and then
+  // [] over [1+2i 3-4i] leaves [1 1]), but size(v) where they are an empty's, a 0 in them, as MATLAB
+  // sets them (ParameterNode._emptyOverEmptyShape).
   const dims = held.stored.get('Dimensions');
   const size = sizeOf(v);
-  if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double' && !size.includes(0)) {
+  if (dims && dims.refusal === null && dims.value && classOf(dims.value) === 'double') {
     const was = numbersOf(dims.value);
-    if (!was || was.length !== size.length || was.some((d, i) => d !== size[i])) {
-      out.set('Dimensions', rowDouble(size));
+    const keptDims = kept?.dimensions ?? was;
+    const target = !empty || !keptDims || keptDims.includes(0) ? size : keptDims;
+    if (!target.includes(0) || empty) {
+      if (!was || was.length !== target.length || was.some((d, i) => d !== target[i])) {
+        out.set('Dimensions', rowDouble([...target]));
+      }
     }
   }
   const dataType = held.stored.get('DataType');
