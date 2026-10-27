@@ -197,7 +197,10 @@ rows('Simulink.Parameter: its Value, and what MATLAB changes with it', [
   { name: 'a complex Value: Complexity complex', of: pset(), edits: [['Value', cplx([{ re: 1, im: 2 }])]], expect: ['set Complexity str complex', 'set Value double complex[1 1]:[{"re":1,"im":2}]'] },
   { name: 'a cell Value', of: param(), edits: [['Value', v('cell', [dbl(1)], [1, 1])]], expect: refused('Value', /p\.Value would be a cell, which this editor does not write into a Simulink\.Parameter/) },
   { name: 'a sparse Value', of: param(), edits: [['Value', dbl([1], [1, 1]) && { ...dbl(1), isSparse: true }]], expect: refused('Value', /a sparse double/) },
-  { name: 'an empty char Value', of: param(), edits: [['Value', chr('')]], expect: refused('Value', /a char that is not one row of text/) },
+  // The string "" MATLAB makes of '', "" and any empty char, written as a 1x0 char, which MATLAB
+  // loads as "" (S15, R2027a and R2023b).
+  { name: 'an empty char Value: string, written 1x0', of: param(), edits: [['Value', chr('')]], expect: ['set Dimensions double[1 2]:[1,1]', 'set Value char[1 0]:""', 'set DataType char[1 6]:"string"'] },
+  { name: 'an empty char of two rows: the same string, written 1x0', of: param(), edits: [['Value', chr('', [2, 0])]], expect: ['set Dimensions double[1 2]:[1,1]', 'set Value char[1 0]:""', 'set DataType char[1 6]:"string"'] },
   { name: 'a struct Value holding a char', of: param(), edits: [['Value', strct({ a: chr('x') })]], expect: ['set Dimensions double[1 2]:[1,1]', expect.stringMatching(/^set Value struct\[1 1\]/), 'set DataType char[1 6]:"struct"'] as unknown as string[] },
   { name: 'a struct Value holding an empty char', of: param(), edits: [['Value', strct({ a: chr('') })]], expect: refused('Value', /a struct holding a char that is empty, or not text/) },
   { name: 'an object Value', of: param(), edits: [['Value', v('Simulink.Signal', null, [1, 1], { isOpaque: true })]], expect: refused('Value', /a Simulink\.Signal/) },

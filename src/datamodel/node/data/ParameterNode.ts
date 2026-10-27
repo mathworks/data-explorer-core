@@ -16,7 +16,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString, zeroImaginaryAsRealValue } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
@@ -730,8 +730,9 @@ export default class ParameterNode extends DataNode {
             // (defect 42) exists for a 64-bit ENTRY, which knows its class; carried in
             // here it would be written to the dictionary as a JSON string and read back
             // as the char '18446744073709551615'.
-            // Not of a conversion, whose 64-bit integer is the one MATLAB keeps (classConversion).
-            const parsed = raw.cls !== undefined ? raw : collapseExact(raw);
+            // Not of a conversion, whose 64-bit integer is the one MATLAB keeps (classConversion). And a
+            // complex scalar whose imaginary part is 0 the real number MATLAB makes of it (`1+0i`).
+            const parsed = raw.cls !== undefined ? raw : collapseExact(zeroImaginaryAsRealValue(raw, stringValue));
             // MATLAB refuses a cell and a string ARRAY as Parameter.Value, both with
             // Simulink:Data:Param_Invalid_Value: the accepted text is a string SCALAR
             // (refusedAsValue). The string array was accepted, and written as an

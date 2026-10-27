@@ -193,6 +193,45 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect(element).toEqual({ Value: 'xyz' });
   });
 
+  // And its Complexity 'real', as MATLAB loads a Parameter whose Value is text whatever Complexity the
+  // file holds (R2027a and R2023b): 'complex' is what this package's save wrote for text typed over a
+  // complex Value, and the file opened again showed it beside the string.
+  it("shows a char row Value's Complexity real, as MATLAB loads it", () => {
+    const decoded: Record<string, unknown> = { Value: 'x', Complexity: 'complex', Dimensions: [1, 1] };
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'p', null, decoded)!;
+    expect(node.displayValue).toBe('"x"');
+    const shown = node.toRow().complexity as unknown;
+    expect(typeof shown === 'object' && shown ? (shown as { text?: string }).text : shown).toBe('real');
+    expect(decoded.Complexity).toBe('complex');
+    // An empty char, as a save writes "" or '' typed in, is the string "" MATLAB loads.
+    const empty = buildTypedNodeFromMcos('Simulink.Parameter', 'e', null, { Value: '', Complexity: 'complex', Dimensions: [1, 1] })!;
+    expect(empty.displayValue).toBe('""');
+    const emptyShown = empty.toRow().complexity as unknown;
+    expect(typeof emptyShown === 'object' && emptyShown ? (emptyShown as { text?: string }).text : emptyShown).toBe('real');
+    // A number's is its own, as MATLAB loads it, real or complex; an empty Value's the file's.
+    const complexity = (bag: Record<string, unknown>) => {
+      const c = buildTypedNodeFromMcos('Simulink.Parameter', 'q', null, bag)!.toRow().complexity as unknown;
+      return typeof c === 'object' && c ? (c as { text?: string }).text : c;
+    };
+    expect(complexity({ Value: [1, 2], Complexity: 'complex', Dimensions: [1, 2] })).toBe('real');
+    expect(complexity({ Value: { _type: 'int8', _value: '[1, 2]' }, Complexity: 'complex', Dimensions: [1, 2] })).toBe('real');
+    expect(complexity({ Value: { _type: 'cdata', _value: '1+2i 3+0i', _dimensions: [1, 2] }, Complexity: 'real', Dimensions: [1, 2] })).toBe('complex');
+    expect(complexity({ Value: [], Complexity: 'complex', Dimensions: [1, 2] })).toBe('complex');
+  });
+
+  // A DataType saved as 'auto' beside a Value of another class than double is the one MATLAB's load
+  // derives of it: what a binary dictionary's stream holds of a Parameter whose Value was typed as
+  // one, which no cell swap gives a DataType.
+  it("shows the DataType MATLAB loads beside a Value of another class than double", () => {
+    const dataType = (Value: unknown, DataType = 'auto') => {
+      const c = buildTypedNodeFromMcos('Simulink.Parameter', 'p', null, { Value, DataType, Complexity: 'real', Dimensions: [1, 1] })!.toRow().DataType as unknown;
+      return typeof c === 'object' && c ? (c as { text?: string }).text : c;
+    };
+    expect([dataType('abc'), dataType({ _type: 'int8', _value: '2' }), dataType(true), dataType({ _type: 'single', _value: '2.5' }), dataType(5)]).toEqual(['string', 'int8', 'boolean', 'single', 'auto']);
+    // One saved otherwise is the file's.
+    expect(dataType({ _type: 'int8', _value: '2' }, 'fixdt(1,16,4)')).toBe('fixdt(1,16,4)');
+  });
+
   // Defect 9. The adapter used to keep only `[dimensions[0], dimensions[1]]`, so a
   // 2x3x2 object array (MATLAB: `size(obj2x3x2)` is `[2 3 2]`, twelve elements)
   // announced itself as a 2x3 and then handed those two extents to the subscript

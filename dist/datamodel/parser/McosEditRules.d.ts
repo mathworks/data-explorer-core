@@ -1,9 +1,11 @@
 import type { MatVariable } from './MatParser.js';
 import type { McosEditRefusal } from './McosSubsystemEdit.js';
+import { type McosShapeKept } from './McosPropertyRules.js';
 /** One property an object holds a triple for, as the rules read it. */
 export interface McosHeld {
     refusal: McosEditRefusal | null;
     value: MatVariable | null;
+    text?: string;
 }
 /** An object of a subsystem, as the rules read it. */
 export interface McosObjectHeld {
@@ -61,7 +63,7 @@ export declare function valueMemberRefusal(value: MatVariable): string | null;
  * after each edit of its Value in turn, written in place of the one derived from the file's Value
  * and DataType, with the Value, or on its own where the edits typed the Value back to the file's.
  */
-export declare function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string, followed?: string): McosRulesResult;
+export declare function objectEditCells(held: McosObjectHeld, edits: readonly McosPropertyEdit[], path: string, followed?: string, kept?: McosShapeKept): McosRulesResult;
 /**
  * The DataType of the Simulink.Parameter `held` once its Value is `v`, as MATLAB's own `p.Value = v`
  * makes it over a Value of class `before` (the file's, where none is given) under DataType `dt`: the

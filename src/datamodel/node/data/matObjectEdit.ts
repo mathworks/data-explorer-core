@@ -41,7 +41,7 @@ import {
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
-import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, type McosObjectState } from './mcosObjectEdit.js';
+import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, shapeShown, type McosObjectState } from './mcosObjectEdit.js';
 import type { McosHeld } from '../../parser/McosEditRules.js';
 
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
@@ -757,7 +757,9 @@ export function matObjectStateOf(records: McosSubsystemRecords, node: BaseNode):
           ? flagReference(held)
           : scalar !== null
             ? doubleOf(scalar)
-            : held;
+            : object.rule.className === PARAMETER && !spot.nested && spot.property === 'DataType'
+              ? loadedDataTypeOf(object.rule, held) ?? held
+              : held;
     const v = spotValue(holder, spot.property);
     let exact: string | null = null;
     let asRead: MatVariable | null = null;
@@ -1489,7 +1491,9 @@ export function matObjectEditsOf(
   const targets: McosRuleTarget[] = [];
   for (const [nk, edits] of per) {
     const object = state.objects.get(nk)!;
-    targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}) });
+    // A Parameter's Complexity and Dimensions as its node shows them, which an empty Value keeps (McosRuleTarget.kept).
+    const kept = cls === PARAMETER && nk === '' ? shapeShown(node) : undefined;
+    targets.push({ key: object.path, object: object.rule, edits, ...(object.bus ? { bus: object.bus } : {}), ...(kept ? { kept } : {}) });
   }
   return { targets, strings };
 }
@@ -1534,6 +1538,18 @@ function valueUnchanged(state: MatObjectState, node: BaseNode): boolean {
 
 function valueClassOf(v: MatVariable | string | null | undefined): string | null {
   return v && typeof v !== 'string' ? (v.isLogical ? 'logical' : v.className) : null;
+}
+
+// The DataType MATLAB's load gives a Parameter that saved `saved` (none: 'auto', its class default)
+// beside its Value, where it is 'auto' and the Value of another class than double: the one the load
+// derives of it, as its node shows it (mcosShown.withParameterValueShown); null where it is the file's.
+function loadedDataTypeOf(rule: McosRuleObject, saved: MatVariable | null): MatVariable | null {
+  if (textIn(saved, 'auto') !== 'auto') {
+    return null;
+  }
+  const cls = valueClassOf(referenceOf(rule, 'Value'));
+  const derived = cls ? parameterDataTypeAfter('double', cls, 'auto') : 'auto';
+  return derived === 'auto' ? null : charOf(derived);
 }
 
 // The text of a char reference, or `otherwise`.
