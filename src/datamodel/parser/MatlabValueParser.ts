@@ -39,7 +39,7 @@ export function parseTyped(text: string): { parsed: ParsedValue } | { why: strin
         typedRead = outer;
     }
     if (parsed) {
-        return { parsed };
+        return { parsed: zeroImaginaryAsRealValue(parsed, text) };
     }
     const word = read.bareWord;
     if (word === null) {
@@ -400,6 +400,22 @@ const IMAGINARY_FIRST = new RegExp(
 function parseImaginaryFirst(str: string): ParsedValue | null {
     const m = IMAGINARY_FIRST.exec(str);
     return m ? { type: 'complex', value: formatComplexNum(complexPart(m[3], m[4]), complexPart(m[1], m[2])) } : null;
+}
+
+/**
+ * `parsed`, what the text `text` typed as a whole value reads as, but a complex scalar whose
+ * imaginary part is 0, which is the real double MATLAB makes of the literal (zeroImaginaryAsReal):
+ * `1+0i` is 1, `-0-0i` is -0, measured, R2027a and R2023b, as a variable, a field, a cell member, a
+ * Simulink.Parameter's Value and under a class kept (cast(1+0i, 'int8') is real). It was the complex
+ * 1+0i, saved so. Not of an element of a complex array, which stays complex, as MATLAB's
+ * z(2) = 1+0i leaves it.
+ */
+export function zeroImaginaryAsRealValue(parsed: ParsedValue, text: string): ParsedValue {
+    if (parsed.type !== 'complex' || Array.isArray(parsed.value)) {
+        return parsed;
+    }
+    const real = zeroImaginaryAsReal(text.trim());
+    return real === null ? parsed : { type: 'double', value: real };
 }
 
 // A complex literal whose imaginary part is zero, as the real double MATLAB makes of it, or

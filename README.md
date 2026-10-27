@@ -183,6 +183,10 @@ In every format, a value typed in is what MATLAB makes of the same assignment.
   leaves it.
 - An element of a logical array takes only `true`, `false`, 1 and 0, and an element of a
   numeric array no `true` or `false`. MATLAB converts both.
+- A complex number whose imaginary part is 0, typed as a whole value (`1+0i`, `-0-0i`), is the
+  real number MATLAB makes of the literal, under a class kept too; an element of a complex array
+  stays complex, as `z(2) = 1+0i` leaves it, and a value the file holds as `complex(1, 0)` keeps
+  it while its text is not changed.
 
 ### A MAT-file
 

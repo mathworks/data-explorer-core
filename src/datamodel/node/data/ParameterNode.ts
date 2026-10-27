@@ -8,7 +8,7 @@ import type BaseNode from '../BaseNode.js';
 import { sourceFollowedProperty, sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { binaryEmptyForm, formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
+import { binaryEmptyForm, formatLiteralNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -16,7 +16,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString, zeroImaginaryAsRealValue } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
@@ -730,8 +730,9 @@ export default class ParameterNode extends DataNode {
             // (defect 42) exists for a 64-bit ENTRY, which knows its class; carried in
             // here it would be written to the dictionary as a JSON string and read back
             // as the char '18446744073709551615'.
-            // Not of a conversion, whose 64-bit integer is the one MATLAB keeps (classConversion).
-            const parsed = raw.cls !== undefined ? raw : collapseExact(raw);
+            // Not of a conversion, whose 64-bit integer is the one MATLAB keeps (classConversion). And a
+            // complex scalar whose imaginary part is 0 the real number MATLAB makes of it (`1+0i`).
+            const parsed = raw.cls !== undefined ? raw : collapseExact(zeroImaginaryAsRealValue(raw, stringValue));
             // MATLAB refuses a cell and a string ARRAY as Parameter.Value, both with
             // Simulink:Data:Param_Invalid_Value: the accepted text is a string SCALAR
             // (refusedAsValue). The string array was accepted, and written as an
@@ -848,11 +849,12 @@ export default class ParameterNode extends DataNode {
                     const rowStrs: string[] = [];
                     for (let r = 0; r < rows; r++) {
                         const vals: string[] = [];
-                        // formatMatlabNum, not String: the parser accepts 'Inf'/'NaN' and
+                        // formatLiteralNum, not String: the parser accepts 'Inf'/'NaN' and
                         // hands back the real non-finite numbers, whose JavaScript spelling
                         // ('Infinity') is not a MATLAB literal and is one our own parser
-                        // rejects — so String() here would make the value uneditable.
-                        for (let c = 0; c < cols; c++) { vals.push(formatMatlabNum((parsed.value as number[])[r * cols + c])); }
+                        // rejects — so String() here would make the value uneditable. And a
+                        // -0 keeps its sign, which String() drops.
+                        for (let c = 0; c < cols; c++) { vals.push(formatLiteralNum((parsed.value as number[])[r * cols + c])); }
                         rowStrs.push('[' + vals.join(', ') + ']');
                     }
                     rawValue = { _type: 'double', _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n') };

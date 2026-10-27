@@ -33,7 +33,7 @@ import { classPhrase, classRefusal, emptyDimsHeldForm, encodeMatStream, MatBudge
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { admitRows, buildApart, buildUncut } from './matNodeCeiling.js';
-import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, shownComplexText, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, binaryEmptyForm, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, shownComplexText, formatMatlabNum, formatLiteralNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, binaryEmptyForm, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -3836,7 +3836,7 @@ export default class MatlabVariableNode extends DataNode {
         const d = effectiveDims(this._dims);
         const isRow = d.length <= 2 && d[0] === 1;
         if (isRow && elems.some((v) => typeof v === 'number' && !isFinite(v))) {
-            return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
+            return { _type: 'double', _value: '[' + elems.map(formatLiteralNum).join(', ') + ']' };
         }
         // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
         // written that way read back as a 1xN — and because the children are row-major

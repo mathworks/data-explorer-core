@@ -221,6 +221,17 @@ export function formatMatlabNum(num: unknown): string {
     return String(num);
 }
 
+/**
+ * A double as a typed literal holds it, in the text of `{"_type": "double", "_value": ...}`: as
+ * formatMatlabNum spells it, but -0 as `-0.0`, as MATLAB writes it there (measured, R2027a:
+ * [NaN Inf -0] is `[NaN, Inf, -0.0]` in a text dictionary, and reads back -0, as it does from a
+ * binary one). String(-0) is '0', and a Parameter's Value [NaN Inf -0], written from that text,
+ * lost the sign in either format.
+ */
+export function formatLiteralNum(num: unknown): string {
+    return Object.is(num, -0) ? '-0.0' : formatMatlabNum(num);
+}
+
 // One complex element as this package spells it: `3+4i`, `1-2i`, `0+5i`, `3+0i`. Each
 // part as formatMatlabNum spells it, and between them the imaginary part's own sign, or
 // '+' when `im >= 0`. It is also how an element read out of MAT bytes is spelled, a plain
