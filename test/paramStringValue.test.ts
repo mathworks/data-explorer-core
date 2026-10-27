@@ -57,7 +57,7 @@ function subsystemOf(bytes: Uint8Array): Uint8Array {
 // What the Parameter at `path` shows: its Value and the columns its Value sets.
 const columns = (root: any, path: string) => Object.fromEntries(['Value', 'DataType', 'dimensions', 'complexity'].map((k) => [k, shownCell(nodeAt(root, path), k)]));
 
-const PARAMETERS: [string, string][] = [['pStr', '"abc"'], ['sHolds.p', '"in a struct"'], ['cHolds{1}', '"in a cell"']];
+const PARAMETERS: [string, string][] = [['pStr', '"abc"'], ['pEmpty', '""'], ['sHolds.p', '"in a struct"'], ['cHolds{1}', '"in a cell"']];
 
 describe.each(RELEASES)('a Parameter whose Value MATLAB %s saved as a string', (rel) => {
   const file = `r${rel}/param_string.mat`;
@@ -91,12 +91,9 @@ describe.each(RELEASES)('a Parameter whose Value MATLAB %s saved as a string', (
         expect(records.subsystem.blob.objects.length).toBe(before.subsystem.blob.objects.length);
         expect(records.subsystem.values.filter((c) => readDescriptor(c)).length).toBe(before.subsystem.values.filter((c) => readDescriptor(c)).length);
       }
-      // And it takes another edit, opened again: but "", which the rules write no char of yet (S15
-      // of the 2026-10-26 edit bash: "a char that is not one row of text", as pEmpty is refused).
-      if (text !== '""') {
-        expect(typeInto(again, path, '"again"')).toBe(true);
-        expect(shownCell(nodeAt(opened(saved(again)).root, path), 'Value')).toBe('"again"');
-      }
+      // And it takes another edit, opened again.
+      expect(typeInto(again, path, '"again"')).toBe(true);
+      expect(shownCell(nodeAt(opened(saved(again)).root, path), 'Value')).toBe('"again"');
     });
 
     it.each([
