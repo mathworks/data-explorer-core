@@ -2,7 +2,7 @@
 import { mcosPlaceOf } from '../mcosPlace.js';
 import { MatWriteError, classPhrase } from '../../parser/MatWriter.js';
 import { variableDifference } from '../../parser/MatFileWriter.js';
-import { objectIdOf } from '../../parser/McosSubsystemEdit.js';
+import { objectIdOf, valueCellOf } from '../../parser/McosSubsystemEdit.js';
 import { isObjectHandle } from '../../parser/McosHandle.js';
 import { McosValueKind, isHandleOpaque, measuredVersion, propertiesOf, readDescriptor, cloneSubsystem, replaceValueCell, stringObjectOf, stringPayloadCell, } from '../../parser/McosSubsystemCodec.js';
 import { elementValue } from '../../parser/McosObjectWrite.js';
@@ -507,6 +507,34 @@ function sharedBy(records, id) {
     }
     return (counts.get(id) ?? 0) > 1 ? 'another object holds' : undefined;
 }
+/**
+ * The string the Value of Parameter `objectId` is, as MATLAB saves `p.Value = "abc"`: its Value
+ * cell a reference to one `string` object of the file, a 1x1 one, whose payload holds its text; or
+ * null for any other Value, and for one an edit could not write alone: a string another reference
+ * names too, or whose cell or payload another triple names.
+ */
+function parameterStringValue(records, objectId) {
+    const t = propertiesOf(records, objectId).find((p) => p.savedName === 'Value' && p.flag === McosValueKind.cell);
+    const ids = t && records.values[t.value] ? readDescriptor(records.values[t.value])?.ids : undefined;
+    if (!t || !ids || ids.length !== 1 || ids[0] < 1 || ids[0] >= records.blob.objects.length || sharedBy(records, ids[0]) || cellUsers(records, t.value) !== 1) {
+        return null;
+    }
+    const held = stringObjectOf(records, ids[0]);
+    if (!held || held.dims.length !== 2 || held.dims[0] !== 1 || held.dims[1] !== 1 || typeof held.texts[0] !== 'string' || cellUsers(records, held.valueIndex) !== 1) {
+        return null;
+    }
+    return { objectId: ids[0], payload: held.valueIndex, cell: t.value, text: held.texts[0] };
+}
+// The text a char row holds (`''` of a 1x0 or 0x0), or null for any other value.
+function textOfRow(v) {
+    const d = v.dimensions ?? [];
+    const text = typeof v.value === 'string' ? v.value : v.value === null || v.value === undefined ? '' : null;
+    return v.className === 'char' && !v.isComplex && d.length === 2 && (d[0] === 1 || d[0] * d[1] === 0) && text !== null ? text : null;
+}
+// Text as a node's Value holds it for a save (a char row, `''` a 1x0), the variable it is compared with.
+function textRowOf(text) {
+    return { name: '', className: 'char', dimensions: [1, text.length], isComplex: false, isLogical: false, value: text, fields: null };
+}
 /** The bus element rows of a Bus's node, in order. */
 function elementRows(node) {
     return node.children.filter((c) => classOf(c) === BUS_ELEMENT);
@@ -539,6 +567,13 @@ export function matObjectStateOf(records, node) {
     const cls = own.className;
     if (cls !== classOf(node)) {
         return path + ' is shown as ' + classPhrase(classOf(node)) + ", where the file's object is " + classPhrase(cls);
+    }
+    // A Parameter's Value MATLAB saved as a string, an object of the file its Value cell names: read
+    // as the text, as its node holds it (a char row, as a save of this package writes text), by the
+    // editor and by the rules, whose DataType a number set over it follows ('string' to 'auto').
+    const valueString = cls === PARAMETER ? parameterStringValue(records, objectId) ?? undefined : undefined;
+    if (valueString) {
+        own = { ...own, held: new Map(own.held).set('Value', { kind: 'cell', value: textRowOf(valueString.text) }) };
     }
     const objects = new Map([['', { objectId, rule: own, path }]]);
     const spots = new Map();
@@ -691,6 +726,7 @@ export function matObjectStateOf(records, node) {
         objects,
         spots,
         payload,
+        valueString,
         elementRows: heldRows,
         valueAsRead: cls === PARAMETER && spots.get('Value')?.exact === null ? heldValueVariable(node) ?? undefined : undefined,
     };
@@ -1242,6 +1278,23 @@ export function matObjectEditsOf(state, node, pending, more) {
         strings.push({ objectId: state.objectId, valueIndex: state.payload, texts: text.value.value, dims: text.value.dimensions.slice() });
         per.delete('');
     }
+    // A Parameter's Value MATLAB saved as a string, typed as text again: the string's payload, as
+    // MATLAB's own save of `p.Value = "xyz"` writes it, its Value cell, Dimensions [1 1], Complexity
+    // and DataType 'string' as they were (measured, R2027a and R2023b: the two saves differ in that
+    // payload alone).
+    const ownEdits = state.valueString ? per.get('') : undefined;
+    const typed = ownEdits?.find((e) => e.property === 'Value');
+    const typedText = typed ? textOfRow(typed.value) : null;
+    if (typedText !== null) {
+        strings.push({ objectId: state.valueString.objectId, valueIndex: state.valueString.payload, texts: [typedText], dims: [1, 1] });
+        const rest = ownEdits.filter((e) => e !== typed);
+        if (rest.length > 0) {
+            per.set('', rest);
+        }
+        else {
+            per.delete('');
+        }
+    }
     const targets = [];
     for (const [nk, edits] of per) {
         const object = state.objects.get(nk);
@@ -1470,12 +1523,16 @@ export function matObjectSubsystemEdit(records, nodes, stateOf, entryOf, more) {
     // By object id, and an object a 'handle' opaque holds by its holder's and the property it is.
     const byObject = new Map();
     const strings = new Map();
+    const valueStrings = new Map();
     for (const node of nodes) {
         const state = stateOf(node);
         if (typeof state === 'string') {
             refuse(node, state);
         }
         const s = state;
+        if (s.valueString) {
+            valueStrings.set(s.objectId, s.valueString);
+        }
         const unruled = matClassRefusal(s, node);
         if (unruled) {
             refuse(node, unruled);
@@ -1514,10 +1571,24 @@ export function matObjectSubsystemEdit(records, nodes, stateOf, entryOf, more) {
         return refuse(at?.edits.get(plan.property)?.node ?? at?.node ?? nodes[0], plan.message);
     }
     const byKey = new Map([...byObject.values()].map((o) => [o.target.key, o]));
+    // A Parameter's Value MATLAB saved as a string, set to a value of another class: its Value cell,
+    // which named the string, swapped for the value's, and the string's object left in the file,
+    // named by nothing, as the codec leaves a cell or an object no edit names any more (its APPEND
+    // ONLY). MATLAB's own save drops the object and renumbers the ones after it; this one loads as it
+    // (measured, R2027a and R2023b).
+    const unstrung = [];
     const objects = plan.objects
-        .map((o) => ({ objectId: byKey.get(o.key).objectId, ops: o.ops, ...(byKey.get(o.key).handleOf ? { handleOf: byKey.get(o.key).handleOf } : {}) }))
+        .map((o) => {
+        const objectId = byKey.get(o.key).objectId;
+        const handleOf = byKey.get(o.key).handleOf;
+        const value = !handleOf && valueStrings.has(objectId) ? o.ops.find((op) => op.op === 'set' && op.kind === 'cell' && op.savedName === 'Value') : undefined;
+        if (value && value.op === 'set' && value.kind === 'cell') {
+            unstrung.push({ objectId, value: value.value });
+        }
+        return { objectId, ops: value ? o.ops.filter((op) => op !== value) : o.ops, ...(handleOf ? { handleOf } : {}) };
+    })
         .filter((o) => o.ops.length > 0);
-    if (objects.length === 0 && strings.size === 0 && !more?.has) {
+    if (objects.length === 0 && strings.size === 0 && unstrung.length === 0 && !more?.has) {
         return null;
     }
     // What this package could not write, said of the edits it was asked for, the detail after.
@@ -1534,11 +1605,18 @@ export function matObjectSubsystemEdit(records, nodes, stateOf, entryOf, more) {
         }
         throw e;
     }
-    // A string's payload is the one argument its object is saved with ('any').
-    const payloadObjects = payloads.map((p) => ({ objectId: p.objectId, properties: ['any'] }));
+    // A string's payload is the one argument its object is saved with ('any'); and the Value cells
+    // swapped above, written beside the rules' ops.
+    const payloadObjects = [
+        ...payloads.map((p) => ({ objectId: p.objectId, properties: ['any'] })),
+        ...unstrung.map((u) => ({ objectId: u.objectId, properties: ['Value'] })),
+    ];
     const written = writeObjectEdits(records, objects, (sub) => {
         for (const { valueIndex, cell } of payloads) {
             replaceValueCell(sub, valueIndex, cell);
+        }
+        for (const { objectId, value } of unstrung) {
+            replaceValueCell(sub, valueStrings.get(objectId).cell, valueCellOf(value), { objectReference: true });
         }
         more?.edit(sub);
     }, payloadObjects, 
@@ -1547,8 +1625,11 @@ export function matObjectSubsystemEdit(records, nodes, stateOf, entryOf, more) {
     if (!written.ok) {
         return unwritten(written.message);
     }
-    const cells = payloads.map((e) => ({ objectId: e.objectId, cellIndex: e.valueIndex + 2, savedName: 'any', value: elementValue(e.cell) }));
-    let swapOnly = !more?.has && payloads.length === 0;
+    const cells = [
+        ...payloads.map((e) => ({ objectId: e.objectId, cellIndex: e.valueIndex + 2, savedName: 'any', value: elementValue(e.cell) })),
+        ...unstrung.map((u) => ({ objectId: u.objectId, cellIndex: valueStrings.get(u.objectId).cell + 2, savedName: 'Value', value: u.value })),
+    ];
+    let swapOnly = !more?.has && payloads.length === 0 && unstrung.length === 0;
     for (const { objectId, ops, handleOf } of objects) {
         // A 'handle' opaque's edits are of its own small blob: its holder's cell swapped whole.
         if (handleOf) {

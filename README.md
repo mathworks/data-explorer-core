@@ -240,6 +240,10 @@ that holds the object as it was read. The cells MATLAB's own edit of the propert
 changes go with it: a resized Value's Dimensions, and the DataType MATLAB derives
 from a Value of another class (a double typed over a `single` Parameter makes its
 DataType `auto`, as `p.Value = 7` does, and the Data Type column shows it at once).
+A Parameter's Value MATLAB saved as a string (`p.Value = "abc"`), an object of the
+file, takes text typed into that string, written as MATLAB's own save of the new
+text writes it, and any other value in its place, the string staying among the
+objects, which MATLAB loads with no warning.
 It refuses what MATLAB would load as something else, or warn of on every load: a
 Min above its Max, a bound or a double Value outside the range of a builtin
 DataType, a property at its class default (the file holds no value for it), a
