@@ -18,7 +18,7 @@
 //     after the cost.
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { MAX_SCAN_BYTES, scanVersionOf } from '../folder/scanVersion.js';
-import type { SourceFile, SourceReader } from '../folder/sourceCache.js';
+import type { SourceFile, SourceReader } from '../folder/sourceReader.js';
 import { readProjectStore, type StoreEntry, type StoreFs } from '../folder/projectStore.js';
 
 export interface NodeSourceReaderOptions {
