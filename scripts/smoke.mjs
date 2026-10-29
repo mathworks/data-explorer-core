@@ -201,7 +201,13 @@ if (JSON.stringify(kindsGraph) !== JSON.stringify(['datamodel/fileKinds.js', 'fi
 // sandboxed page), so the one thing it must not do is reach the data model. The list below is
 // the whole closure; test/nodeFolderEntry.test.ts holds the same line over src/.
 const folderMod = await import('data-explorer-core/node/folder');
-const folderFns = ['listFolder', 'nodeSourceReader', 'readProjectStoreFromDisk', 'skipDirectory'];
+const folderFns = [
+  'listFolder',
+  'nodeSourceReader',
+  'readProjectStoreFromDisk',
+  'skipDirectory',
+  'watchFolder',
+];
 const badFolderFns = folderFns.filter(
   (name) => typeof folderMod[name] !== 'function' || folderMod[name] !== nodeMod[name],
 );
@@ -217,6 +223,7 @@ const FOLDER_CLOSURE = [
   'node/folder.js',
   'node/folderReads.js',
   'node/listFolder.js',
+  'node/watchFolder.js',
 ];
 if (JSON.stringify(folderGraph) !== JSON.stringify(FOLDER_CLOSURE)) {
   console.error('SMOKE FAIL — node/folder subpath reaches beyond its modules:', folderGraph.join(', '));

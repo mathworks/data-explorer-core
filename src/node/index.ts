@@ -134,3 +134,10 @@ export {
   type ListFolderOptions,
   type FolderListing,
 } from './listFolder.js';
+// And the watch that says when to list or read again, with the listing's rules.
+export {
+  watchFolder,
+  WATCH_DEBOUNCE_MS,
+  type WatchFolderOptions,
+  type FolderWatch,
+} from './watchFolder.js';

@@ -16,6 +16,7 @@ import { readModuleGraph, describeEdges, type ModuleEdge } from './tools/moduleG
 import * as entry from '../src/node/folder.js';
 import * as reads from '../src/node/folderReads.js';
 import * as listing from '../src/node/listFolder.js';
+import * as watching from '../src/node/watchFolder.js';
 import * as nodeEntry from '../src/node/index.js';
 
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
@@ -63,6 +64,7 @@ describe('the node/folder entry', () => {
       'node/folder.ts',
       'node/folderReads.ts',
       'node/listFolder.ts',
+      'node/watchFolder.ts',
     ]);
   });
 
@@ -85,7 +87,9 @@ describe('the node/folder entry', () => {
   it('publishes every export of the modules it fronts', () => {
     // The entry lists its names rather than `export *`; a function added to either module is a
     // decision to publish, and this is where it is forced.
-    expect(Object.keys(entry).sort()).toEqual([...Object.keys(reads), ...Object.keys(listing)].sort());
+    expect(Object.keys(entry).sort()).toEqual(
+      [...Object.keys(reads), ...Object.keys(listing), ...Object.keys(watching)].sort(),
+    );
   });
 
   it('hands out the ./node entry’s own values, not copies of them', () => {
