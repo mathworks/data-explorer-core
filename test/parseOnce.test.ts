@@ -24,10 +24,10 @@
 // shape they do not produce.
 //
 // These came here from the vscode extension with the cache, as did the core half of its
-// tabRoute.test.ts (the last block below). Its cases that ask a usage PLAN which models to
-// summarise — a dictionary's chain reaching its model, a model outside the scope — are about the
-// scope rather than the cache, and moved with the plan; here a folder pass is the two tiers the
-// plan runs, with the wanted set written out (`summarise`).
+// tabRoute.test.ts. Where a case only needs a folder pass, it is the two tiers a usage plan runs
+// with the wanted set written out (`summarise`); the cases that ask the PLAN which models to
+// summarise — a dictionary's chain reaching its model, a model outside the scope — call
+// `planSummaries` itself, and came with it (the block after the tab route).
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,6 +38,7 @@ import {
   newSourceCache,
   parsedModelForOpenTab,
   parsedModelOf,
+  planSummaries,
   type Session,
   type SourceCache,
   type SourceFile,
@@ -359,4 +360,74 @@ describe('a model tab registers the very parse the cache holds', () => {
       expect(rows(node).length).toBeGreaterThan(0);
     });
   }
+});
+
+// The cases that need the usage PLAN to decide which models to summarise. A model outside the
+// opened file's scope must not be parsed for it, and a model reached from a dictionary's chain is
+// parsed once whichever opens first: these are the scope rule and the cache agreeing.
+describe('the usage plan parses what its scope names, once', () => {
+  it('parses a model NOT in the opened model’s scope zero times', async () => {
+    // The scope rule this must not undo: a model resolves through its own chain, so another
+    // model in the folder is never parsed for it. It is versioned and cheaply scanned only.
+    const cache = newSourceCache();
+    await openTab(cache, MODEL);
+    await planSummaries(cache, reader, FILES, MODEL.uriString);
+    expect([...cache.parsed.keys()]).toEqual([MODEL.uriString]);
+  });
+
+  it('is one parse across opening a dictionary and then its model, not one each', async () => {
+    // The reported case. Opening `chain_leaf.sldd` has to summarise `chain_model.slx` to answer
+    // "what uses ChainVar" — a full parse, on the dictionary's behalf. Opening the model next then
+    // parsed the same bytes again for its rows.
+    const cache = newSourceCache();
+
+    await planSummaries(cache, reader, FILES, LEAF.uriString);
+    const afterDict = ledger(cache);
+    expect(parsedBetween(new Map(), afterDict)).toEqual([MODEL.uriString]);
+    const held = cache.parsed.get(MODEL.uriString) as { parsed: any };
+
+    reads = [];
+    const node = await openTab(cache, MODEL);
+
+    // Nothing parsed, and nothing read either: the tab's own read is skipped on a hit, so a
+    // 13.8 MB model already parsed for a dictionary costs a `stat`.
+    expect(parsedBetween(afterDict, ledger(cache))).toEqual([]);
+    expect(reads).toEqual([]);
+    // And the rows really came from that parse rather than from a fresh one.
+    expect(node.rawContents).toBe(held.parsed.rawContents);
+    expect(rows(node).length).toBeGreaterThan(0);
+  });
+
+  it('registers nothing in a session for a model parsed on a dictionary’s behalf', async () => {
+    // Retaining a parse is not registering it. A model reachable from an opened dictionary is
+    // parsed, and its tree stays unbuilt until a TAB asks for it — otherwise the registry holds
+    // nodes `findNodeById` resolves selections into with no view to show them.
+    const cache = newSourceCache();
+    await planSummaries(cache, reader, FILES, LEAF.uriString);
+    expect(cache.parsed.has(MODEL.uriString)).toBe(true);
+    expect(session.hasDataSource(MODEL.uriString)).toBe(false);
+  });
+
+  it('parses a shared model once when two restored tabs plan their usage at the same time', async () => {
+    // A host that dedups usage builds by the file being VIEWED (the vscode host does) runs two
+    // whole-folder passes for two files open in two editor groups, and both scope
+    // `chain_model.slx` — one because it IS the file, one because the chain from
+    // `chain_leaf.sldd` reaches it. Restoring such a window starts them together.
+    const cache = newSourceCache();
+    const [forModel, forLeaf] = await Promise.all([
+      planSummaries(cache, reader, FILES, MODEL.uriString),
+      planSummaries(cache, reader, FILES, LEAF.uriString),
+    ]);
+
+    // Two reads of the model across BOTH passes — one for the cheap tier's structure and one for
+    // the parse, which is what a single pass costs. Four is what two independent passes cost.
+    expect(modelReads().filter((p) => p === MODEL.path).length).toBe(2);
+    expect(parsedBetween(new Map(), ledger(cache))).toEqual([MODEL.uriString]);
+    // And both plans are answering out of that one parse, not out of one each.
+    const parsed = (cache.parsed.get(MODEL.uriString) as { parsed: any }).parsed;
+    const planned = (s: Awaited<ReturnType<typeof planSummaries>>): any =>
+      s.models.find((m) => m.srcId === MODEL.uriString);
+    expect(planned(forModel).masks).toBe(parsed.masks);
+    expect(planned(forLeaf).masks).toBe(parsed.masks);
+  });
 });

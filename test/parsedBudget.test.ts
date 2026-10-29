@@ -22,10 +22,10 @@
 // Over real fixture bytes, like every other test of this cache: the artifacts are the parsers'
 // output, and a stub would let this agree with the cache about a shape they do not produce.
 //
-// These came here from the vscode extension with the cache, less two cases that compare a
-// consumer's answer rather than the cache's: the name index's records stay with its name scan in
-// that host, and the usage plan's summaries go with the plan. Where a case here needs a folder
-// pass, it is the two tiers a usage plan runs, with every model wanted.
+// These came here from the vscode extension with the cache, less one case that compares a
+// consumer's answer rather than the cache's: the name index's records, which stay with that
+// host's name scan. Where a case here needs a folder pass, it is the two tiers a usage plan runs,
+// with every model wanted; the case about the plan's own answer calls `planSummaries`.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,6 +41,7 @@ import {
   parsedModelForOpenTab,
   parsedModelOf,
   parsedRetainedBytes,
+  planSummaries,
   type Session,
   type SourceCache,
   type SourceFile,
@@ -250,6 +251,30 @@ describe('an eviction costs a re-derive and changes no answer', () => {
     // Non-vacuous: the starved run re-read and re-parsed the model the roomy one still had.
     expect(roomyReads).toBe(1);
     expect(readsOf(SMALL)).toBe(2);
+  });
+
+  it('gives the usage plan the same summaries from a starved cache as from a roomy one', async () => {
+    const roomy = newSourceCache();
+    const starved = newSourceCache((await estimates([SMALL]))[0]);
+    // Unscoped, so every model in the folder is summarised and there are six parses in one pass
+    // for the budget to bite on. The version bump is what makes the SECOND pass re-parse — the
+    // `models` tier would otherwise shield it, since a summary once taken is never re-taken.
+    const planTwice = async (cache: SourceCache): Promise<unknown[]> => {
+      const first = await planSummaries(cache, reader, FILES, null);
+      for (const f of MODELS) stamp.set(f.path, `v2:${f.path}`);
+      const second = await planSummaries(cache, reader, FILES, null);
+      for (const f of MODELS) stamp.set(f.path, `v1:${f.path}`);
+      return [first, second];
+    };
+
+    const before = await planTwice(roomy);
+    const after = await planTwice(starved);
+
+    expect(after).toEqual(before);
+    expect((before[0] as { models: unknown[] }).models.length).toBe(MODELS.length);
+    // Non-vacuous: the roomy cache still holds every parse, the starved one holds one.
+    expect(roomy.parsed.size).toBe(MODELS.length);
+    expect(starved.parsed.size).toBe(1);
   });
 
   it('re-derives a model whose entry was evicted, with no error and no empty answer', async () => {

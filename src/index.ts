@@ -436,6 +436,16 @@ export type {
   SourceCache,
 } from './folder/sourceCache.js';
 
+// The Usage answer for ONE file without summarising the folder. A usage edge can only start in
+// a model, and a model resolves through its own chain, so the files that can change one file's
+// answer are the models whose chain reaches it plus those models' chains. `usageScope` is that
+// arithmetic over each file's cheap relationships (`ChainSource`). It keeps every file sharing a
+// needed basename and the whole chain of every needed model, so the scoped answer equals the
+// whole folder's. `planSummaries` runs it through the cache: cheap tier for every file, full parse
+// only for the scoped models, then the merge `buildUsageIndexFromSummaries` takes.
+export { usageScope, type ChainSource, type ChainKind } from './datamodel/usage/usageScope.js';
+export { planSummaries } from './folder/usagePlan.js';
+
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';
 export type { NodeDTO, PropDTO, SourceDTO, ToDTOOptions } from './core/dto.js';
