@@ -167,7 +167,9 @@ if (badKindFns.length > 0 || !Array.isArray(kindsMod.SUPPORTED_EXTS)) {
 }
 const { readFileSync } = await import('node:fs');
 const { fileURLToPath } = await import('node:url');
-const reachedFrom = (entryUrl) => {
+// `builtins` says whether a `node:` import is allowed: never for an entry a browser may load,
+// and for a Node-only entry, the whole of what it may import from outside this package.
+const reachedFrom = (entryUrl, { builtins = false } = {}) => {
   const seen = new Set();
   const queue = [entryUrl];
   while (queue.length > 0) {
@@ -178,8 +180,9 @@ const reachedFrom = (entryUrl) => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
     for (const [, spec] of code.matchAll(/\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+      if (builtins && spec.startsWith('node:')) continue;
       if (!spec.startsWith('.')) {
-        console.error(`SMOKE FAIL — fileKinds subpath imports "${spec}" (from ${url.pathname})`);
+        console.error(`SMOKE FAIL — ${entryUrl.pathname} reaches "${spec}" (from ${url.pathname})`);
         process.exit(1);
       }
       queue.push(new URL(spec, url));
@@ -193,10 +196,38 @@ if (JSON.stringify(kindsGraph) !== JSON.stringify(['datamodel/fileKinds.js', 'fi
   process.exit(1);
 }
 
+// The folder subpath, the same way: by package name, and its BUILT graph walked. It is for the
+// process that lists and reads a folder and parses none of it (an Electron main process serving a
+// sandboxed page), so the one thing it must not do is reach the data model. The list below is
+// the whole closure; test/nodeFolderEntry.test.ts holds the same line over src/.
+const folderMod = await import('data-explorer-core/node/folder');
+const folderFns = ['listFolder', 'nodeSourceReader', 'readProjectStoreFromDisk', 'skipDirectory'];
+const badFolderFns = folderFns.filter(
+  (name) => typeof folderMod[name] !== 'function' || folderMod[name] !== nodeMod[name],
+);
+if (badFolderFns.length > 0 || typeof folderMod.nodeStoreFs?.list !== 'function') {
+  console.error('SMOKE FAIL — node/folder subpath missing, or not ./node’s own:', badFolderFns.join(', '));
+  process.exit(1);
+}
+const folderGraph = reachedFrom(new URL('../dist/node/folder.js', import.meta.url), { builtins: true });
+const FOLDER_CLOSURE = [
+  'datamodel/fileKinds.js',
+  'folder/projectStore.js',
+  'folder/scanVersion.js',
+  'node/folder.js',
+  'node/folderReads.js',
+  'node/listFolder.js',
+];
+if (JSON.stringify(folderGraph) !== JSON.stringify(FOLDER_CLOSURE)) {
+  console.error('SMOKE FAIL — node/folder subpath reaches beyond its modules:', folderGraph.join(', '));
+  process.exit(1);
+}
+
 console.log(
   `OK: dist/index.js loads under native ESM; ${requiredFns.length + 1} exports present, ` +
     `createSession() shape valid with ${requiredSessionFns.length} query/link/row methods; ` +
     `${warningChecks.length} readers report warnings as an array; ` +
     `/node subpath resolves with ${requiredNodeFns.length} loaders; ` +
-    `/fileKinds subpath resolves to ${kindsGraph.length} modules`,
+    `/fileKinds subpath resolves to ${kindsGraph.length} modules; ` +
+    `/node/folder subpath resolves to ${folderGraph.length} modules and node: builtins`,
 );

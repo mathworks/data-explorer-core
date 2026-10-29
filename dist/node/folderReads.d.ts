@@ -1,4 +1,4 @@
-import type { SourceFile, SourceReader } from '../folder/sourceCache.js';
+import type { SourceFile, SourceReader } from '../folder/sourceReader.js';
 import { type StoreFs } from '../folder/projectStore.js';
 export interface NodeSourceReaderOptions {
     /**

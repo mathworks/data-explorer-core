@@ -40,6 +40,10 @@
     "./fileKinds": {
       "types": "./dist/fileKinds.d.ts",
       "default": "./dist/fileKinds.js"
+    },
+    "./node/folder": {
+      "types": "./dist/node/folder.d.ts",
+      "default": "./dist/node/folder.js"
     }
   },
   "files": [

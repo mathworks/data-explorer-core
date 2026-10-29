@@ -111,4 +111,7 @@ export function loadDirectory(session, dir, skipped) {
 // a project's definition walked off disk. The rules they serve live in the main barrel
 // (`sourceCache`, `readProjectStore`); these are the filesystem half. See folderReads.ts.
 export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, } from './folderReads.js';
+// And the folder listing those reads start from. All of these are on `./node/folder` as well,
+// without this entry's data model, for a process that lists and reads but parses nothing.
+export { listFolder, skipDirectory, FOLDER_FILE_LIMIT, } from './listFolder.js';
 //# sourceMappingURL=index.js.map

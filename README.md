@@ -61,6 +61,17 @@ only needs to ask (an Electron main process filtering an Open dialog):
 import { isSupportedPath, SUPPORTED_EXTS } from 'data-explorer-core/fileKinds';
 ```
 
+A process that lists and reads a folder for something else to parse (an
+Electron main process serving a sandboxed page) has the same: the folder walk,
+the source cache's reader and the project-store walk over `node:fs`, without the
+data model:
+
+```js
+import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+
+const { files, truncated } = await listFolder(root); // supported files, in a stable order
+```
+
 ## Saving a file
 
 `session.serializeSource(srcId)` answers a file in the form it arrived in: a

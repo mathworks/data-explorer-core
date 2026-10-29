@@ -28,4 +28,5 @@ export declare function loadFromPath(session: Session, path: string): ISourceNod
  */
 export declare function loadDirectory(session: Session, dir: string, skipped?: ParseWarning[]): ISourceNode[];
 export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, type NodeSourceReaderOptions, } from './folderReads.js';
+export { listFolder, skipDirectory, FOLDER_FILE_LIMIT, type ListFolderOptions, type FolderListing, } from './listFolder.js';
 //# sourceMappingURL=index.d.ts.map
