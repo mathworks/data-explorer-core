@@ -24,6 +24,7 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  isProjectFile,
   parseProject,
   projectFallbackName,
   readProjectStore,
@@ -283,6 +284,109 @@ describe('the walk, over whatever filesystem a host supplies', () => {
         'resources/project/b.xml',
         'resources/project/root/pointer.xml',
       ]);
+    });
+  });
+});
+
+// The walk reads BESIDE the path it is given, so it reads nothing for a path that is not a
+// project marker: a host that asked for the store of any file it listed (a page serving its
+// folder may) would otherwise walk a model folder's `resources/project/`, or read a stray file as
+// a project. The test is the package's own `isProjectFile`, and these hold the walk to it.
+describe('only a project marker is read', () => {
+  /** A `StoreFs` that answers nothing and counts every call it is asked. */
+  const counting = (): { fs: StoreFs; calls: () => number } => {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      fs: {
+        readText: async () => {
+          calls++;
+          return '';
+        },
+        list: async () => {
+          calls++;
+          return [];
+        },
+      },
+    };
+  };
+
+  it('answers {} for any other file, or a directory, without a single read', async () => {
+    for (const path of [
+      '/w/P/model.slx',
+      '/w/P/params.sldd',
+      '/w/P/notes.txt',
+      '/w/P/Cargo.toml',
+      '/w/P/matlab.toml.bak',
+      '/w/P',
+      '/w/P/',
+      'C:\\w\\P\\engine.slx',
+    ]) {
+      const { fs, calls } = counting();
+      expect(await readProjectStore(path, fs), path).toEqual({});
+      expect(calls(), path).toBe(0);
+    }
+  });
+
+  it('reads for a marker in either format and either case, as before', async () => {
+    const markers = [
+      '/w/P/P.prj',
+      '/w/P/P.PRJ',
+      `/w/P/${TOML_PROJECT_FILE}`,
+      '/w/P/MATLAB.TOML',
+      'C:\\w\\P\\P.prj',
+    ];
+    for (const path of markers) {
+      const { fs, calls } = counting();
+      await readProjectStore(path, fs);
+      expect(calls(), path).toBeGreaterThan(0);
+    }
+  });
+
+  it('reads exactly when isProjectFile says the path is a project', async () => {
+    // One rule, not a second copy of it: whatever `isProjectFile` decides about case, extension
+    // and name, the walk decides the same.
+    const paths = [
+      '/w/P/x.prj',
+      '/w/P/x.Prj',
+      '/w/P/x.prj.bak',
+      '/w/P/prj',
+      '/w/P/matlab.toml',
+      '/w/P/Matlab.Toml',
+      '/w/P/pyproject.toml',
+      '/w/P/x.slx',
+      '/w/P/x.SLDD',
+      '/w/P/x.mat',
+      '/w/P/x.mdl',
+    ];
+    for (const path of paths) {
+      const { fs, calls } = counting();
+      await readProjectStore(path, fs);
+      expect(calls() > 0, path).toBe(isProjectFile(path));
+    }
+  });
+
+  describe('on disk', () => {
+    let root: string;
+    beforeAll(() => {
+      // A real store, with a model and the project's own folder beside it: the paths a host
+      // might hand over by mistake are right next to something the walk WOULD read.
+      root = mkdtempSync(join(tmpdir(), 'dex-projectstore-markers-'));
+      mkdirSync(join(root, 'Proj', 'resources', 'project', 'root'), { recursive: true });
+      writeFileSync(join(root, 'Proj', 'resources', 'project', 'root', 'pointer.xml'), '<pointer/>');
+      writeFileSync(join(root, 'Proj', 'Proj.prj'), 'PK');
+      writeFileSync(join(root, 'Proj', 'model.slx'), 'PK');
+    });
+    afterAll(() => {
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    it('reads the store for the marker and nothing for the model or the folder beside it', async () => {
+      expect(Object.keys(await readProjectStoreFromDisk(join(root, 'Proj', 'Proj.prj')))).toEqual([
+        'resources/project/root/pointer.xml',
+      ]);
+      expect(await readProjectStoreFromDisk(join(root, 'Proj', 'model.slx'))).toEqual({});
+      expect(await readProjectStoreFromDisk(join(root, 'Proj'))).toEqual({});
     });
   });
 });
