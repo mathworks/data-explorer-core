@@ -251,6 +251,16 @@ export { maskDefining } from './datamodel/maskScope.js';
 // agree on its version.
 export { mapLimited, SCAN_READ_CONCURRENCY } from './folder/mapLimited.js';
 export { MAX_SCAN_BYTES, scanVersionOf } from './folder/scanVersion.js';
+// The cache those reads go through, so a file costs one read per content change however
+// many of a host's features ask for it — a folder tree, a usage plan, a name search and the
+// tab that opened it. Two tiers: a CHEAP artifact per file (a model's relationships, a data
+// file's summary, references and entry names, all off one scan) and a model's full PARSE,
+// shared by the tab's rows and the usage summary and bounded by a byte budget. Keyed by the
+// version a host's `SourceReader` reports (`scanVersionOf` above), so nothing needs an
+// invalidation protocol except the one write that version cannot see — `forgetSource` and
+// `forgetUnseenWrite` are for the host's file watchers. The host supplies the reading and
+// holds the instance (`newSourceCache`); nothing here touches a filesystem.
+export { DEFAULT_PARSED_BUDGET_BYTES, PINNED_PARSES, newSourceCache, clearSourceCache, forgetSource, heldVersionsOf, forgetIfVersionUnmoved, forgetUnseenWrite, parsedRetainedBytes, parsedBudgetedBytes, sourceKind, cheapOne, cheapAll, parsedModelOf, parsedModelForOpenTab, fillModelSummaries, } from './folder/sourceCache.js';
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';
 // Nodes, schema bridge, kind map, section constants.

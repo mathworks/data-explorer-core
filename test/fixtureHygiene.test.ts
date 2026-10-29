@@ -24,7 +24,7 @@ import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 // Spelled so that this file does not match the leak check's own needles.
 const PATHS = [/\/System\/Volumes/, /mathworks\/devel/, /jobarchiv[e]/, /\/Users\/[A-Za-z0-9._-]+/, /\/home\/[A-Za-z0-9._-]+/, /sandbox/i];
 
-const ROOTS = ['fixtures', join('parity', 'artifacts')].map((d) => fileURLToPath(new URL(`./${d}/`, import.meta.url)));
+const ROOTS = ['fixtures', 'folder-fixtures', join('parity', 'artifacts')].map((d) => fileURLToPath(new URL(`./${d}/`, import.meta.url)));
 
 function filesUnder(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
