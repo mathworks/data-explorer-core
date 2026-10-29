@@ -139,11 +139,11 @@ describe('the temporary file is made beside the file, on either platform', () =>
   // already ends in a separator (a root): Windows takes either separator, so the temporary file
   // is in the file's own directory either way, which is what makes the rename one step.
   const cases: [string, string][] = [
-    ['C:\\Users\\me\\data.mat', 'C:\\Users\\me'],
+    ['C:\\Work\\proj\\data.mat', 'C:\\Work\\proj'],
     ['C:\\data.mat', 'C:\\'],
     ['\\\\server\\share\\data.mat', '\\\\server\\share'],
-    ['C:/Users/me\\data.mat', 'C:/Users/me'],
-    ['/home/me/data.mat', '/home/me'],
+    ['C:/Work/proj\\data.mat', 'C:/Work/proj'],
+    ['/srv/proj/data.mat', '/srv/proj'],
     ['/data.mat', '/'],
     ['data.mat', '.'],
   ];
