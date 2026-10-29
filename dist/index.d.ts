@@ -52,6 +52,7 @@ export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames }
 export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
 export { scanMat, type MatScanResult } from './datamodel/parser/MatScan.js';
 export { scanModelStructure, type ModelStructure } from './datamodel/parser/ModelStructureScan.js';
+export { extractSlxStructure, structureFromParsed, type SlxStructure } from './datamodel/parser/SlxStructure.js';
 export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scFunctionRenameEdits, scRenameEdits, scanScJsonFunctions, scanScJsonText, scanScXml, scanScXmlFunctions, } from './datamodel/parser/ScCatalog.js';
 export type { CatalogFunctionRenames, ScDefinition, ScFunction, ScNameSite, ScTextEdit, SystemComposerCatalog, } from './datamodel/parser/ScCatalog.js';
