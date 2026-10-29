@@ -116,4 +116,8 @@ export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, } from './fold
 export { listFolder, skipDirectory, FOLDER_FILE_LIMIT, } from './listFolder.js';
 // And the watch that says when to list or read again, with the listing's rules.
 export { watchFolder, WATCH_DEBOUNCE_MS, } from './watchFolder.js';
+// A save over the user's own file, over node:fs: replaced whole where the file system lets it,
+// written in place where it does not, and the stamp the write left. On `./node/save` too, without
+// this entry's data model. See save.ts.
+export { nodeSaveFs, writeFileSafely, writeAndStamp, replaceFile, sameFile, } from './save.js';
 //# sourceMappingURL=index.js.map
