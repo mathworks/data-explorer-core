@@ -62,6 +62,8 @@ export { maskDefining } from './datamodel/maskScope.js';
 export type { MaskScope } from './datamodel/maskScope.js';
 export { mapLimited, SCAN_READ_CONCURRENCY } from './folder/mapLimited.js';
 export { MAX_SCAN_BYTES, scanVersionOf } from './folder/scanVersion.js';
+export { DEFAULT_PARSED_BUDGET_BYTES, PINNED_PARSES, newSourceCache, clearSourceCache, forgetSource, heldVersionsOf, forgetIfVersionUnmoved, forgetUnseenWrite, parsedRetainedBytes, parsedBudgetedBytes, sourceKind, cheapOne, cheapAll, parsedModelOf, parsedModelForOpenTab, fillModelSummaries, } from './folder/sourceCache.js';
+export type { SourceFile, SourceReader, SourceKind, Cheap, CheapEntry, CheapMap, InFlight, ParsedEntry, SourceCache, } from './folder/sourceCache.js';
 export { toDTO } from './core/dto.js';
 export type { NodeDTO, PropDTO, SourceDTO, ToDTOOptions } from './core/dto.js';
 export { default as ModelBlockNode } from './datamodel/node/data/ModelBlockNode.js';
