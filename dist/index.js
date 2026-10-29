@@ -134,6 +134,15 @@ export { ingest } from './core/ingest.js';
 // time, and without reaching for `.toml` as an extension, which would make every
 // `Cargo.toml` in a workspace a MATLAB project.
 export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, projectFallbackName, isModelFile, isSlddFile, isMatFile, isProjectFile, isTomlProjectFile, TOML_PROJECT_FILE, } from './datamodel/fileKinds.js';
+// The same rule as an enumeration, for the consumers a predicate cannot serve: a folder
+// search wants a glob, an Open dialog a filter, an editor manifest a selector. Each host
+// used to write the list out itself, and a list kept apart from the tests drifts in both
+// directions — a format in the list and in no test is discovered and then classified as
+// nothing, one in a test but not the list is never discovered. `SUPPORTED_NAMES` is the
+// name half (`matlab.toml`), never an extension; `GRAPH_EXTS` is the subset a usage or
+// name graph reads, which leaves projects out. `isSupportedPath` / `isGraphPath` are the
+// matching predicates, unions of the kind tests above so they share their case rule.
+export { MODEL_EXTS, SUPPORTED_EXTS, SUPPORTED_NAMES, GRAPH_EXTS, isSupportedPath, isGraphPath, } from './datamodel/fileKinds.js';
 // Reading a `.sldd` without a session: which of the two on-disk formats the bytes are,
 // where the content sits inside the result, and what a reference means. Public because a
 // consumer that scans dictionaries WITHOUT opening them — to index a folder, to resolve a
@@ -220,6 +229,18 @@ export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summ
 // rendering a mask-resolved parameter needs the block's path to name the source of the
 // value, and its key to link there.
 export { maskDefining } from './datamodel/maskScope.js';
+// How a host READS a folder to build an index like that, the part of it that needs no
+// filesystem. A folder scan must not read every file at once (the peak becomes the sum
+// of the folder: one of large dictionaries took a host to ~2 GB and killed it), nor in
+// completion order (a usage cell's blocks then come out in a different order between two
+// opens) — `mapLimited` keeps a bounded number of reads in flight and answers in input
+// order. And it must not read a file it cannot decode: past `MAX_SCAN_BYTES` (V8's
+// maximum string length) a textual dictionary cannot become a string at all.
+// `scanVersionOf` turns a `stat` into the version a scan cache keys on, `mtime:size` or
+// `null` past the cap, so two hosts — or two caches in one — that agree on a file's stat
+// agree on its version.
+export { mapLimited, SCAN_READ_CONCURRENCY } from './folder/mapLimited.js';
+export { MAX_SCAN_BYTES, scanVersionOf } from './folder/scanVersion.js';
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';
 // Nodes, schema bridge, kind map, section constants.

@@ -195,3 +195,66 @@ export function projectFallbackName(markerPath: string): string {
   // than admitting there is no name here to be had.
   return parent === '.' || parent === '..' ? '' : parent;
 }
+
+// The LISTS, beside the tests they have to agree with.
+//
+// A host needs the formats this package reads as an enumeration as well as a predicate:
+// a folder search wants a glob, an Open dialog wants a filter, an editor manifest wants a
+// selector, and none of those can be written with a function. So each host used to write
+// the list out itself, and the list is the half of this rule that drifts — an extension in
+// a host's list and in none of the tests above is discovered and then classified as
+// nothing, and one in a test but absent from the list is never discovered at all. Kept
+// here, the two halves are one module and test/fileKindLists.test.ts pins them against
+// each other in both directions. What stays with a host is only the spelling its own platform
+// wants (a glob dialect, a filter format), which this package has no concept of.
+
+/**
+ * Simulink models, in both containers.
+ *
+ * `.slx` is a ZIP OPC package; `.mdl` is either the same package written as text or the
+ * classic nested-brace format. `parseModel` decides which from the bytes, so a host
+ * listing files has no reason to tell the two `.mdl` flavours apart.
+ */
+export const MODEL_EXTS = ['slx', 'mdl'] as const;
+
+/** Every format this package reads that is identified by its EXTENSION, without the dot. */
+export const SUPPORTED_EXTS = ['sldd', 'mat', 'prj', ...MODEL_EXTS] as const;
+
+/**
+ * Every file this package reads that is identified by its NAME.
+ *
+ * One entry, and a list anyway, so that a host can treat the names as a set alongside the
+ * extensions, and so that the next such marker is one string here rather than a second
+ * code path in every host. `.toml` is deliberately NOT on SUPPORTED_EXTS (see
+ * `isProjectFile`): the extension would admit every `Cargo.toml` in a workspace.
+ */
+export const SUPPORTED_NAMES = [TOML_PROJECT_FILE] as const;
+
+/**
+ * The files a usage or name graph reads: models, plus the data they reference.
+ *
+ * A project is excluded, in either of its formats, which is why SUPPORTED_NAMES has no
+ * counterpart here: a project defines no variables and no parameter usages, so it
+ * contributes nothing to either graph (`buildUsageIndex` reads these three kinds and no
+ * other).
+ */
+export const GRAPH_EXTS = ['sldd', 'mat', ...MODEL_EXTS] as const;
+
+/**
+ * True if this package reads `path` at all — every extension on SUPPORTED_EXTS and every
+ * name on SUPPORTED_NAMES, in any case.
+ *
+ * A union of the kind tests above rather than a regex over the lists, so that "supported"
+ * means precisely "some reader here will know what this is", with the same case rule.
+ */
+export function isSupportedPath(path: string): boolean {
+  return isGraphPath(path) || isProjectFile(path);
+}
+
+/**
+ * True if `path` names a file a usage or name graph reads. The same set as
+ * `isSupportedPath` minus the project — see GRAPH_EXTS.
+ */
+export function isGraphPath(path: string): boolean {
+  return isModelFile(path) || isSlddFile(path) || isMatFile(path);
+}
