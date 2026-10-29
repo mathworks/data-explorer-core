@@ -93,6 +93,33 @@ export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/Bin
 // An edited entry is saved as those bytes with only what the edit changed written from the model
 // (README, "Saving a file").
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+// The save gate that check is for, and the scan it pairs entries with. `savedChunkRefusal` says
+// why a binary dictionary's chunk may not be saved over the chunk as last read or saved (the
+// maintainer's D12: every entry no edit changed must be its bytes, and an edited entry must keep
+// what its edit did not touch), as the text a host shows the user, or null when it may.
+// `SavedChunk` is that last-saved chunk, scanned once; `changedEntryKeys` is what an edit that
+// could not state its ops changed; `uncheckableEntries` is what an edit has to record, when it is
+// made, about entries the check cannot be held to; `EVERY_ENTRY` stands for every entry.
+// `scanChunkEntries` finds a chunk's entries by reading its markup, never with the reader (a
+// reader and a writer can lose the same thing); `entryKey`/`chunkEntryKey` are what an entry is
+// known by across edits (its UUID, else its name), and `decodeXmlText` decodes the Name and UUID
+// bytes so they match the model's spelling. Moved from the vscode extension's host, which saves
+// through them.
+export {
+  EVERY_ENTRY,
+  SavedChunk,
+  changedEntryKeys,
+  savedChunkRefusal,
+  uncheckableEntries,
+} from './edit/binarySaveGate.js';
+export {
+  chunkEntryKey,
+  decodeXmlText,
+  entryKey,
+  scanChunkEntries,
+  type ChunkEntries,
+  type ChunkEntry,
+} from './datamodel/parser/chunkEntries.js';
 // For a host that splices one entry's text into a text dictionary it holds as text: the JSON of the
 // entry's `serialize()` record with its numbers as MATLAB writes them, as a save writes them.
 // JSON.stringify spells a double of 2^64 as an integer literal, which MATLAB does not open.
@@ -337,6 +364,26 @@ export type {
   ScTextEdit,
   SystemComposerCatalog,
 } from './datamodel/parser/ScCatalog.js';
+// A host's half of carrying an entry rename into the catalog. `catalogRenameOf` and
+// `catalogFunctionRenameOf` say which cell edits carry at all (a Name edit of a top-level entry of
+// the Design namespace, `catalogNamesSection`; or of a service interface's function), and must be
+// asked before the mutation, while the node still has the name the file spells. The rest build the
+// carry for each edit surface: range edits into a text dictionary's own text (`scJsonRenameEdits`,
+// `scJsonFunctionRenameEdits`), or a before/after swap of the compressed dictionary's catalog
+// member for undo (`scXmlRenamePatch`, `scXmlFunctionRenamePatch`). Moved from the vscode
+// extension's host, whose two dictionary editors make these edits.
+export {
+  catalogFunctionRenameOf,
+  catalogNamesSection,
+  catalogRenameOf,
+  scJsonFunctionRenameEdits,
+  scJsonRenameEdits,
+  scXmlFunctionRenamePatch,
+  scXmlRenamePatch,
+  type CatalogFunctionRename,
+  type CatalogRename,
+  type ScPartPatch,
+} from './edit/scRename.js';
 
 // Usage across a SET OF FILES rather than across a session — which blocks refer to a
 // definition, and where a block parameter's names resolve, over files a caller has read
