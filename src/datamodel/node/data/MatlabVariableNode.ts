@@ -2037,9 +2037,16 @@ export default class MatlabVariableNode extends DataNode {
    * A copy of `holder`, the stream this node is at or under (_openStream), as its save writes it and
    * a read gives it back, and the node at this one's place in it: what an edit is tried on before it
    * is made here, so that a refused one changes nothing.
+   *
+   * Parsed from a deep copy of what the holder serializes. serializeValue hands out an untouched
+   * node's `_rawInput` itself, and parseFlatArray adopts the array it is given as its `_elements`, so
+   * the copy's arrays were the live ones: the gates' trial Add (`_elements.push`) and Remove landed
+   * on the value they were asked about. A cell typed over a stream, `{[1 2], true}`, was `[1 0]` once a
+   * table had asked canAddChild and canRemoveChild of its rows, and a Delete of `[1 2]`'s first
+   * element left `[]`.
    */
   _inStreamCopy(holder: MatlabVariableNode): { copy: MatlabVariableNode; twin: MatlabVariableNode | null } {
-    const copy = NodeRegistry.parseValue(holder.serializeValue(), holder.name, null) as MatlabVariableNode;
+    const copy = NodeRegistry.parseValue(structuredClone(holder.serializeValue()), holder.name, null) as MatlabVariableNode;
     const path: number[] = [];
     for (let n: BaseNode = this; n !== holder && n.parent; n = n.parent) {
       path.unshift(n.parent.children.indexOf(n));
