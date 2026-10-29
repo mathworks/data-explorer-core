@@ -74,6 +74,11 @@ function walk(dir: string): string[] {
   return out;
 }
 
+// Each sweep below reads every data file under test/ — 729 of them, 623 MAT-files — and some read
+// each one twice, through the cache and through a full reader. That is a few seconds alone and
+// more on a loaded runner, where the 5 s default timed one out; so the sweeps say how long.
+const SWEEP_TIMEOUT = 60_000;
+
 const CORPUS = walk(ROOT).sort();
 const SLDD = CORPUS.filter(isSlddFile);
 const MAT = CORPUS.filter(isMatFile);
@@ -243,7 +248,7 @@ describe('the corpus this suite sweeps', () => {
 });
 
 describe('a dictionary’s RAW references, one scan against the two readers it replaced', () => {
-  it('matches the retired regex route on every fixture', async () => {
+  it('matches the retired regex route on every fixture', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of DICTS) {
       const cheap = await cheapOf(cache, name);
@@ -252,7 +257,7 @@ describe('a dictionary’s RAW references, one scan against the two readers it r
     }
   });
 
-  it('matches the full reader on every fixture', async () => {
+  it('matches the full reader on every fixture', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of READABLE_DICTS) {
       const cheap = await cheapOf(cache, name);
@@ -275,7 +280,7 @@ describe('a dictionary’s RAW references, one scan against the two readers it r
     expect(await refsOf('parity/artifacts/binary/params.sldd')).toContain('common.sldd');
   });
 
-  it('keeps the literal spelling the summary lower-cases away', async () => {
+  it('keeps the literal spelling the summary lower-cases away', { timeout: SWEEP_TIMEOUT }, async () => {
     // WHY the artifact carries `refs` at all rather than reading them back off the summary: the
     // summary's list is `refs.map(refBasename)`, which is what a NAME resolves through, and the
     // tree needs what the file SAYS. Both come off the same scan, so this is the one property
@@ -297,7 +302,7 @@ describe('a data file’s usage summary, against one built by the FULL reader', 
   // filename — and a wrong srcId silently re-keys every Usage answer that resolves through the
   // summary. The expected object is spelled out from the full parse for that reason: it is the
   // whole `DataSummary`, so nothing about it can be right by construction.
-  it('gives every dictionary the summary its full parse implies', async () => {
+  it('gives every dictionary the summary its full parse implies', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of READABLE_DICTS) {
       const file = asFile(name);
@@ -315,7 +320,7 @@ describe('a data file’s usage summary, against one built by the FULL reader', 
     }
   });
 
-  it('gives every MAT-file the summary its full parse implies', async () => {
+  it('gives every MAT-file the summary its full parse implies', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of READABLE_MAT) {
       const file = asFile(name);
@@ -351,13 +356,13 @@ describe('a file no full reader can read is an EMPTY artifact, not a dropped one
   // The answer `dataCheapOf` owes such a file, and the reason it is not `null`: the file is still
   // in the folder, so it must stay a node in a host's tree and a source in a usage plan's scope.
   // Swept rather than picked, so a fixture added later that no reader can read is held to it too.
-  it('names the files it is about', () => {
+  it('names the files it is about', { timeout: SWEEP_TIMEOUT }, () => {
     // A guard on the test below: an empty list would pass it while asserting nothing. Today the one
     // such fixture is a v7.3 (HDF5) MAT-file, which no reader in this package parses.
     expect(DATA.filter(refusedByFullReader)).toEqual(['fixtures/strings_v73.mat']);
   });
 
-  it('gives each of them an empty summary, no references and no names', async () => {
+  it('gives each of them an empty summary, no references and no names', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of DATA.filter(refusedByFullReader)) {
       const cheap = await cheapOf(cache, name);
@@ -376,7 +381,7 @@ describe('the occurrence-ordered names the search index reads', () => {
   // included — and the summary's `Set` is built from it. Every property that distinguishes the two
   // is asserted here, because nothing else in this repo can see the difference: a Set round-trip
   // on this path would drop a duplicate search hit and no other test would move.
-  it('is what the full parse lists, in order, for every dictionary', async () => {
+  it('is what the full parse lists, in order, for every dictionary', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of READABLE_DICTS) {
       const cheap = await cheapOf(cache, name);
@@ -385,7 +390,7 @@ describe('the occurrence-ordered names the search index reads', () => {
     }
   });
 
-  it('is what the full parse lists, in order, for every MAT-file', async () => {
+  it('is what the full parse lists, in order, for every MAT-file', { timeout: SWEEP_TIMEOUT }, async () => {
     const cache = newSourceCache();
     for (const name of READABLE_MAT) {
       const cheap = await cheapOf(cache, name);
@@ -394,7 +399,7 @@ describe('the occurrence-ordered names the search index reads', () => {
     }
   });
 
-  it('really does carry duplicates and empty placeholders', async () => {
+  it('really does carry duplicates and empty placeholders', { timeout: SWEEP_TIMEOUT }, async () => {
     // Non-vacuity for the two sweeps above, and the measurement that justifies `DUPS` existing:
     // the fixtures on disk supply the `''` placeholder in quantity (every MAT-file holding an
     // MCOS object carries a trailing anonymous element) and a duplicate name in a few MAT-files
