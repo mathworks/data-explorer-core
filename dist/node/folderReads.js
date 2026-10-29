@@ -87,6 +87,9 @@ const byCodeUnit = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  * Sorted by key because the order a directory lists in is the filesystem's, not the project's:
  * the same checkout walks in one order on APFS and another on ext4, and a host (or a golden) that
  * shows what it read should not depend on which disk wrote it. A TOML marker has one key anyway.
+ *
+ * A path that is not a project marker answers `{}` and touches the disk not at all, as
+ * `readProjectStore` does.
  */
 export async function readProjectStoreFromDisk(markerPath) {
     const files = await readProjectStore(markerPath, nodeStoreFs);

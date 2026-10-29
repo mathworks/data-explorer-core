@@ -22,7 +22,7 @@
 // (`readProjectStoreFromDisk` in the ./node entry), a browser host through whatever handle it
 // was given. The rules a host must not have to re-derive — which marker means which layout,
 // which files are store documents, what a missing store answers — are the ones kept here.
-import { isTomlProjectFile, TOML_PROJECT_FILE } from '../datamodel/fileKinds.js';
+import { isProjectFile, isTomlProjectFile, TOML_PROJECT_FILE } from '../datamodel/fileKinds.js';
 /** The directory part of a path, on either separator, so a Windows path needs no cleanup. */
 function parentOf(path) {
     const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
@@ -37,11 +37,21 @@ function parentOf(path) {
  * `parseProject` turns an empty map into an empty project that says so in its warnings, which is
  * what puts an unreachable store on the page instead of behind a throw.
  *
+ * A path that is NOT a project marker — any other file, or a directory — answers `{}` without a
+ * single read, by this package's own test (`isProjectFile`: a `.prj`, or a file named
+ * `matlab.toml`, in any case). The walk reads BESIDE the path it is given, so a host that asked for
+ * the store of whatever file it was handed (a page serving its folder asks for any file it
+ * listed) would otherwise walk the `resources/project/` of a model's folder, or read a file it
+ * was never told was a project. Refusing here protects every host the same way, whatever it
+ * forgot to check.
+ *
  * The map is in the order `fs.list` reports, as the walk meets the files: a directory lists in
  * the filesystem's order, not the project's, so a host that needs the order to be stable across
  * filesystems sorts it (the ./node entry does).
  */
 export async function readProjectStore(markerPath, fs) {
+    if (!isProjectFile(markerPath))
+        return {};
     if (isTomlProjectFile(markerPath)) {
         // Keyed with the constant rather than with the basename as it was found on disk. Either
         // would be read — `parseProject` matches the entry by basename, case-insensitively,

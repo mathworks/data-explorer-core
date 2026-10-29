@@ -32,6 +32,14 @@ export interface StoreFs {
  * `parseProject` turns an empty map into an empty project that says so in its warnings, which is
  * what puts an unreachable store on the page instead of behind a throw.
  *
+ * A path that is NOT a project marker — any other file, or a directory — answers `{}` without a
+ * single read, by this package's own test (`isProjectFile`: a `.prj`, or a file named
+ * `matlab.toml`, in any case). The walk reads BESIDE the path it is given, so a host that asked for
+ * the store of whatever file it was handed (a page serving its folder asks for any file it
+ * listed) would otherwise walk the `resources/project/` of a model's folder, or read a file it
+ * was never told was a project. Refusing here protects every host the same way, whatever it
+ * forgot to check.
+ *
  * The map is in the order `fs.list` reports, as the walk meets the files: a directory lists in
  * the filesystem's order, not the project's, so a host that needs the order to be stable across
  * filesystems sorts it (the ./node entry does).
