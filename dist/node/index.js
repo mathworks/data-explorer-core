@@ -107,4 +107,8 @@ export function loadDirectory(session, dir, skipped) {
     }
     return out;
 }
+// The folder reads a host makes, over node:fs: a `SourceReader` for the shared source cache, and
+// a project's definition walked off disk. The rules they serve live in the main barrel
+// (`sourceCache`, `readProjectStore`); these are the filesystem half. See folderReads.ts.
+export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, } from './folderReads.js';
 //# sourceMappingURL=index.js.map

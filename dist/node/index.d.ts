@@ -27,4 +27,5 @@ export declare function loadFromPath(session: Session, path: string): ISourceNod
  * minus the stderr write. Same shape as SlddNode.parse's sink.
  */
 export declare function loadDirectory(session: Session, dir: string, skipped?: ParseWarning[]): ISourceNode[];
+export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, type NodeSourceReaderOptions, } from './folderReads.js';
 //# sourceMappingURL=index.d.ts.map

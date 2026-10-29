@@ -270,6 +270,11 @@ export { DEFAULT_PARSED_BUDGET_BYTES, PINNED_PARSES, newSourceCache, clearSource
 // only for the scoped models, then the merge `buildUsageIndexFromSummaries` takes.
 export { usageScope } from './datamodel/usage/usageScope.js';
 export { planSummaries } from './folder/usagePlan.js';
+// Where a project's definition lives, read into the map `parseProject` takes: the
+// `resources/project/` store beside a `.prj`, or the one `matlab.toml` that IS the definition in
+// R2026b's format. The walk and its rules are here; the filesystem is the host's (`StoreFs`), and
+// the ./node entry supplies one over `node:fs` (`readProjectStoreFromDisk`).
+export { readProjectStore } from './folder/projectStore.js';
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';
 // Nodes, schema bridge, kind map, section constants.
