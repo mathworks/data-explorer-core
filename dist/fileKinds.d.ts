@@ -1,0 +1,2 @@
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, projectFallbackName, isModelFile, isSlddFile, isMatFile, isProjectFile, isTomlProjectFile, TOML_PROJECT_FILE, MODEL_EXTS, SUPPORTED_EXTS, SUPPORTED_NAMES, GRAPH_EXTS, isSupportedPath, isGraphPath, } from './datamodel/fileKinds.js';
+//# sourceMappingURL=fileKinds.d.ts.map

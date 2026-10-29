@@ -36,6 +36,10 @@
     "./node": {
       "types": "./dist/node/index.d.ts",
       "default": "./dist/node/index.js"
+    },
+    "./fileKinds": {
+      "types": "./dist/fileKinds.d.ts",
+      "default": "./dist/fileKinds.js"
     }
   },
   "files": [

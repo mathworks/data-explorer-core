@@ -152,9 +152,51 @@ if (missingNodeFns.length > 0) {
   process.exit(1);
 }
 
+// The file-kinds subpath, resolved by its PACKAGE NAME (Node resolves a package's own
+// name through its `exports` map from inside it), so a typo in the map fails here and not
+// in a consumer's build. Its whole point is to load nothing else of this package — an
+// Electron main process asks it which files to admit and never parses one — so the
+// BUILT graph is walked too: test/fileKindsEntry.test.ts holds the same line over src/,
+// and this is the check that tsc's output kept it.
+const kindsMod = await import('data-explorer-core/fileKinds');
+const kindFns = ['isSupportedPath', 'isGraphPath', 'isModelFile', 'isSlddFile', 'isMatFile', 'isProjectFile'];
+const badKindFns = kindFns.filter((name) => typeof kindsMod[name] !== 'function' || kindsMod[name] !== m[name]);
+if (badKindFns.length > 0 || !Array.isArray(kindsMod.SUPPORTED_EXTS)) {
+  console.error('SMOKE FAIL — fileKinds subpath missing, or not the barrel’s own:', badKindFns.join(', '));
+  process.exit(1);
+}
+const { readFileSync } = await import('node:fs');
+const { fileURLToPath } = await import('node:url');
+const reachedFrom = (entryUrl) => {
+  const seen = new Set();
+  const queue = [entryUrl];
+  while (queue.length > 0) {
+    const url = queue.pop();
+    if (seen.has(url.href)) continue;
+    seen.add(url.href);
+    const code = readFileSync(fileURLToPath(url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    for (const [, spec] of code.matchAll(/\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+      if (!spec.startsWith('.')) {
+        console.error(`SMOKE FAIL — fileKinds subpath imports "${spec}" (from ${url.pathname})`);
+        process.exit(1);
+      }
+      queue.push(new URL(spec, url));
+    }
+  }
+  return [...seen].map((href) => href.slice(new URL('../dist/', import.meta.url).href.length)).sort();
+};
+const kindsGraph = reachedFrom(new URL('../dist/fileKinds.js', import.meta.url));
+if (JSON.stringify(kindsGraph) !== JSON.stringify(['datamodel/fileKinds.js', 'fileKinds.js'])) {
+  console.error('SMOKE FAIL — fileKinds subpath reaches more than its one module:', kindsGraph.join(', '));
+  process.exit(1);
+}
+
 console.log(
   `OK: dist/index.js loads under native ESM; ${requiredFns.length + 1} exports present, ` +
     `createSession() shape valid with ${requiredSessionFns.length} query/link/row methods; ` +
     `${warningChecks.length} readers report warnings as an array; ` +
-    `/node subpath resolves with ${requiredNodeFns.length} loaders`,
+    `/node subpath resolves with ${requiredNodeFns.length} loaders; ` +
+    `/fileKinds subpath resolves to ${kindsGraph.length} modules`,
 );

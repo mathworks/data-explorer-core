@@ -53,6 +53,14 @@ Filesystem loading lives in the Node-only subpath, the only part that touches
 import { createSession, loadFromPath, loadDirectory } from 'data-explorer-core/node';
 ```
 
+Which files Data Explorer reads — the kind tests and the extension lists — has a
+subpath of its own that loads nothing else of the package, for a process that
+only needs to ask (an Electron main process filtering an Open dialog):
+
+```js
+import { isSupportedPath, SUPPORTED_EXTS } from 'data-explorer-core/fileKinds';
+```
+
 ## Saving a file
 
 `session.serializeSource(srcId)` answers a file in the form it arrived in: a
