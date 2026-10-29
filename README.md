@@ -62,14 +62,18 @@ import { isSupportedPath, SUPPORTED_EXTS } from 'data-explorer-core/fileKinds';
 ```
 
 A process that lists and reads a folder for something else to parse (an
-Electron main process serving a sandboxed page) has the same: the folder walk,
-the source cache's reader and the project-store walk over `node:fs`, without the
-data model:
+Electron main process serving a sandboxed page) has the same: the folder walk
+and watch, the source cache's reader and the project-store walk over `node:fs`,
+without the data model:
 
 ```js
-import { listFolder, nodeSourceReader, readProjectStoreFromDisk } from 'data-explorer-core/node/folder';
+import { listFolder, watchFolder, nodeSourceReader } from 'data-explorer-core/node/folder';
 
 const { files, truncated } = await listFolder(root); // supported files, in a stable order
+const watch = watchFolder(root, (paths) => {
+  // once per burst: the supported files it touched, or no argument for "anything may have changed"
+});
+watch.dispose();
 ```
 
 ## Saving a file

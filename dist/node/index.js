@@ -114,4 +114,6 @@ export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, } from './fold
 // And the folder listing those reads start from. All of these are on `./node/folder` as well,
 // without this entry's data model, for a process that lists and reads but parses nothing.
 export { listFolder, skipDirectory, FOLDER_FILE_LIMIT, } from './listFolder.js';
+// And the watch that says when to list or read again, with the listing's rules.
+export { watchFolder, WATCH_DEBOUNCE_MS, } from './watchFolder.js';
 //# sourceMappingURL=index.js.map
