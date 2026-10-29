@@ -66,6 +66,7 @@ export { DEFAULT_PARSED_BUDGET_BYTES, PINNED_PARSES, newSourceCache, clearSource
 export type { SourceFile, SourceReader, SourceKind, Cheap, CheapEntry, CheapMap, InFlight, ParsedEntry, SourceCache, } from './folder/sourceCache.js';
 export { usageScope, type ChainSource, type ChainKind } from './datamodel/usage/usageScope.js';
 export { planSummaries } from './folder/usagePlan.js';
+export { readProjectStore, type StoreFs, type StoreEntry } from './folder/projectStore.js';
 export { toDTO } from './core/dto.js';
 export type { NodeDTO, PropDTO, SourceDTO, ToDTOOptions } from './core/dto.js';
 export { default as ModelBlockNode } from './datamodel/node/data/ModelBlockNode.js';

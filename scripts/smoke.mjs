@@ -145,7 +145,7 @@ if (roundTripped.code !== 'source-unreadable' || !roundTripped.message.includes(
 // the fs loaders. It is fenced out of the browser bundle by the `exports` map, but
 // under Node it must resolve and carry the NodeClassMap side-effect import.
 const nodeMod = await import('../dist/node/index.js');
-const requiredNodeFns = ['loadFromPath', 'loadDirectory', 'createSession'];
+const requiredNodeFns = ['loadFromPath', 'loadDirectory', 'createSession', 'nodeSourceReader', 'readProjectStoreFromDisk'];
 const missingNodeFns = requiredNodeFns.filter((name) => typeof nodeMod[name] !== 'function');
 if (missingNodeFns.length > 0) {
   console.error('SMOKE FAIL — node subpath missing/!function exports:', missingNodeFns.join(', '));
