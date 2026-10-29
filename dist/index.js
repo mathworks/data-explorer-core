@@ -178,6 +178,16 @@ export { scanMat } from './datamodel/parser/MatScan.js';
 // runs the FULL parser over a smaller set of OPC parts, so the answer is the same answer
 // rather than a second derivation of it.
 export { scanModelStructure } from './datamodel/parser/ModelStructureScan.js';
+// The same three fields SHAPED for a graph between files: each reference named by the
+// file it is (`plant` → `plant.slx`, or `plant.mdl` under a `.mdl` parent), a reference
+// with no name dropped, and bytes that are no model at all answering with no
+// relationships rather than a throw. Published because a host drawing that graph has to
+// make the completion this package's tree makes (`addReferenceEntry`), and one that made it
+// itself was a second opinion about which file a reference names — the tree row and the
+// graph edge then point at two different files. `extractSlxStructure` reads bytes (through
+// `scanModelStructure`); `structureFromParsed` takes a `ParsedSlx` a host already holds,
+// through the same shaping, so the route a model is reached by never changes its edges.
+export { extractSlxStructure, structureFromParsed } from './datamodel/parser/SlxStructure.js';
 // WHERE those entries sit — the zip member name and the three-step JSON key path to the
 // one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
 // and more sharply: a host that WRITES a dictionary owns the document this package cannot
