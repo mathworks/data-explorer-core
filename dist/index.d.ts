@@ -24,6 +24,8 @@ export type { NativeInflate } from './datamodel/parser/Inflate.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+export { EVERY_ENTRY, SavedChunk, changedEntryKeys, savedChunkRefusal, uncheckableEntries, } from './edit/binarySaveGate.js';
+export { chunkEntryKey, decodeXmlText, entryKey, scanChunkEntries, type ChunkEntries, type ChunkEntry, } from './datamodel/parser/chunkEntries.js';
 export { textDictionaryJson, jsonNumberText } from './datamodel/parser/TextDictionaryJson.js';
 export { readEntryFragment } from './datamodel/parser/EntryMerge.js';
 export type { ReadEntryOptions } from './datamodel/parser/EntryMerge.js';
@@ -56,6 +58,7 @@ export { extractSlxStructure, structureFromParsed, type SlxStructure } from './d
 export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scFunctionRenameEdits, scRenameEdits, scanScJsonFunctions, scanScJsonText, scanScXml, scanScXmlFunctions, } from './datamodel/parser/ScCatalog.js';
 export type { CatalogFunctionRenames, ScDefinition, ScFunction, ScNameSite, ScTextEdit, SystemComposerCatalog, } from './datamodel/parser/ScCatalog.js';
+export { catalogFunctionRenameOf, catalogNamesSection, catalogRenameOf, scJsonFunctionRenameEdits, scJsonRenameEdits, scXmlFunctionRenamePatch, scXmlRenamePatch, type CatalogFunctionRename, type CatalogRename, type ScPartPatch, } from './edit/scRename.js';
 export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summarizeFiles, summarizeParsedModel, summarizeSlddScan, summarizeMatScan, resolveName, } from './datamodel/usage/UsageIndex.js';
 export type { UsageIndex, UsageFile, FileSummaries, ModelSummary, DataSummary, ParamOrigin, OriginKind, } from './datamodel/usage/UsageIndex.js';
 export { maskDefining } from './datamodel/maskScope.js';
