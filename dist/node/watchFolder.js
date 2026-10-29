@@ -44,7 +44,11 @@ export function watchFolder(root, onChange, options = {}) {
         throw new RangeError(`watchFolder: debounceMs must be a non-negative number, got ${debounceMs}`);
     }
     const skip = options.skipDirectory ?? skipDirectory;
-    const base = resolve(root).replace(/\\/g, '/').replace(/\/+$/, '');
+    // What a reported path starts with: the root, absolute, with `/` between segments, and one `/`
+    // after it. `resolve` drops trailing separators from every path but a filesystem root (`/`,
+    // `C:\`), which keeps its one — so that is the only case already ending in `/`.
+    const resolved = resolve(root).replace(/\\/g, '/');
+    const prefix = resolved.endsWith('/') ? resolved : `${resolved}/`;
     let watcher;
     let error;
     let disposed = false;
@@ -78,7 +82,7 @@ export function watchFolder(root, onChange, options = {}) {
         if (segments.slice(0, -1).some((segment) => skip(segment)))
             return;
         const last = segments[segments.length - 1] ?? '';
-        const path = `${base}/${segments.join('/')}`;
+        const path = `${prefix}${segments.join('/')}`;
         let isDirectory;
         try {
             isDirectory = statSync(path).isDirectory();
