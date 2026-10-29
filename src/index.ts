@@ -444,6 +444,16 @@ export type { MaskScope } from './datamodel/maskScope.js';
 export { mapLimited, SCAN_READ_CONCURRENCY } from './folder/mapLimited.js';
 export { MAX_SCAN_BYTES, scanVersionOf } from './folder/scanVersion.js';
 
+// How a save writes over the user's own file so that a crash part-way through cannot cost them it:
+// a temporary file beside it, flushed and renamed over it, with the file's mode, owner, links and
+// read-only state kept, and a write in place (never truncated first) wherever a replace cannot be
+// made. `replaceFile` answers how the bytes got there and the stamp the write left, read off the
+// written file itself; `sameFile` says whether two paths name one file (a Save As onto itself).
+// The file system is handed in (`SaveFs`, which Node's `fs/promises` is), so nothing here imports
+// one: the ./node/save entry binds Node's, and the vscode host imports it lazily on its save path.
+export { replaceFile, sameFile } from './folder/safeReplace.js';
+export type { SaveFs, SaveFileHandle, SaveStat, Written } from './folder/safeReplace.js';
+
 // The cache those reads go through, so a file costs one read per content change however
 // many of a host's features ask for it — a folder tree, a usage plan, a name search and the
 // tab that opened it. Two tiers: a CHEAP artifact per file (a model's relationships, a data

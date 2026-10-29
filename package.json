@@ -44,6 +44,10 @@
     "./node/folder": {
       "types": "./dist/node/folder.d.ts",
       "default": "./dist/node/folder.js"
+    },
+    "./node/save": {
+      "types": "./dist/node/save.d.ts",
+      "default": "./dist/node/save.js"
     }
   },
   "files": [

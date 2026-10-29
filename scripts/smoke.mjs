@@ -230,11 +230,29 @@ if (JSON.stringify(folderGraph) !== JSON.stringify(FOLDER_CLOSURE)) {
   process.exit(1);
 }
 
+// The save subpath, the same way: by package name, and its BUILT graph walked. A save over the
+// user's file in a process that parses nothing must not load the data model to do it.
+const saveMod = await import('data-explorer-core/node/save');
+const saveFns = ['writeFileSafely', 'writeAndStamp', 'replaceFile', 'sameFile'];
+const badSaveFns = saveFns.filter(
+  (name) => typeof saveMod[name] !== 'function' || saveMod[name] !== nodeMod[name],
+);
+if (badSaveFns.length > 0 || saveMod.replaceFile !== m.replaceFile) {
+  console.error('SMOKE FAIL — node/save subpath missing, or not ./node’s and the barrel’s own:', badSaveFns);
+  process.exit(1);
+}
+const saveGraph = reachedFrom(new URL('../dist/node/save.js', import.meta.url), { builtins: true });
+if (JSON.stringify(saveGraph) !== JSON.stringify(['folder/safeReplace.js', 'node/save.js'])) {
+  console.error('SMOKE FAIL — node/save subpath reaches beyond its modules:', saveGraph.join(', '));
+  process.exit(1);
+}
+
 console.log(
   `OK: dist/index.js loads under native ESM; ${requiredFns.length + 1} exports present, ` +
     `createSession() shape valid with ${requiredSessionFns.length} query/link/row methods; ` +
     `${warningChecks.length} readers report warnings as an array; ` +
     `/node subpath resolves with ${requiredNodeFns.length} loaders; ` +
     `/fileKinds subpath resolves to ${kindsGraph.length} modules; ` +
-    `/node/folder subpath resolves to ${folderGraph.length} modules and node: builtins`,
+    `/node/folder subpath resolves to ${folderGraph.length} modules and node: builtins; ` +
+    `/node/save subpath resolves to ${saveGraph.length} modules and node: builtins`,
 );

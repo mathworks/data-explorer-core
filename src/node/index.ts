@@ -141,3 +141,19 @@ export {
   type WatchFolderOptions,
   type FolderWatch,
 } from './watchFolder.js';
+
+// A save over the user's own file, over node:fs: replaced whole where the file system lets it,
+// written in place where it does not, and the stamp the write left. On `./node/save` too, without
+// this entry's data model. See save.ts.
+export {
+  nodeSaveFs,
+  writeFileSafely,
+  writeAndStamp,
+  replaceFile,
+  sameFile,
+  type ProviderWrite,
+  type SaveFs,
+  type SaveFileHandle,
+  type SaveStat,
+  type Written,
+} from './save.js';

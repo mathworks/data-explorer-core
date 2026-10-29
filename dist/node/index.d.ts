@@ -30,4 +30,5 @@ export declare function loadDirectory(session: Session, dir: string, skipped?: P
 export { nodeSourceReader, nodeStoreFs, readProjectStoreFromDisk, type NodeSourceReaderOptions, } from './folderReads.js';
 export { listFolder, skipDirectory, FOLDER_FILE_LIMIT, type ListFolderOptions, type FolderListing, } from './listFolder.js';
 export { watchFolder, WATCH_DEBOUNCE_MS, type WatchFolderOptions, type FolderWatch, } from './watchFolder.js';
+export { nodeSaveFs, writeFileSafely, writeAndStamp, replaceFile, sameFile, type ProviderWrite, type SaveFs, type SaveFileHandle, type SaveStat, type Written, } from './save.js';
 //# sourceMappingURL=index.d.ts.map
