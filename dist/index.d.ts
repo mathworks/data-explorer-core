@@ -47,6 +47,7 @@ export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWar
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
 export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, projectFallbackName, isModelFile, isSlddFile, isMatFile, isProjectFile, isTomlProjectFile, TOML_PROJECT_FILE, } from './datamodel/fileKinds.js';
+export { MODEL_EXTS, SUPPORTED_EXTS, SUPPORTED_NAMES, GRAPH_EXTS, isSupportedPath, isGraphPath, } from './datamodel/fileKinds.js';
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
 export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
 export { scanMat, type MatScanResult } from './datamodel/parser/MatScan.js';
@@ -58,6 +59,8 @@ export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summ
 export type { UsageIndex, UsageFile, FileSummaries, ModelSummary, DataSummary, ParamOrigin, OriginKind, } from './datamodel/usage/UsageIndex.js';
 export { maskDefining } from './datamodel/maskScope.js';
 export type { MaskScope } from './datamodel/maskScope.js';
+export { mapLimited, SCAN_READ_CONCURRENCY } from './folder/mapLimited.js';
+export { MAX_SCAN_BYTES, scanVersionOf } from './folder/scanVersion.js';
 export { toDTO } from './core/dto.js';
 export type { NodeDTO, PropDTO, SourceDTO, ToDTOOptions } from './core/dto.js';
 export { default as ModelBlockNode } from './datamodel/node/data/ModelBlockNode.js';

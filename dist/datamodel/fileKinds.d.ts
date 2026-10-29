@@ -128,4 +128,45 @@ export declare function projectNameOf(filename: string): string;
  * barrel (see test/moduleBoundaries.test.ts).
  */
 export declare function projectFallbackName(markerPath: string): string;
+/**
+ * Simulink models, in both containers.
+ *
+ * `.slx` is a ZIP OPC package; `.mdl` is either the same package written as text or the
+ * classic nested-brace format. `parseModel` decides which from the bytes, so a host
+ * listing files has no reason to tell the two `.mdl` flavours apart.
+ */
+export declare const MODEL_EXTS: readonly ["slx", "mdl"];
+/** Every format this package reads that is identified by its EXTENSION, without the dot. */
+export declare const SUPPORTED_EXTS: readonly ["sldd", "mat", "prj", "slx", "mdl"];
+/**
+ * Every file this package reads that is identified by its NAME.
+ *
+ * One entry, and a list anyway, so that a host can treat the names as a set alongside the
+ * extensions, and so that the next such marker is one string here rather than a second
+ * code path in every host. `.toml` is deliberately NOT on SUPPORTED_EXTS (see
+ * `isProjectFile`): the extension would admit every `Cargo.toml` in a workspace.
+ */
+export declare const SUPPORTED_NAMES: readonly ["matlab.toml"];
+/**
+ * The files a usage or name graph reads: models, plus the data they reference.
+ *
+ * A project is excluded, in either of its formats, which is why SUPPORTED_NAMES has no
+ * counterpart here: a project defines no variables and no parameter usages, so it
+ * contributes nothing to either graph (`buildUsageIndex` reads these three kinds and no
+ * other).
+ */
+export declare const GRAPH_EXTS: readonly ["sldd", "mat", "slx", "mdl"];
+/**
+ * True if this package reads `path` at all — every extension on SUPPORTED_EXTS and every
+ * name on SUPPORTED_NAMES, in any case.
+ *
+ * A union of the kind tests above rather than a regex over the lists, so that "supported"
+ * means precisely "some reader here will know what this is", with the same case rule.
+ */
+export declare function isSupportedPath(path: string): boolean;
+/**
+ * True if `path` names a file a usage or name graph reads. The same set as
+ * `isSupportedPath` minus the project — see GRAPH_EXTS.
+ */
+export declare function isGraphPath(path: string): boolean;
 //# sourceMappingURL=fileKinds.d.ts.map
