@@ -238,12 +238,12 @@ describe('the file', () => {
     expect([root.readOnly, root.getAdmittedTypes(), root.children.length]).toEqual([true, [], parsed.variables.filter((v: Any) => !v._anonymous).length]);
   });
 
-  it('a source that is not a MAT-file, or that is not open', () => {
+  it('a dictionary named by its own id (a paste goes into one of its sections), or a source that is not open', () => {
     const session = createSession();
     session.addDataSource('d.sldd', { MW_SLDD: {} } as Any);
     const payload = plain('n', 1);
     for (const ask of [() => (session.pasteEntries('d.sldd', [payload]) as Any).reason, () => session.pasteRefusal('d.sldd', payload, { deep: true })]) {
-      expect(ask()).toBe('Cannot paste into "d.sldd": a paste through the session is supported only into a MAT-file; a dictionary\'s section takes one entry at a time (parseEntry). Nothing was pasted.');
+      expect(ask()).toBe('Cannot paste into "d.sldd": a dictionary takes a paste into one of its sections, named by its id ("d.sldd/design"). Nothing was pasted.');
     }
     expect((session.pasteEntries('nope.mat', [payload]) as Any).reason).toBe('Cannot paste into "nope.mat": no source of that id is open. Nothing was pasted.');
   });

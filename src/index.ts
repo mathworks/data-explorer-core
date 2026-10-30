@@ -23,7 +23,28 @@ export type { SerializedSource } from './core/DataModel.js';
 // What session.pasteEntries takes and answers. Public for the reason SerializedSource is: a host
 // builds the payloads out of its clipboard, holds them in its own register, and switches on the
 // refusal arm of the answer to show it, none of which it can write down while the types have no name.
-export type { PastePayload, PasteResult } from './core/DataModel.js';
+export type { PasteOptions, PastePayload, PasteResult } from './core/DataModel.js';
+// The rules a paste or a drop into a dictionary's section runs, copied from the vscode extension's
+// host (structuralEdit, entryOps, transfer at c73da3c), which keeps its own until it adopts these:
+// what class a section takes (assertTypeAllowed, and before anything changes refuseDisallowedPaste,
+// which throws a TransferRefused), what a pasted entry becomes there (prepareEntryForPaste: a clone,
+// a unique name, the section's metadata and a fresh uuid, and a Constant only if scalar and numeric,
+// assertConstantValueAllowed), the safety net for a text dictionary's new entry
+// (refuseUnwrittenNumber), and the fold a multi-entry paste of a text is made by
+// (foldPasteEntries). session.pasteEntries makes such a paste into a section through them.
+export {
+  TransferRefused,
+  assertConstantValueAllowed,
+  assertTypeAllowed,
+  cloneForPaste,
+  findEntryBySelector,
+  foldPasteEntries,
+  prepareEntryForPaste,
+  recordCopy,
+  refuseDisallowedPaste,
+  refuseUnwrittenNumber,
+} from './edit/dictionaryPaste.js';
+export type { StructuralResult } from './edit/dictionaryPaste.js';
 // A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
 // for a host that calls a node's setProperty itself, as a dictionary's editor does.
 export { editRefusalText } from './datamodel/node/editRefusal.js';
