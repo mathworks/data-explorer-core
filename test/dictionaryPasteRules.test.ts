@@ -15,14 +15,14 @@ import {
   assertConstantValueAllowed,
   assertTypeAllowed,
   cloneForPaste,
-  findEntryBySelector,
   foldPasteEntries,
   prepareEntryForPaste,
-  recordCopy,
   refuseDisallowedPaste,
   refuseUnwrittenNumber,
   type StructuralResult,
 } from '../src/edit/dictionaryPaste.js';
+// The two entryOps helpers the rules use, entryOps.ts's since step 6a C3.
+import { findEntryBySelector, recordCopy } from '../src/edit/entryOps.js';
 
 type Any = any;
 

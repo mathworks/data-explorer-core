@@ -25,7 +25,7 @@ export type { SerializedSource } from './core/DataModel.js';
 // refusal arm of the answer to show it, none of which it can write down while the types have no name.
 export type { PasteOptions, PastePayload, PasteResult } from './core/DataModel.js';
 // The rules a paste or a drop into a dictionary's section runs, copied from the vscode extension's
-// host (structuralEdit, entryOps, transfer at c73da3c), which keeps its own until it adopts these:
+// host (structuralEdit and transfer at c73da3c), which keeps its own until it adopts these:
 // what class a section takes (assertTypeAllowed, and before anything changes refuseDisallowedPaste,
 // which throws a TransferRefused), what a pasted entry becomes there (prepareEntryForPaste: a clone,
 // a unique name, the section's metadata and a fresh uuid, and a Constant only if scalar and numeric,
@@ -37,10 +37,8 @@ export {
   assertConstantValueAllowed,
   assertTypeAllowed,
   cloneForPaste,
-  findEntryBySelector,
   foldPasteEntries,
   prepareEntryForPaste,
-  recordCopy,
   refuseDisallowedPaste,
   refuseUnwrittenNumber,
 } from './edit/dictionaryPaste.js';
@@ -90,7 +88,45 @@ export {
   planOwnEdit,
 } from './edit/jsonEntrySync.js';
 export type { EntrySyncPlan, HostEdit, KnownEdit, OwnEditPlan, PaintedWrite, RangeReplacement, TextChange } from './edit/jsonEntrySync.js';
-export type { EntryFragment, EntryOp, EntryPatch, EntryRecord } from './edit/entryOps.js';
+// The entry-level ops a binary dictionary's editor undoes and redoes by, and the JSON view's sync
+// planners speak in: an op is a snapshot of an entry (replace, insert, remove), applied to a model in
+// order (applyEntryOps), captured before a removal (removeEntries, removalPairs) or after a paste
+// (opsOfPastedEntries), and an in-place cell edit through the session (mutateEntry, cellEdit).
+// Copied from data-explorer-vscode's host at c73da3c, as its JSON pieces are; each op that changes the
+// tree takes the session that holds it, as its last argument. recordCopy and findEntryBySelector are
+// the paste rules' helpers.
+export {
+  applyEntryOps,
+  cellEdit,
+  entryRecord,
+  findEntryByName,
+  findEntryBySelector,
+  insertAnchorOf,
+  insertOp,
+  mutateEntry,
+  opsOfPastedEntries,
+  patchOfPairs,
+  recordCopy,
+  removalPairs,
+  removeEntries,
+  removeOp,
+  replaceOp,
+} from './edit/entryOps.js';
+export type { AppliedOp, EntryFragment, EntryOp, EntryOpPair, EntryOpsSession, EntryPatch, EntryRecord, Removal } from './edit/entryOps.js';
+// Each structural edit of a binary dictionary's data/chunk0.xml as the text it writes, the touched
+// entry's <Object> spliced and every other byte kept (xmlStructuralEdit, the XML analog of
+// structuralEdit's text half, with the same rules). Copied as above.
+export {
+  addChildXml,
+  addNewEntryXml,
+  deleteChildXml,
+  deleteChildrenXml,
+  deleteEntriesByNameXml,
+  deleteEntryXml,
+  pasteEntriesXml,
+  pasteEntryXml,
+  reserializeEntryXml,
+} from './edit/xmlStructuralEdit.js';
 export {
   STRING_DECODE_LIMIT,
   TEXT_SYNC_LIMIT,

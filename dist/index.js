@@ -12,14 +12,14 @@ export * as UndoManager from './core/UndoManager.js';
 // Session/bus/undo factories (milestone 2 — per-instance state).
 export { createSession } from './core/DataModel.js';
 // The rules a paste or a drop into a dictionary's section runs, copied from the vscode extension's
-// host (structuralEdit, entryOps, transfer at c73da3c), which keeps its own until it adopts these:
+// host (structuralEdit and transfer at c73da3c), which keeps its own until it adopts these:
 // what class a section takes (assertTypeAllowed, and before anything changes refuseDisallowedPaste,
 // which throws a TransferRefused), what a pasted entry becomes there (prepareEntryForPaste: a clone,
 // a unique name, the section's metadata and a fresh uuid, and a Constant only if scalar and numeric,
 // assertConstantValueAllowed), the safety net for a text dictionary's new entry
 // (refuseUnwrittenNumber), and the fold a multi-entry paste of a text is made by
 // (foldPasteEntries). session.pasteEntries makes such a paste into a section through them.
-export { TransferRefused, assertConstantValueAllowed, assertTypeAllowed, cloneForPaste, findEntryBySelector, foldPasteEntries, prepareEntryForPaste, recordCopy, refuseDisallowedPaste, refuseUnwrittenNumber, } from './edit/dictionaryPaste.js';
+export { TransferRefused, assertConstantValueAllowed, assertTypeAllowed, cloneForPaste, foldPasteEntries, prepareEntryForPaste, refuseDisallowedPaste, refuseUnwrittenNumber, } from './edit/dictionaryPaste.js';
 // A text dictionary's JSON, as an editor that keeps the user's text writes it: where an entry's element
 // is, found by scanning the text rather than parsing it (jsonEntryScan, entrySplice), the entry's text
 // as that editor writes it (reserializeEntry), and each structural edit as one byte-scoped patch of the
@@ -32,6 +32,18 @@ export { findEntriesArrayStart, indexEntries, locateChangedEntry, scanEntries } 
 export { detectIndent, findEntriesArrayInsertion, findEntryElementSpan as findJsonEntryElementSpan, findEntrySpan, indentBefore, } from './edit/entrySplice.js';
 export { addChild, addChildToModel, addNewEntry, createEntry, deleteChild, deleteChildren, deleteEntriesByName, deleteEntry, findOwningEntry, pasteEntries, pasteEntry, removeChildFromModel, removeChildrenFromModel, reselectAfterRemoval, reserializeEntry, sectionByName, } from './edit/structuralEdit.js';
 export { hintFor, isEchoOfEdit, isPaintedEcho, planEntrySync, planKnownChange, planKnownOps, planOwnEdit, } from './edit/jsonEntrySync.js';
+// The entry-level ops a binary dictionary's editor undoes and redoes by, and the JSON view's sync
+// planners speak in: an op is a snapshot of an entry (replace, insert, remove), applied to a model in
+// order (applyEntryOps), captured before a removal (removeEntries, removalPairs) or after a paste
+// (opsOfPastedEntries), and an in-place cell edit through the session (mutateEntry, cellEdit).
+// Copied from data-explorer-vscode's host at c73da3c, as its JSON pieces are; each op that changes the
+// tree takes the session that holds it, as its last argument. recordCopy and findEntryBySelector are
+// the paste rules' helpers.
+export { applyEntryOps, cellEdit, entryRecord, findEntryByName, findEntryBySelector, insertAnchorOf, insertOp, mutateEntry, opsOfPastedEntries, patchOfPairs, recordCopy, removalPairs, removeEntries, removeOp, replaceOp, } from './edit/entryOps.js';
+// Each structural edit of a binary dictionary's data/chunk0.xml as the text it writes, the touched
+// entry's <Object> spliced and every other byte kept (xmlStructuralEdit, the XML analog of
+// structuralEdit's text half, with the same rules). Copied as above.
+export { addChildXml, addNewEntryXml, deleteChildXml, deleteChildrenXml, deleteEntriesByNameXml, deleteEntryXml, pasteEntriesXml, pasteEntryXml, reserializeEntryXml, } from './edit/xmlStructuralEdit.js';
 export { STRING_DECODE_LIMIT, TEXT_SYNC_LIMIT, exceedsStringDecodeLimit, exceedsTextSyncLimit, isEditableJsonSlddBytes, isZipBytes, parsesAsJson, } from './edit/slddFormat.js';
 // A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
 // for a host that calls a node's setProperty itself, as a dictionary's editor does.
