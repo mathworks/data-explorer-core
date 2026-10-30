@@ -1,0 +1,442 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "cGear",
+						"metadata": {
+							"uuid": "5b845f3c-e1e1-455a-a174-60ced9d603cb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.385696",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "GearMode",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": {
+												"_type": "int32",
+												"_value": "-1"
+											},
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cGearRow",
+						"metadata": {
+							"uuid": "4b4f2863-039f-4b59-8551-e1cedca61e8c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.387150",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "GearMode",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": {
+												"_type": "int32",
+												"_value": "[0, -1]"
+											},
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOff",
+						"metadata": {
+							"uuid": "5fe24bea-7c20-461b-93c9-e3a878345ac8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.377615",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": false,
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOn",
+						"metadata": {
+							"uuid": "274cc413-de2e-423a-880f-c1092fde4c7f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.282775",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": true,
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOn2x2",
+						"metadata": {
+							"uuid": "387892ab-fc2a-43c0-9360-6156ecf2c28d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.380915",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": {
+												"_type": "logical",
+												"_value": "Matrix(2,2)\n[[1, 0]; [0, 1]]"
+											},
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOnCol",
+						"metadata": {
+							"uuid": "ca193e24-8b32-4674-806b-3feaa91c8852",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.379857",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": {
+												"_type": "logical",
+												"_value": "Matrix(2,1)\n[1, 0]"
+											},
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOnEmpty",
+						"metadata": {
+							"uuid": "08c6a3e5-5c18-4b52-a1c0-a39b4d9ef260",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.381955",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_type": "matlab.lang.OnOffSwitchState",
+									"_value": "[]"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cOnRow",
+						"metadata": {
+							"uuid": "e176c9a0-09bb-45ea-ac6e-cbf740f80405",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.378854",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": {
+												"_type": "logical",
+												"_value": "[1, 0]"
+											},
+											"_id": "1"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cTwo",
+						"metadata": {
+							"uuid": "e5c1fb70-ee04-4b1e-b760-57737726fd15",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.382894",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": true,
+											"_id": "1"
+										}
+									]
+								},
+								{
+									"_array_class": "matlab.lang.OnOffSwitchState",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_enum_value": false,
+											"_id": "2"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sGear",
+						"metadata": {
+							"uuid": "d57372f8-da32-4d00-94f2-5db3c190ac6f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.388133",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"v": {
+										"_array_class": "GearMode",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_enum_value": {
+													"_type": "int32",
+													"_value": "-1"
+												},
+												"_id": "1"
+											}
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sOn",
+						"metadata": {
+							"uuid": "2c7a1192-ac83-46ea-8396-22dee861a54e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.383874",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"v": {
+										"_array_class": "matlab.lang.OnOffSwitchState",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_enum_value": true,
+												"_id": "1"
+											}
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sOn2x2",
+						"metadata": {
+							"uuid": "155a417a-21bd-4151-9dcc-4815cbed4569",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261030T155409.384772",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"v": {
+										"_array_class": "matlab.lang.OnOffSwitchState",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_enum_value": {
+													"_type": "logical",
+													"_value": "Matrix(2,2)\n[[1, 0]; [0, 1]]"
+												},
+												"_id": "1"
+											}
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

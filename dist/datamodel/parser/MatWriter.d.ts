@@ -224,5 +224,12 @@ export declare function textDictionaryForm(x: unknown, at?: string): unknown;
  * the bag, which a paste into a binary dictionary writes as that envelope too.
  */
 export declare function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null;
+/**
+ * Whether `o`, an enumeration value as the binary or the MAT reader holds one (XmlUtils.isEnumBag), is
+ * written into a text dictionary as MATLAB writes it there: an empty one, by heldTextSpelling, and any
+ * other enumTextForm spells. One that is not was written as an object with no enumerals, which MATLAB
+ * fails to read, so a paste refuses it (SectionNode.parseEntry; open-questions 14, B).
+ */
+export declare function enumSpelledInText(o: Record<string, unknown>): boolean;
 export {};
 //# sourceMappingURL=MatWriter.d.ts.map
