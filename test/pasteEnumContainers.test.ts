@@ -84,3 +84,74 @@ describe('an enumeration in a cell or a struct, pasted out of a MAT-file into a 
     expect(d.design.children.length).toBe(held);
   });
 });
+
+// Into a binary dictionary (open-questions 14, C), measured in R2027a: MATLAB stores an enumeration
+// value by its enumerals' names (`IsEnum`, `EnumerationName`), and stores a cell or a struct holding a
+// logical-backed one, a matlab.lang.OnOffSwitchState (no Simulink enumeration class), as one MAT stream.
+// So two do not land as MATLAB would, and are refused, naming where they are: a logical-backed one,
+// which core wrote with `IsEnum` and MATLAB reads back as the char 'on' (or, empty, a double with the
+// warning "Invalid Simulink enumeration class"); and any one spelled as a text dictionary spells it,
+// which names no enumeral, and which core wrote as an empty object of the class. An integer-backed one
+// out of a MAT-file or a binary dictionary is written as MATLAB writes it, and lands, as before.
+const BINARY_TARGET = 'test/fixtures/edit-bash/r2027a/values_binary.sldd';
+
+function refusedIntoBinary(payload: Any, said: string): void {
+  const d = opened(BINARY_TARGET);
+  const held = d.design.children.length;
+  expect(d.session.pasteRefusal(d.design.id, payload, { deep: true })).toBe(said);
+  d.session.setActive(d.root, d.design);
+  expect(d.session.pasteEntries(d.design.id, [payload])).toMatchObject({ error: true, reason: said });
+  expect(d.design.children.length).toBe(held);
+}
+
+describe('an enumeration in a cell or a struct, pasted into a binary dictionary', () => {
+  const logical = (at: string, size: string) =>
+    at + ' holds a ' + size + ' matlab.lang.OnOffSwitchState, which this editor cannot write into a binary dictionary as MATLAB does (MATLAB stores it as a MAT stream)';
+  it.each([
+    ['cOn', 'cOn{1}', '1x1'],
+    ['cOff', 'cOff{1}', '1x1'],
+    ['cOnRow', 'cOnRow{1}', '1x2'],
+    ['cOnCol', 'cOnCol{1}', '2x1'],
+    ['cOn2x2', 'cOn2x2{1}', '2x2'],
+    ['cOnEmpty', 'cOnEmpty{1}', '1x0'],
+    ['cTwo', 'cTwo{1}', '1x1'],
+    ['sOn', 'sOn.v', '1x1'],
+    ['sOn2x2', 'sOn2x2.v', '2x2'],
+  ])('%s, a logical-backed one out of a MAT-file, is refused at %s', (name, at, size) => {
+    const mat = opened(ENUMS + 'values.mat');
+    const node = mat.root.children.find((v: Any) => v.name === name);
+    expect(mat.session.copyRefusal(node.id, 'xml')).toBe('Cannot copy "' + name + '" into a binary dictionary: ' + logical(at, size) + '. Nothing was copied.');
+    refusedIntoBinary(node.serialize(), 'Cannot write "' + name + '": ' + logical(at, size) + '. Nothing was written.');
+  });
+
+  const spelled = (at: string, cls: string) =>
+    at + ' holds a ' + cls + ' as a text dictionary spells one, which names no enumeral, and a binary dictionary stores each by its name';
+  it.each([
+    ['cOn', 'cOn{1}', 'matlab.lang.OnOffSwitchState'],
+    ['cOnRow', 'cOnRow{1}', 'matlab.lang.OnOffSwitchState'],
+    ['sOn', 'sOn.v', 'matlab.lang.OnOffSwitchState'],
+    ['cGear', 'cGear{1}', 'GearMode'],
+    ['cGearRow', 'cGearRow{1}', 'GearMode'],
+    ['sGear', 'sGear.v', 'GearMode'],
+  ])('%s, out of a text dictionary, is refused at %s', (name, at, cls) => {
+    const text = opened(ENUMS + 'values_text.sldd');
+    const node = text.design.children.find((e: Any) => e.name === name);
+    expect(text.session.copyRefusal(node.id, 'xml')).toBe('Cannot copy "' + name + '" into a binary dictionary: ' + spelled(at, cls) + '. Nothing was copied.');
+    refusedIntoBinary(node.serialize(), 'Cannot write "' + name + '": ' + spelled(at, cls) + '. Nothing was written.');
+  });
+
+  it("and so is a text dictionary's Parameter whose Value is one, at its Value", () => {
+    const value = { _enum_value: { _type: 'int32', _value: '-1' }, _id: '2', _object_class: 'GearMode' };
+    const payload = { name: 'pGear', metadata: null, value: { _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _id: '1', _properties: { Value: value } }], _mw_element_type: 'MATLABArray' } };
+    refusedIntoBinary(payload, 'Cannot write "pGear": ' + spelled('pGear.Value', 'GearMode') + '. Nothing was written.');
+  });
+
+  it.each(['cGear', 'cGearRow', 'sGear'])('%s, an integer-backed one out of a MAT-file, is pasted as before', (name) => {
+    const mat = opened(ENUMS + 'values.mat');
+    const node = mat.root.children.find((v: Any) => v.name === name);
+    expect(mat.session.copyRefusal(node.id, 'xml')).toBeNull();
+    const d = opened(BINARY_TARGET);
+    d.session.setActive(d.root, d.design);
+    expect(d.session.pasteEntries(d.design.id, [node.serialize()]).error).toBeUndefined();
+  });
+});
