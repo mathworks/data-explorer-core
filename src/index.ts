@@ -45,6 +45,61 @@ export {
   refuseUnwrittenNumber,
 } from './edit/dictionaryPaste.js';
 export type { StructuralResult } from './edit/dictionaryPaste.js';
+// A text dictionary's JSON, as an editor that keeps the user's text writes it: where an entry's element
+// is, found by scanning the text rather than parsing it (jsonEntryScan, entrySplice), the entry's text
+// as that editor writes it (reserializeEntry), and each structural edit as one byte-scoped patch of the
+// text with the model change it makes (structuralEdit's text half). With them, how the JSON view's text
+// changes are told back to the model (jsonEntrySync's planners, speaking entryOps' types) and which
+// .sldd bytes take which editor (slddFormat). Copied from data-explorer-vscode's host at c73da3c,
+// which keeps its own until it adopts these; every name is vscode's but findJsonEntryElementSpan
+// (vscode's entrySplice.findEntryElementSpan, renamed for the XML one above).
+export { findEntriesArrayStart, indexEntries, locateChangedEntry, scanEntries } from './edit/jsonEntryScan.js';
+export type { ChangeRegion, EntriesIndex, EntryElementSpan, EntryScan } from './edit/jsonEntryScan.js';
+export {
+  detectIndent,
+  findEntriesArrayInsertion,
+  findEntryElementSpan as findJsonEntryElementSpan,
+  findEntrySpan,
+  indentBefore,
+} from './edit/entrySplice.js';
+export {
+  addChild,
+  addChildToModel,
+  addNewEntry,
+  createEntry,
+  deleteChild,
+  deleteChildren,
+  deleteEntriesByName,
+  deleteEntry,
+  findOwningEntry,
+  pasteEntries,
+  pasteEntry,
+  removeChildFromModel,
+  removeChildrenFromModel,
+  reselectAfterRemoval,
+  reserializeEntry,
+  sectionByName,
+} from './edit/structuralEdit.js';
+export {
+  hintFor,
+  isEchoOfEdit,
+  isPaintedEcho,
+  planEntrySync,
+  planKnownChange,
+  planKnownOps,
+  planOwnEdit,
+} from './edit/jsonEntrySync.js';
+export type { EntrySyncPlan, HostEdit, KnownEdit, OwnEditPlan, PaintedWrite, RangeReplacement, TextChange } from './edit/jsonEntrySync.js';
+export type { EntryFragment, EntryOp, EntryPatch, EntryRecord } from './edit/entryOps.js';
+export {
+  STRING_DECODE_LIMIT,
+  TEXT_SYNC_LIMIT,
+  exceedsStringDecodeLimit,
+  exceedsTextSyncLimit,
+  isEditableJsonSlddBytes,
+  isZipBytes,
+  parsesAsJson,
+} from './edit/slddFormat.js';
 // A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
 // for a host that calls a node's setProperty itself, as a dictionary's editor does.
 export { editRefusalText } from './datamodel/node/editRefusal.js';
@@ -574,8 +629,9 @@ export type { TextPatch } from './edit/textPatch.js';
 // Other Data are two entries. Every front-end that deletes or renames a row has to know
 // that, and would otherwise rediscover it as a bug — a delete that removed the wrong row.
 //
-// Asymmetry to be honest about: the JSON-side splicer for text .sldd files is still in
-// data-explorer-vscode, because it needs a JSON parser this package does not depend on.
+// The JSON-side splicer for text .sldd files is below (entrySplice, copied from
+// data-explorer-vscode): its findEntryElementSpan is published as findJsonEntryElementSpan,
+// since this one already holds the name for the XML chunk.
 export { findEntryObjectSpan, findEntryElementSpan, findEntryInsertionPoint } from './datamodel/parser/xmlEntrySplice.js';
 export type { XmlSpan } from './datamodel/parser/xmlEntrySplice.js';
 export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
