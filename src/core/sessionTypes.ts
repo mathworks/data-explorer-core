@@ -33,6 +33,7 @@
 
 import type { EventBusInstance } from './EventBus.js';
 import type { INode, IAllNode, SourceMeta } from './NodeInterfaces.js';
+import type { EntrySelector } from '../datamodel/parser/entrySelector.js';
 
 export type { IAllNode as AllNode, SourceMeta };
 
@@ -52,6 +53,16 @@ export type { PastePayload } from '../datamodel/node/container/matPaste.js';
  * the arm a host acts on, by showing it.
  */
 export type PasteResult = { nodes: INode[] } | { error: true; reason: string; name?: string };
+
+/**
+ * What session.pasteEntries takes besides the entries: for a paste into a dictionary's section,
+ * `removeFirst`, the entries of that dictionary a same-document move takes out in the same undo step
+ * before it pastes, so that the pasted ones keep their names. Each is an entry's name, or its name
+ * and uuid (EntrySelector), which tells two entries of one name apart.
+ */
+export interface PasteOptions {
+  removeFirst?: readonly (string | EntrySelector)[];
+}
 
 /**
  * One source's content, ready to be written back over the file it came from.

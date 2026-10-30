@@ -1,9 +1,9 @@
 import type { INode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 import type { RowData } from '../datamodel/node/BaseNode.js';
-import type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource } from './sessionTypes.js';
+import type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PasteOptions, PastePayload, PasteResult, SerializedSource } from './sessionTypes.js';
 export type { AllNode, SourceMeta } from './sessionTypes.js';
-export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource };
+export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PasteOptions, PastePayload, PasteResult, SerializedSource };
 export declare function createSession(opts?: CreateSessionOptions): {
     allNode: IAllNode;
     addDataSource: (srcId: string, content: Record<string, unknown>, meta?: Partial<SourceMeta>, warnings?: ParseWarning[]) => ISourceNode;
@@ -51,8 +51,8 @@ export declare function createSession(opts?: CreateSessionOptions): {
     isUnchangedEdit: (nodeId: string, key: string, text: string) => boolean;
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
     addEntryRefusal: (containerId?: string, className?: string, entryName?: string) => string | null;
-    pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
-    pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
+    pasteEntries: (containerId: string, payloads: readonly PastePayload[], opts?: PasteOptions) => PasteResult;
+    pasteRefusal: (containerId: string, payload: PastePayload, opts?: {
         deep?: boolean;
     }) => string | null;
     copyRefusal: (nodeId: string, target?: "json" | "xml") => string | null;
@@ -123,8 +123,8 @@ declare const DataModel: {
     isUnchangedEdit: (nodeId: string, key: string, text: string) => boolean;
     addEntry: (sectionKey: string, className: string, entryName?: string) => INode | null;
     addEntryRefusal: (containerId?: string, className?: string, entryName?: string) => string | null;
-    pasteEntries: (srcId: string, payloads: readonly PastePayload[]) => PasteResult;
-    pasteRefusal: (srcId: string, payload: PastePayload, opts?: {
+    pasteEntries: (containerId: string, payloads: readonly PastePayload[], opts?: PasteOptions) => PasteResult;
+    pasteRefusal: (containerId: string, payload: PastePayload, opts?: {
         deep?: boolean;
     }) => string | null;
     copyRefusal: (nodeId: string, target?: "json" | "xml") => string | null;

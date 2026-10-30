@@ -55,10 +55,13 @@ import type {
   FindNodesQuery,
   LinkResolution,
   NodeUsage,
+  PasteOptions,
   PastePayload,
   PasteResult,
   SerializedSource,
 } from './sessionTypes.js';
+import { assertTypeAllowed, entriesToRemoveFirst, execPasteIntoSection } from '../edit/dictionaryPaste.js';
+import type { EntrySelector } from '../datamodel/parser/entrySelector.js';
 
 // Every type this file used to declare is still importable FROM this file, at the same
 // path, because that is the path its consumers already name: `src/index.ts` publishes
@@ -70,7 +73,7 @@ import type {
 // `sessionTypes.js` instead: `AllNode` and `SourceMeta` are aliases published here, the
 // barrel is a released surface, and that test asserts the shape of the UsageIndex edge.
 export type { AllNode, SourceMeta } from './sessionTypes.js';
-export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PastePayload, PasteResult, SerializedSource };
+export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, PasteOptions, PastePayload, PasteResult, SerializedSource };
 
 // A link target split into the entry name it asks for and the source it asks in.
 //
@@ -2228,24 +2231,32 @@ function addEntryRefusal(containerId?: string, className?: string, entryName?: s
 
 /**
  * Paste `payloads`, entries a host copied (DataNode.serialize: `{ name, metadata, value }`, of a
- * dictionary's entries or a MAT-file's variables), into the MAT-file `srcId` as new variables
- * (MatNode.execPasteEntries): each named as it was, or made unique against the file and the entries
- * pasted before it. All of them or none: where one is refused, nothing is added, published or
- * recorded, the file is as it was, and the answer says why, naming the entry and the file.
+ * dictionary's entries or a MAT-file's variables), into `containerId`: a MAT-file by its srcId, as
+ * new variables (MatNode.execPasteEntries), or a dictionary's section by its id (`x.sldd/design`),
+ * as new entries (pasteIntoSection). Each is named as it was, or made unique against the file (a
+ * section: its namespace) and the entries pasted before it. All of them or none: where one is
+ * refused, nothing is added, published or recorded, the file is as it was, and the answer says why,
+ * naming the entry.
  *
- * A paste made is ONE undo step of `srcId`'s stack (one 'undo/changed'), whatever it added, as a
- * delete of several entries is one (deleteEntryBatch); its undo takes every variable out and its redo
- * puts them back. Each variable added is announced ('node/added'), and each taken out by the undo
+ * A paste made is ONE undo step of the file's stack (one 'undo/changed'), whatever it added, as a
+ * delete of several entries is one (deleteEntryBatch); its undo takes every entry out and its redo
+ * puts them back. Each entry added is announced ('node/added'), and each taken out by the undo
  * ('node/deleted'). The selection is not moved: a host that pasted selects what it pasted itself,
- * from the nodes answered. Addressed by srcId, not by the selection, for the reason the (nodeId)
+ * from the nodes answered. Addressed by id, not by the selection, for the reason the (nodeId)
  * forms are: a drop lands in a file the selection need not be in.
  *
- * Only a MAT-file: a dictionary takes a paste through its section (SectionNode.parseEntry), whose
- * host splices the entry into the file's own text, and is refused here so, as is a srcId no open
- * source has.
+ * `removeFirst` is a same-document move's: the entries of the section's dictionary to take out
+ * in the same step, before the paste, so that the pasted ones keep their names (vscode's
+ * TransferCommit.removeFirst). A MAT-file takes none: it is one section, so a move within it is no
+ * move. A dictionary's own id, which names no section, and a srcId no open source has, are refused.
  */
-function pasteEntries(srcId: string, payloads: readonly PastePayload[]): PasteResult {
+function pasteEntries(containerId: string, payloads: readonly PastePayload[], opts?: PasteOptions): PasteResult {
+  const srcId = containerId;
   const source = dataSources.get(srcId);
+  const section = source ? null : dictionarySectionOf(containerId);
+  if (section) {
+    return pasteIntoSection(section, payloads, opts?.removeFirst ?? []);
+  }
   const refused = pasteTargetRefusal(srcId, source);
   if (refused) {
     return { error: true, reason: refused };
@@ -2253,6 +2264,9 @@ function pasteEntries(srcId: string, payloads: readonly PastePayload[]): PasteRe
   const mat = source as unknown as MatNode;
   if (!Array.isArray(payloads)) {
     return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": what was handed over is not a list of entries. Nothing was pasted.' };
+  }
+  if ((opts?.removeFirst?.length ?? 0) > 0) {
+    return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": a MAT-file takes no entries out before a paste, as a move within it is no move. Nothing was pasted.' };
   }
   if (payloads.length === 0) {
     return { nodes: [] };
@@ -2296,29 +2310,157 @@ function pasteEntries(srcId: string, payloads: readonly PastePayload[]): PasteRe
 }
 
 /**
- * Why a paste of `payload` into the MAT-file `srcId` would be refused, in the words pasteEntries
- * would answer, or null where it would be made (MatNode.pasteRefusal). By default only what is known
- * without making anything: the file, what was handed over, its name, its kind and class. With `deep`,
- * the paste itself, made and taken back, which no host sees: nothing published or recorded, and the
- * file as it was, its save the bytes it was. So a deep answer of null is a paste that will be made.
+ * Why a paste of `payload` into `containerId` (a MAT-file's srcId, or a dictionary's section id)
+ * would be refused, in the words pasteEntries would answer, or null where it would be made
+ * (MatNode.pasteRefusal; for a section, its allow-list, assertTypeAllowed). By default only what is
+ * known without making anything: the file, what was handed over, its name, its kind and class. With
+ * `deep`, the paste itself, made and taken back, which no host sees: nothing published or recorded,
+ * and the file as it was, its save the bytes it was. So a deep answer of null is a paste that will
+ * be made.
  */
-function pasteRefusal(srcId: string, payload: PastePayload, opts?: { deep?: boolean }): string | null {
+function pasteRefusal(containerId: string, payload: PastePayload, opts?: { deep?: boolean }): string | null {
+  const srcId = containerId;
   const source = dataSources.get(srcId);
+  const section = source ? null : dictionarySectionOf(containerId);
+  if (section) {
+    return sectionPasteRefusal(section, payload, opts?.deep === true);
+  }
   const refused = pasteTargetRefusal(srcId, source);
   return refused ?? (source as unknown as MatNode).pasteRefusal(payload, opts?.deep === true);
 }
 
 // Why `source`, the source `srcId` names, takes no paste through the session: none is open under
-// it, or it is not a MAT-file.
+// it, or it is a dictionary, which takes one into a section of it.
 function pasteTargetRefusal(srcId: string, source: ISourceNode | undefined): string | null {
   if (!source) {
     return 'Cannot paste into "' + srcId + '": no source of that id is open. Nothing was pasted.';
   }
   if (!(source instanceof MatNode)) {
-    return 'Cannot paste into "' + basenameOf(srcId) + '": a paste through the session is supported only into a MAT-file; '
-      + "a dictionary's section takes one entry at a time (parseEntry). Nothing was pasted.";
+    return 'Cannot paste into "' + basenameOf(srcId) + '": a dictionary takes a paste into one of its sections, '
+      + 'named by its id ("' + srcId + '/design"). Nothing was pasted.';
   }
   return null;
+}
+
+// The dictionary section `containerId` names, or null: a section of an open dictionary, which takes
+// a paste through the session (pasteIntoSection).
+function dictionarySectionOf(containerId: string): IContainerNode | null {
+  const node = resolveId(containerId) as IContainerNode | null;
+  return node && node.parent instanceof SlddNode && typeof (node as { parseEntry?: unknown }).parseEntry === 'function' ? node : null;
+}
+
+// Why `payload` is not pasted into `section` (pasteRefusal of a section), or null: the section is
+// in no file this session edits; or its allow-list refuses it (assertTypeAllowed); or, `deep`, the
+// paste refuses it when made (execPasteIntoSection), which is then taken back with nothing published
+// or recorded, and the dictionary's dirty flag as it was.
+function sectionPasteRefusal(section: IContainerNode, payload: PastePayload, deep: boolean): string | null {
+  const why = sectionPasteTargetRefusal(section, [payload]);
+  if (why) {
+    return why;
+  }
+  if (!deep) {
+    try {
+      assertTypeAllowed(section, payload as unknown as Record<string, unknown>);
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+  const root = section.parent as unknown as { dirty?: boolean };
+  const dirty = root.dirty;
+  const made = execPasteIntoSection(section, [payload as unknown as Record<string, unknown>]);
+  if ('error' in made) {
+    return made.reason;
+  }
+  made.undo();
+  root.dirty = dirty;
+  return null;
+}
+
+// Why `section` takes no paste of `payloads` at all, or null: it is in no file this session edits,
+// or what was handed over is not a list of entries (each an object, as DataNode.serialize answers).
+function sectionPasteTargetRefusal(section: IContainerNode, payloads: unknown): string | null {
+  const named = section.label ?? section.name;
+  if (!editableOwnerOf(section)) {
+    return 'Cannot paste into "' + named + '": ' + notEditedWhy(section) + '. Nothing was pasted.';
+  }
+  if (!Array.isArray(payloads) || payloads.some((p) => p === null || typeof p !== 'object' || Array.isArray(p))) {
+    return 'Cannot paste into "' + named + '": what was handed over is not a list of entries. Nothing was pasted.';
+  }
+  return null;
+}
+
+/**
+ * pasteEntries into a dictionary's section: the entries `removeFirst` names taken out of the
+ * section's dictionary (entriesToRemoveFirst), then each payload pasted (execPasteIntoSection,
+ * with vscode's paste rules, dictionaryPaste.ts), as ONE undo step of the dictionary's stack. The
+ * entries taken out are announced as deleted and leave the index and the selection; the pasted ones
+ * are indexed and announced as added. The undo takes the pasted ones out and puts the others back
+ * where they were; the redo makes it again.
+ */
+function pasteIntoSection(section: IContainerNode, payloads: readonly PastePayload[], removeFirst: readonly (string | EntrySelector)[]): PasteResult {
+  const refused = sectionPasteTargetRefusal(section, payloads);
+  if (refused) {
+    return { error: true, reason: refused };
+  }
+  if (payloads.length === 0) {
+    return { nodes: [] };
+  }
+  const scope = editableOwnerOf(section)!;
+  const removing = entriesToRemoveFirst(section.parent, removeFirst);
+  if (!Array.isArray(removing)) {
+    return removing;
+  }
+  const removed = removing as INode[];
+  // Read while they are in the tree (heldSubtree), before the paste takes them out.
+  const heldRemoved = removed.map((node) => heldSubtree(node));
+  const sectionsOf = removed.map((node) => node.parent as IContainerNode);
+  const made = execPasteIntoSection(section, payloads as unknown as Record<string, unknown>[], removed);
+  if ('error' in made) {
+    return made;
+  }
+  const nodes = made.nodes as INode[];
+  const taken = (held: HeldSubtree[]) => {
+    for (const h of held) {
+      unindexHeld(h);
+    }
+    releaseSubtreeSelection(held.flatMap((h) => h.nodes));
+    removed.forEach((node, i) => publishIndexed('node/deleted', { node, section: sectionsOf[i] }));
+  };
+  const added = () => {
+    for (const node of nodes) {
+      indexSubtree(node);
+    }
+    for (const node of nodes) {
+      publishIndexed('node/added', { node, sectionKey: section.name });
+    }
+  };
+  UndoManager.pushExecuted(scope.name, {
+    execute() {
+      const held = removed.map((node) => heldSubtree(node));
+      made.redo();
+      taken(held);
+      added();
+    },
+    undo() {
+      const held = nodes.map((node) => heldSubtree(node));
+      made.undo();
+      for (const h of held) {
+        unindexHeld(h);
+      }
+      releaseSubtreeSelection(held.flatMap((h) => h.nodes));
+      for (const node of nodes) {
+        publishIndexed('node/deleted', { node, section });
+      }
+      removed.forEach((node, i) => {
+        indexSubtree(node);
+        publishIndexed('node/added', { node, sectionKey: sectionsOf[i].name });
+      });
+    },
+  });
+  taken(heldRemoved);
+  added();
+  return { nodes };
 }
 
 // Publish `topic` for a node the index already describes (indexSubtree, or the ids deleted), as

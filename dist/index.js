@@ -11,6 +11,15 @@ export { publish, subscribe } from './core/EventBus.js';
 export * as UndoManager from './core/UndoManager.js';
 // Session/bus/undo factories (milestone 2 — per-instance state).
 export { createSession } from './core/DataModel.js';
+// The rules a paste or a drop into a dictionary's section runs, copied from the vscode extension's
+// host (structuralEdit, entryOps, transfer at c73da3c), which keeps its own until it adopts these:
+// what class a section takes (assertTypeAllowed, and before anything changes refuseDisallowedPaste,
+// which throws a TransferRefused), what a pasted entry becomes there (prepareEntryForPaste: a clone,
+// a unique name, the section's metadata and a fresh uuid, and a Constant only if scalar and numeric,
+// assertConstantValueAllowed), the safety net for a text dictionary's new entry
+// (refuseUnwrittenNumber), and the fold a multi-entry paste of a text is made by
+// (foldPasteEntries). session.pasteEntries makes such a paste into a section through them.
+export { TransferRefused, assertConstantValueAllowed, assertTypeAllowed, cloneForPaste, findEntryBySelector, foldPasteEntries, prepareEntryForPaste, recordCopy, refuseDisallowedPaste, refuseUnwrittenNumber, } from './edit/dictionaryPaste.js';
 // A refusal of an edit as session.editProperty answers it, naming its row (`Cannot edit "<row>": ...`),
 // for a host that calls a node's setProperty itself, as a dictionary's editor does.
 export { editRefusalText } from './datamodel/node/editRefusal.js';
