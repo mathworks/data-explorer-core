@@ -26,6 +26,10 @@ import { createSession, entrySelectorOf } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { deleteEntry } from '../src/edit/structuralEdit.js';
 
+// What the caller passes deleteEntry for a section header's row id: data-explorer-view's
+// buildSectionRowId, as vscode's structuralEdit used it (core knows no row ids).
+const sectionRowId = (name: string): string => `section:${name}`;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // vscode's test-integration/fixtures/workspace/data.sldd and test/fixtures/numeric_json.sldd, which are
@@ -106,7 +110,7 @@ for (const { label, text } of FIXTURES) {
         const expected = before.filter((e) => (uuid ? e.metadata?.uuid !== uuid : e.name !== node.name));
         expect(expected.length, `"${node.name}" identifies exactly one element`).toBe(before.length - 1);
 
-        const { newText } = deleteEntry(text, node);
+        const { newText } = deleteEntry(text, node, sectionRowId);
         expect(entriesOf(newText), `after deleting "${node.name}"`).toEqual(expected);
       });
     });

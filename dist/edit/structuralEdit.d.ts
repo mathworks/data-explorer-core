@@ -15,8 +15,14 @@ export declare function findOwningEntry(node: any): any;
 export declare function sectionByName(model: any, sectionName: string): any;
 export declare function reserializeEntry(entry: any, indent: string, elementIndent?: string): string;
 export declare function reselectAfterRemoval(siblings: any[], node: any, fallbackId: string): string;
-/** Delete a top-level entry by removing its element (and one comma) from the array. */
-export declare function deleteEntry(text: string, entry: any): StructuralResult;
+/**
+ * Delete a top-level entry by removing its element (and one comma) from the array.
+ *
+ * `sectionRowId` spells a section header's row id from its name (data-explorer-view's
+ * buildSectionRowId): where the selection lands when the entry was its section's last. The caller
+ * passes it, since row ids are the table's and core knows none of them.
+ */
+export declare function deleteEntry(text: string, entry: any, sectionRowId: (name: string) => string): StructuralResult;
 /**
  * Remove a nested child from the in-memory model, reporting the entry whose text
  * has to be reserialized and where the selection should land. This is the part of

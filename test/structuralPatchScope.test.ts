@@ -34,6 +34,10 @@ import {
   type StructuralResult,
 } from '../src/edit/structuralEdit.js';
 
+// What the caller passes deleteEntry for a section header's row id: data-explorer-view's
+// buildSectionRowId, as vscode's structuralEdit used it (core knows no row ids).
+const sectionRowId = (name: string): string => `section:${name}`;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // vscode's test-integration/fixtures/workspace/data.sldd, byte for byte.
@@ -83,7 +87,7 @@ describe('a structural edit reports the one region it changes', () => {
     const nodes = entryNodes('test://patch-delete.sldd');
     expect(nodes.length).toBeGreaterThan(3);
     for (const node of nodes) {
-      patchProducesNewText(fixtureText, deleteEntry(fixtureText, node), `delete "${node.name}"`);
+      patchProducesNewText(fixtureText, deleteEntry(fixtureText, node, sectionRowId), `delete "${node.name}"`);
     }
   });
 
@@ -91,7 +95,7 @@ describe('a structural edit reports the one region it changes', () => {
     // The point of the narrow write: an untouched entry is not merely re-written
     // identically, it is not written at all.
     const node = nodeNamed('test://patch-delete-scope.sldd', 'Number');
-    const { patch } = deleteEntry(fixtureText, node);
+    const { patch } = deleteEntry(fixtureText, node, sectionRowId);
     const other = findEntrySpan(fixtureText, 'PI');
     expect(other).toBeTruthy();
     const touched = (from: number, to: number) => from < patch!.offset + patch!.length && to > patch!.offset;
