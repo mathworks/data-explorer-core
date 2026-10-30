@@ -4,7 +4,8 @@
 // adopts this (view-split step 6b): its text half, the transforms below. Its paste rules are core's
 // dictionaryPaste.ts (step 6a C1), which this imports; its clipboard and drag snapshots and its
 // row-id resolution of a paste's target stay with the host, as they speak in the table's rows.
-// Otherwise only the imports differ, and a section header's row id is spelled here (see below).
+// Otherwise only the imports differ, and deleteEntry takes the section header's row-id builder
+// (view's buildSectionRowId) from its caller.
 //
 // Pure (VS-Code-free) text transforms for STRUCTURAL edits — delete, add-child,
 // and paste — that keep untouched entries byte-identical. Each takes already-
@@ -31,11 +32,6 @@ import { entrySelectorOf, type EntrySelector } from '../datamodel/parser/entrySe
 import { owningEntryOf } from '../datamodel/node/DataNode.js';
 import { textDictionaryJson } from '../datamodel/parser/TextDictionaryJson.js';
 import { foldPasteEntries, prepareEntryForPaste, refuseUnwrittenNumber, type StructuralResult } from './dictionaryPaste.js';
-
-// A section header's row id, as data-explorer-view spells it (src/model/ids/sectionRowId.ts,
-// buildSectionRowId): where a delete of a section's last entry puts the selection. Spelled here
-// because core imports nothing of view, which is downstream of it.
-const buildSectionRowId = (name: string): string => `section:${name}`;
 
 // One byte-scoped replacement of a document's text, and the one applier — both now core's
 // (`src/edit/textPatch.ts`), because WHICH REGION a text edit covers is a property of the two
@@ -131,11 +127,17 @@ export function reselectAfterRemoval(siblings: any[], node: any, fallbackId: str
   return fallbackId;
 }
 
-/** Delete a top-level entry by removing its element (and one comma) from the array. */
-export function deleteEntry(text: string, entry: any): StructuralResult {
+/**
+ * Delete a top-level entry by removing its element (and one comma) from the array.
+ *
+ * `sectionRowId` spells a section header's row id from its name (data-explorer-view's
+ * buildSectionRowId): where the selection lands when the entry was its section's last. The caller
+ * passes it, since row ids are the table's and core knows none of them.
+ */
+export function deleteEntry(text: string, entry: any, sectionRowId: (name: string) => string): StructuralResult {
   const section = entry.parent;
   const siblings = (section?.children ?? []) as any[];
-  const selectId = reselectAfterRemoval(siblings, entry, buildSectionRowId(section?.name ?? ''));
+  const selectId = reselectAfterRemoval(siblings, entry, sectionRowId(section?.name ?? ''));
   // By selector, not name: the node the user right-clicked is a specific entry,
   // and another section's namespace may hold a different entry with the same
   // name. See core's entrySelector.ts.

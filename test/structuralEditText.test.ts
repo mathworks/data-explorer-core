@@ -23,6 +23,10 @@ import { ingest } from '../src/core/ingest.js';
 import { findEntrySpan } from '../src/edit/entrySplice.js';
 import { addChild, deleteChild, deleteChildren, deleteEntry, pasteEntry } from '../src/edit/structuralEdit.js';
 
+// What the caller passes deleteEntry for a section header's row id: data-explorer-view's
+// buildSectionRowId, as vscode's structuralEdit used it (core knows no row ids).
+const sectionRowId = (name: string): string => `section:${name}`;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
@@ -62,7 +66,7 @@ describe('deleteEntry', () => {
     const model = freshModel();
     const entry = rowNamed(model, 'Number');
 
-    const { newText, selectId } = deleteEntry(fixtureText, entry);
+    const { newText, selectId } = deleteEntry(fixtureText, entry, sectionRowId);
     expect(isValidJson(newText)).toBe(true);
     expect(findEntrySpan(newText, 'Number')).toBeNull();
     // A different entry is unchanged byte-for-byte.
@@ -210,7 +214,7 @@ describe('pasteEntry', () => {
     const originalUuid = (src.serialize() as Any).metadata.uuid as string;
 
     const entry = rowNamed(model, 'Number');
-    const { newText } = deleteEntry(fixtureText, entry);
+    const { newText } = deleteEntry(fixtureText, entry, sectionRowId);
     // The entry is gone from the deleted text...
     expect(rowNames(newText)).not.toContain('Number');
 
@@ -257,7 +261,7 @@ describe('structural edits against text the model no longer matches', () => {
 
   it('deleteEntry names the entry it could not find', () => {
     const entry = rowNamed(freshModel(), 'Number');
-    expect(() => deleteEntry(renamed('Number', 'NumberRenamed'), entry)).toThrow(
+    expect(() => deleteEntry(renamed('Number', 'NumberRenamed'), entry, sectionRowId)).toThrow(
       'Could not locate entry "Number" to delete.',
     );
   });
@@ -373,7 +377,9 @@ describe('deleteEntry reselection', () => {
     const reparsed = freshModel(newText);
     const solo = reparsed.children.find((s: Any) => s.name === 'arch').children[0];
     expect(solo).toBeTruthy();
-    expect(deleteEntry(newText, solo).selectId).toBe('section:arch');
+    expect(deleteEntry(newText, solo, sectionRowId).selectId).toBe('section:arch');
+    // Core's own: the header's row id is the caller's spelling, whatever it is.
+    expect(deleteEntry(newText, solo, (name) => `header/${name}`).selectId).toBe('header/arch');
   });
 });
 
