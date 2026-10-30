@@ -74,6 +74,12 @@ const ALLOWED_TYPES = {
     config: ['Simulink.ConfigSet', 'Simulink.ConfigSetRef'],
     other: ['MatlabVariable', 'Simulink.VariantExpression', 'Simulink.VariantVariable', 'CustomObject'],
 };
+// The classes a section holds, reads and takes a paste or a drop of, that addEntry makes no new
+// entry of (_entryPlan). No MATLAB class is named CustomObject (CustomObject.md: a host-only
+// passthrough), and MATLAB makes none ("Unrecognized function or variable 'CustomObject'", R2027a),
+// so an entry made of it would be one MATLAB never made. Its node keeps createDefault, which the
+// tests build one with; the Add gallery offers none (open-questions 15b).
+const NOT_CREATED = new Set(['CustomObject']);
 // A new entry's metadata uuid: 32 random lowercase hex nibbles as 8-4-4-4-12, with no
 // version or variant nibble fixed, which is the shape this function has always written.
 //
@@ -119,8 +125,9 @@ export default class SectionNode extends ContainerNode {
         }
         return { columns: ['Name', 'Value', 'DataType', 'Status', 'UsedBy'] };
     }
-    // The classes an entry may be CREATED as here: what addEntry builds, and what a host
-    // offers to add. An empty list means "no restriction".
+    // The classes an entry may be CREATED as here: what addEntry builds, but for the ones it makes
+    // no new entry of (NOT_CREATED), and what a host offers to add. An empty list means "no
+    // restriction".
     getAllowedTypes() {
         return ALLOWED_TYPES[this.name] || [];
     }
@@ -351,10 +358,10 @@ export default class SectionNode extends ContainerNode {
     }
     // A new entry of `className`, named `entryName` (or the class's default name),
     // with a counter appended when that name is taken in this section's namespace.
-    // Returns null, and adds nothing, when the class is unknown or not on this section's
-    // allow-list (getAllowedTypes), or when the name is not one MATLAB can load
-    // (validateMatlabName, the rule a rename applies), as asked for or with its counter: a
-    // MAT-file's Add names one by the same rule (matlabName.newEntryName).
+    // Returns null, and adds nothing, when the class is unknown, one no new entry is made of
+    // (NOT_CREATED), or not on this section's allow-list (getAllowedTypes), or when the name is
+    // not one MATLAB can load (validateMatlabName, the rule a rename applies), as asked for or
+    // with its counter: a MAT-file's Add names one by the same rule (matlabName.newEntryName).
     //
     // The allow-list and not allowsType: a class admitted only to a paste (an mpt.Parameter,
     // whose node can build a default) is never created from scratch.
@@ -389,7 +396,7 @@ export default class SectionNode extends ContainerNode {
     // that does is named), and a name, asked for or with its counter, that is no MATLAB name.
     _entryPlan(className, entryName) {
         const NodeClass = NodeRegistry.getClass(className);
-        if (!NodeClass || !NodeClass.createDefault) {
+        if (!NodeClass || !NodeClass.createDefault || NOT_CREATED.has(className)) {
             return { why: 'this editor makes no new entry of that class' };
         }
         const allowed = this.getAllowedTypes();
