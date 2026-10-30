@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { EnumTypeNode, EnumValueNode } from '../src/datamodel/node/data/EnumTypeNode.js';
+import { entryByName, loadModel } from './parity/fidelity/roundTripHarness.js';
 
 function rawVal(properties: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -116,5 +117,39 @@ describe('EnumTypeNode execRemoveChild', () => {
 
     result.redo();
     expect(node.children).not.toContain(child);
+  });
+});
+
+// Ported from data-explorer-vscode test-integration/suite/addChildMenu.test.ts, which ran this in
+// VS Code: the enum type MATLAB wrote in params.sldd takes an Add Child, and the entry is written
+// as a text dictionary writes it. The fidelity suite counts the enumerals after a re-parse; this
+// holds the Enumerals array itself, its _dimensions and each enumeral's Value.
+function findByArrayClass(o: any, arrayClass: string): any {
+  if (o && typeof o === 'object') {
+    if (o._array_class === arrayClass) return o;
+    for (const k of Object.keys(o)) {
+      const r = findByArrayClass(o[k], arrayClass);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+describe('EnumTypeNode Add Child, on the enum type MATLAB wrote', () => {
+  it('Add Child on an EnumType writes a string Value and grows dims', () => {
+    const uri = 'test://enum-add-child.sldd';
+    const entry = entryByName(loadModel('json', 'params.sldd', uri), uri, 'MyEnum');
+    const before = entry.children.length;
+
+    expect(entry.addChildNode(), 'a child node was created').toBeTruthy();
+    const value = (entry.serialize() as any).value;
+    const enumerals = findByArrayClass(value, 'Simulink.data.dictionary.EnumTypeDefinition')._elements[0]
+      ._properties.Enumerals;
+    expect(enumerals._elements, 'enumeral array grew by one').toHaveLength(before + 1);
+    expect(enumerals._dimensions, 'dimensions track the count').toEqual([1, before + 1]);
+    expect(
+      enumerals._elements.every((e: any) => typeof e.Value === 'string'),
+      'every enumeral Value is a string',
+    ).toBe(true);
   });
 });
