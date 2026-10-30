@@ -8,7 +8,6 @@
 //                               assertConstantValueAllowed, prepareEntryForPaste,
 //                               refuseDisallowedPaste, refuseUnwrittenNumber, foldPasteEntries
 //                               (and their helpers)
-//   src/host/entryOps.ts        recordCopy, findEntryBySelector
 //   src/host/transfer.ts        TransferRefused
 // What changed in the copy: the imports, and `export` on refuseUnwrittenNumber, which a host
 // writing a text dictionary's new entry calls.
@@ -19,10 +18,12 @@
 // there; the name is made unique across the namespace; the entry is rebound to the section with
 // a fresh uuid; a plain variable becoming a Constant must be scalar and numeric; and a new entry
 // of a text dictionary holding a bare non-finite number is refused, never written as null. The
-// session's pasteEntries (core/DataModel) makes the paste through them as one undo step.
+// session's pasteEntries (core/DataModel) makes the paste through them as one undo step. The two
+// entryOps helpers they use, recordCopy and findEntryBySelector, are entryOps.ts's (step 6a C3).
 import { getSectionMetadata } from '../datamodel/SectionConstants.js';
 import { generateUuid } from '../datamodel/node/container/SectionNode.js';
 import { toEntrySelector } from '../datamodel/parser/entrySelector.js';
+import { findEntryBySelector, recordCopy } from './entryOps.js';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * A refusal that changed nothing: a message, and no repair.
@@ -36,90 +37,6 @@ export class TransferRefused extends Error {
         super(message);
         this.name = 'TransferRefused';
     }
-}
-/**
- * A deep copy of a serialized entry record, as a JSON round trip would make it — except that
- * every number is kept as the number it is.
- *
- * A binary dictionary's reader holds a scalar double as a bare JS number: a scalar entry's
- * value, a struct's field, an object's property. So an Inf, a NaN or a -0 is one in the record,
- * and JSON has no spelling for any of them — the round trip both copies used turned Infinity,
- * -Infinity and NaN into null and -0 into 0. A pasted entry, and an entry an undo rebuilt from
- * its record, came back as another value, with nothing said.
- *
- * Everything else is what the round trip did, on purpose, so that the only change is the one
- * that was a loss: an undefined, a function or a symbol is dropped from an object and is null
- * in an array, a `toJSON` is asked (a Date is its text), and a `__proto__` key stays a key.
- * structuredClone would be the other answer, and it keeps `undefined` members a writer would
- * then meet, and throws on a function.
- *
- * And a BigInt is refused, as JSON.stringify refuses one, with a TypeError — naming where it
- * stands, which JSON's does not. Core's MAT reader can hold a 64-bit integer as one, and a record
- * that holds one is a record neither writer here can write: the refusal is what made the entry
- * capture behind a removal (removeEntries) and an undo record refuse BEFORE anything changed,
- * and passing it through would move that failure to a later write, after the model has moved.
- */
-export function recordCopy(value) {
-    return copyAt(value, '');
-}
-function copyAt(value, at) {
-    if (typeof value === 'number')
-        return value;
-    if (typeof value === 'bigint') {
-        throw new TypeError(`Do not know how to serialize a BigInt${at ? ` (at ${at})` : ''}`);
-    }
-    if (value === undefined || typeof value === 'function' || typeof value === 'symbol')
-        return undefined;
-    if (value === null || typeof value !== 'object')
-        return value;
-    const asJson = value.toJSON;
-    if (typeof asJson === 'function')
-        return copyAt(asJson.call(value), at);
-    if (Array.isArray(value)) {
-        return value.map((element, i) => {
-            const copy = copyAt(element, `${at}[${i}]`);
-            return copy === undefined ? null : copy;
-        });
-    }
-    const out = {};
-    for (const [key, member] of Object.entries(value)) {
-        const copy = copyAt(member, at ? `${at}.${key}` : key);
-        if (copy === undefined)
-            continue;
-        // Defined, not assigned: assigning `__proto__` would set the copy's prototype, where a
-        // JSON.parse makes it an own key like any other.
-        Object.defineProperty(out, key, { value: copy, enumerable: true, writable: true, configurable: true });
-    }
-    return out;
-}
-/**
- * The live entry a clipboard or drag selector means, or nothing.
- *
- * A move deletes its source by NAME (that is all a payload carries across documents), and
- * both providers need the model node behind that name to state the removal as an op. Same
- * rule as the text splices in `deleteEntriesByName`: match on name, and consult the uuid only
- * when more than one entry answers to it — because a .sldd holds several namespaces, so two
- * entries legitimately share a name.
- *
- * Answers null rather than guessing when the name is ambiguous and the uuid cannot settle it.
- * The caller's fallback is the wide repaint, which is slow; moving an entry the user did not
- * touch is wrong.
- */
-export function findEntryBySelector(model, target) {
-    const selector = toEntrySelector(target);
-    const matches = [];
-    for (const section of (model?.children ?? [])) {
-        for (const entry of (section.children ?? [])) {
-            if (entry.name === selector.name)
-                matches.push(entry);
-        }
-    }
-    if (matches.length <= 1)
-        return matches[0] ?? null;
-    if (!selector.uuid)
-        return null;
-    const byUuid = matches.filter((e) => e.metadata?.uuid === selector.uuid);
-    return byUuid.length === 1 ? byUuid[0] : null;
 }
 /**
  * Refuse, before anything changes, a paste or drop the section's allow-list will not take.

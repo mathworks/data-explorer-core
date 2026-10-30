@@ -26,43 +26,6 @@ export interface StructuralResult {
     patch?: TextPatch;
 }
 /**
- * A deep copy of a serialized entry record, as a JSON round trip would make it — except that
- * every number is kept as the number it is.
- *
- * A binary dictionary's reader holds a scalar double as a bare JS number: a scalar entry's
- * value, a struct's field, an object's property. So an Inf, a NaN or a -0 is one in the record,
- * and JSON has no spelling for any of them — the round trip both copies used turned Infinity,
- * -Infinity and NaN into null and -0 into 0. A pasted entry, and an entry an undo rebuilt from
- * its record, came back as another value, with nothing said.
- *
- * Everything else is what the round trip did, on purpose, so that the only change is the one
- * that was a loss: an undefined, a function or a symbol is dropped from an object and is null
- * in an array, a `toJSON` is asked (a Date is its text), and a `__proto__` key stays a key.
- * structuredClone would be the other answer, and it keeps `undefined` members a writer would
- * then meet, and throws on a function.
- *
- * And a BigInt is refused, as JSON.stringify refuses one, with a TypeError — naming where it
- * stands, which JSON's does not. Core's MAT reader can hold a 64-bit integer as one, and a record
- * that holds one is a record neither writer here can write: the refusal is what made the entry
- * capture behind a removal (removeEntries) and an undo record refuse BEFORE anything changed,
- * and passing it through would move that failure to a later write, after the model has moved.
- */
-export declare function recordCopy(value: unknown): unknown;
-/**
- * The live entry a clipboard or drag selector means, or nothing.
- *
- * A move deletes its source by NAME (that is all a payload carries across documents), and
- * both providers need the model node behind that name to state the removal as an op. Same
- * rule as the text splices in `deleteEntriesByName`: match on name, and consult the uuid only
- * when more than one entry answers to it — because a .sldd holds several namespaces, so two
- * entries legitimately share a name.
- *
- * Answers null rather than guessing when the name is ambiguous and the uuid cannot settle it.
- * The caller's fallback is the wide repaint, which is slow; moving an entry the user did not
- * touch is wrong.
- */
-export declare function findEntryBySelector(model: any, target: string | EntrySelector): any;
-/**
  * Refuse, before anything changes, a paste or drop the section's allow-list will not take.
  *
  * The same check foldPasteEntries makes for every payload before its fold, asked earlier: by
