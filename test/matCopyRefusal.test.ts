@@ -90,12 +90,13 @@ describe('what a copy is refused for', () => {
 
   it("an empty of a class or a size a MAT-file's copy does not spell, which would paste as a double 0x0", () => {
     const m = open('test/fixtures/display/dispcat.mat');
+    // A numeric or logical one of rank 2, int8 0x3, false(1,0), zeros(1,0), is spelled by its copy
+    // as a binary dictionary's is, and copies (test/pasteMatShapedEmpties.test.ts; open-questions
+    // 14, D). A char's is not.
+    for (const name of ['dx_int8_0x3', 'dx_logical_1x0', 'dx_double_1x0']) {
+      expect(m.session.copyRefusal(m.by(name).id), name).toBeNull();
+    }
     for (const [name, what] of [
-      // The `[]` of its class, as MATLAB's text dictionary spells an int8 or a logical empty, which
-      // keeps the class.
-      ['dx_int8_0x3', 'its size reads back as 0x0 where 0x3 was written'],
-      ['dx_logical_1x0', 'its size reads back as 0x0 where 1x0 was written'],
-      ['dx_double_1x0', 'its size reads back as 0x0 where 1x0 was written'],
       ['dx_char_0x2', 'its size reads back as 0x0 where 0x2 was written'],
     ]) {
       expect(m.session.copyRefusal(m.by(name).id), name).toBe(`Cannot copy "${name}": what a copy carries of it reads back as another value (${name}: ${what}). Nothing was copied.`);

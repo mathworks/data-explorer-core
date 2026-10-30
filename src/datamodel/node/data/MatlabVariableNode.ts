@@ -4180,12 +4180,19 @@ export default class MatlabVariableNode extends DataNode {
    * `{"_type": "logical", "_value": "Matrix(1,0)"}` marked as read there (BINARY_EMPTY_KEY), which
    * heldTextSpelling spells at every place: given as `[]`, an object's property typed `false(1,0)`,
    * `zeros(0,3)` or `zeros(1,0,'int8')` was saved as the 0x0 of its class.
+   *
+   * And a MAT-file's the same, which a copy of it carries: as `[]`, its zeros(0,3) in a cell or a
+   * struct field, pasted into a binary dictionary, was saved as a double 0x0, where MATLAB's own copy
+   * keeps it 0x3 (open-questions 14, D). A text dictionary is given what MATLAB reads back there
+   * (heldTextSpelling), as for a binary dictionary's; MATLAB's own text dictionary holds a nested 0x3
+   * or 1x0 as the 0x0 of its class too (the edit-bash fixtures' made.json).
    */
   _serializeEmpty(): unknown {
     const d = effectiveDims(this._dims);
     const cls = this._scalarType;
     const numeric = cls === 'double' || TYPED_NUMERIC_CLASS.test(cls) || cls === 'logical';
-    if (numeric && d.length === 2 && !(d[0] === 0 && d[1] === 0) && this._ownerFormat() === 'xml') {
+    const owner = this._ownerFormat();
+    if (numeric && d.length === 2 && !(d[0] === 0 && d[1] === 0) && (owner === 'xml' || owner === 'mat')) {
       return { _type: cls, _value: 'Matrix(' + d.join(',') + ')', [BINARY_EMPTY_KEY]: true };
     }
     if ((TYPED_NUMERIC_CLASS.test(cls) || cls === 'logical') && d.length === 2) {
