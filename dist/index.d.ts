@@ -36,6 +36,8 @@ export type { NativeInflate } from './datamodel/parser/Inflate.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+export { readBinarySlddPackage, writeBinarySlddPackage } from './datamodel/parser/BinarySlddPackage.js';
+export type { BinarySlddPackage } from './datamodel/parser/BinarySlddPackage.js';
 export { EVERY_ENTRY, SavedChunk, changedEntryKeys, savedChunkRefusal, uncheckableEntries, } from './edit/binarySaveGate.js';
 export { chunkEntryKey, decodeXmlText, entryKey, scanChunkEntries, type ChunkEntries, type ChunkEntry, } from './datamodel/parser/chunkEntries.js';
 export { textDictionaryJson, jsonNumberText } from './datamodel/parser/TextDictionaryJson.js';

@@ -205,6 +205,11 @@ export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/Bin
 // An edited entry is saved as those bytes with only what the edit changed written from the model
 // (README, "Saving a file").
 export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+// A binary dictionary's package as an editor holds it between saves: the data part's text and the
+// other members' bytes (readBinarySlddPackage), zipped back up around the data part on a save or a
+// backup (writeBinarySlddPackage). Lifted from data-explorer-vscode's binary editor at c73da3c.
+export { readBinarySlddPackage, writeBinarySlddPackage } from './datamodel/parser/BinarySlddPackage.js';
+export type { BinarySlddPackage } from './datamodel/parser/BinarySlddPackage.js';
 // The save gate that check is for, and the scan it pairs entries with. `savedChunkRefusal` says
 // why a binary dictionary's chunk may not be saved over the chunk as last read or saved (the
 // maintainer's D12: every entry no edit changed must be its bytes, and an edited entry must keep
