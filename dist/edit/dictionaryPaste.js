@@ -9,8 +9,9 @@
 //                               refuseDisallowedPaste, refuseUnwrittenNumber, foldPasteEntries
 //                               (and their helpers)
 //   src/host/transfer.ts        TransferRefused
-// What changed in the copy: the imports, and `export` on refuseUnwrittenNumber, which a host
-// writing a text dictionary's new entry calls.
+// What changed in the copy: the imports, `export` on refuseUnwrittenNumber, which a host
+// writing a text dictionary's new entry calls, and the catalog prepareEntryForPaste hands
+// parseEntry (open-questions 17a), so that a pasted entry's Kind is a read's.
 //
 // These are the rules a paste or a drop of one or more entries into a dictionary's section runs,
 // whichever of the two .sldd formats the section is in and however the host writes the result:
@@ -242,7 +243,11 @@ export function prepareEntryForPaste(section, payload) {
     // class becomes a plain ObjectNode and a valueless payload a MatlabVariableNode,
     // so no payload reaching here (they are all serialize() output of a real entry,
     // or clipboard JSON with a name) can make it null. Kept as a defensive net.
-    const newNode = section.parseEntry(raw);
+    //
+    // With the dictionary's System Composer catalog, as its read is made: the catalog says by
+    // name which Simulink.Bus is a Data Interface and which a Struct Type, and without it a
+    // moved interface said "Bus" until a re-read said "Data Interface" (open-questions 17a).
+    const newNode = section.parseEntry(raw, section.parent?.systemComposer ?? null);
     if (!newNode)
         throw new Error('Failed to paste the entry.');
     assertConstantValueAllowed(section, newNode, !payloadClassName(payload));
