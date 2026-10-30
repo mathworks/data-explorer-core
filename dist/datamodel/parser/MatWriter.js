@@ -1741,10 +1741,10 @@ function entryEmptyText(cls, dims, at) {
  * and the bag without its `_mw_element_type` at a struct field; this writes the bag at every
  * place, as it writes every object out of a binary dictionary at every place.
  *
- * Null when an enumeral lacks its type or number, when they disagree on the type, when the type is
- * not an integer class (the only kind the corpus shows MATLAB spelling, and a double's or a
- * logical's spelling here is unattested), when the size is not the count of enumerals, and for
- * an empty one, which is spelled as MATLAB reads one back (heldTextSpelling).
+ * A logical-backed one is spelled by logicalEnumTextForm. Null when an enumeral lacks its type or
+ * number, when they disagree on the type, when the type is not an integer class or logical (a
+ * double's spelling here is unattested), when the size is not the count of enumerals, and for an
+ * empty one, which is spelled as MATLAB reads one back (heldTextSpelling).
  */
 function enumTextForm(o) {
     const elements = Array.isArray(o._elements) ? o._elements : [];
@@ -1766,6 +1766,9 @@ function enumTextForm(o) {
         tokens.push(enumeral.value.trim());
     }
     const shape = effectiveDims(dims);
+    if (type === 'logical') {
+        return logicalEnumTextForm(o, shape, tokens);
+    }
     if (type === null || !INTEGER_CLASS.test(type) || elementCountOf(shape) !== tokens.length || !tokens.every((t) => /^-?\d+$/.test(t))) {
         return null;
     }
@@ -1786,6 +1789,40 @@ function enumTextForm(o) {
     else {
         value = { _type: type, _value: shape[0] === 1 && shape[1] === 1 ? formatNumLiteral(rowMajor[0], type) : formatMatrixSerial(rowMajor, shape, type) };
     }
+    const out = {};
+    if (o._array_class !== undefined) {
+        out._array_class = o._array_class;
+    }
+    out._dimensions = [1, 1];
+    out._elements = [{ _enum_value: value }];
+    if (o._mw_element_type !== undefined) {
+        out._mw_element_type = o._mw_element_type;
+    }
+    return out;
+}
+/**
+ * Whether `o`, an enumeration value as the binary or the MAT reader holds one (XmlUtils.isEnumBag), is
+ * written into a text dictionary as MATLAB writes it there: an empty one, by heldTextSpelling, and any
+ * other enumTextForm spells. One that is not was written as an object with no enumerals, which MATLAB
+ * fails to read, so a paste refuses it (SectionNode.parseEntry; open-questions 14, B).
+ */
+export function enumSpelledInText(o) {
+    return !Array.isArray(o._elements) || o._elements.length === 0 || enumTextForm(o) !== null;
+}
+/**
+ * enumTextForm of a logical-backed enumeration value, a matlab.lang.OnOffSwitchState, as MATLAB
+ * R2027a writes one in a text dictionary (test/fixtures/enum-containers, make_enum_containers.m): a
+ * scalar's `_enum_value` is the JSON boolean, `true` for on, and any other rank-2 size's the logical
+ * literal of its values, `[1, 0]`, `Matrix(2,1)\n[1, 0]`, `Matrix(2,2)\n[[1, 0]; [0, 1]]`, in a bag that
+ * is 1x1 as for an integer-backed one. Null past rank 2, which MATLAB was not asked to write, and for
+ * an enumeral that is no 0 or 1 (open-questions 14, B).
+ */
+function logicalEnumTextForm(o, shape, tokens) {
+    if (shape.length > 2 || elementCountOf(shape) !== tokens.length || !tokens.every((t) => t === '0' || t === '1')) {
+        return null;
+    }
+    const rowMajor = transposeFromColumnMajorND(tokens.map(Number), shape);
+    const value = tokens.length === 1 ? tokens[0] === '1' : { _type: 'logical', _value: formatMatrixSerial(rowMajor, shape, 'logical') };
     const out = {};
     if (o._array_class !== undefined) {
         out._array_class = o._array_class;

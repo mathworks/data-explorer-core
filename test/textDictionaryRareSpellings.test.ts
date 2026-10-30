@@ -13,9 +13,9 @@
 //     holds so but a host may hand in;
 //   - an empty enumeration whose size is no count, spelled by place as an object array's is;
 //   - an extent too long to be a count at all, which no spelling states: `[]` at an entry;
-//   - an enumeration value with no text spelling (an underlying class that is not an integer,
-//     enumerals of two classes, a size that is not their count): the bag less the two keys a text
-//     dictionary has no reader for, at every depth of its elements;
+//   - an enumeration value with no text spelling (an underlying class that is not an integer or
+//     logical, enumerals of two classes, a size that is not their count): the bag less the two keys
+//     a text dictionary has no reader for, at every depth of its elements, and refused by a paste;
 //   - an N-D enumeration value, one element holding the MAT stream of its numbers in MATLAB's
 //     column-major order;
 //   - a string's empty under the binary reader's bare header, which is MATLAB's String bag holding
@@ -157,13 +157,14 @@ describe('an enumeration value a text dictionary has no spelling of', () => {
     expect((textDictionaryForm(bag) as { _elements: unknown[] })._elements).toEqual([null, { _properties: {} }]);
   });
 
-  it('and pasted, it is the entry its saved file reopens with', () => {
-    expect(heldAsReopened(unspelled['its enumerals are of a class that is not an integer'])).toEqual({
-      _array_class: 'GearMode',
-      _dimensions: [1, 1],
-      _elements: [{ _properties: {} }],
-      _mw_element_type: 'MATLABArray',
-    });
+  // Written so, MATLAB fails to read it ("Invalid or deleted object", R2027a, an OnOffSwitchState in
+  // a cell before it had a spelling here), so a paste refuses one, at any depth, naming where it is
+  // (open-questions 14, B). The text form above is still what a save of anything else writes.
+  it('and pasted, it is refused, naming where it is', () => {
+    const bag = unspelled['its enumerals are of a class that is not an integer'];
+    for (const [value, where] of [[bag, 'pasted'], [places(bag).cell, 'pasted{1}'], [places(bag).field, 'pasted.f'], [places(bag).property, 'pasted.Value']] as const) {
+      expect(() => pasted(TEXT, value)).toThrow('Cannot write "pasted": ' + where + ' holds a 1x1 GearMode, which this editor cannot write into a text dictionary as MATLAB does. Nothing was written.');
+    }
   });
 });
 

@@ -11,10 +11,10 @@ import type DataNode from '../DataNode.js';
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
-import { matlabTimestampNow } from '../../parser/XmlUtils.js';
+import { isEnumBag, matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { newEntryName, uniqueName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
-import { MatBudgetError, MatWriteError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
+import { MatBudgetError, MatWriteError, enumSpelledInText, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import { withoutHandleMarks } from '../../parser/McosParser.js';
 import { withoutShownOfSaved } from '../mcosShown.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
@@ -100,6 +100,11 @@ const ALLOWED_TYPES: Record<string, string[]> = {
 // so an entry made of it would be one MATLAB never made. Its node keeps createDefault, which the
 // tests build one with; the Add gallery offers none (open-questions 15b).
 const NOT_CREATED = new Set(['CustomObject']);
+
+// A bag's size as MATLAB states it, `1x1x2`.
+function dimsOfBag(o: Record<string, unknown>): string {
+  return Array.isArray(o._dimensions) ? (o._dimensions as unknown[]).join('x') : '1x1';
+}
 
 // The place in `value`, an entry's value as a copy holds it, of its first missing string (valuePlace),
 // or null where it holds none: `x(2)` of a string array's second. A missing string is a null element
@@ -639,6 +644,16 @@ export default class SectionNode extends ContainerNode {
       if (lost !== null) {
         throw new MatWriteError(
           'Cannot write "' + String(rawEntry.name ?? '') + '": ' + lost + ' is a missing string (<missing>), which MATLAB does not save in a dictionary. Nothing was written.',
+        );
+      }
+      // And, into a text dictionary, no enumeration value it cannot be given as MATLAB writes one
+      // there (MatWriter.enumSpelledInText): written as an object with no enumerals, MATLAB failed
+      // to read it (open-questions 14, B).
+      const unspelled = text ? valuePlace(value, String(rawEntry.name ?? ''), (o) => (isEnumBag(o) && !enumSpelledInText(o) ? '' : null)) : null;
+      if (unspelled !== null) {
+        throw new MatWriteError(
+          'Cannot write "' + String(rawEntry.name ?? '') + '": ' + unspelled.at + ' holds a ' + dimsOfBag(unspelled.bag) + ' ' + String(unspelled.bag._array_class)
+            + ', which this editor cannot write into a text dictionary as MATLAB does. Nothing was written.',
         );
       }
       // And by the keys MATLAB saves alone (mcosShown.withoutShownOfSaved): a MAT-file's object
