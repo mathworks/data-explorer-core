@@ -9,8 +9,15 @@
 // This suite locks those data-model rules down. The host-side forks
 // (SectionNode.parseEntry, Design↔Arch conversion, paste gating, addEntry) live
 // with the extension's integration tests, since they exercise the presentation
-// and structural-edit layers.
+// and structural-edit layers; constantNodeText.test.ts holds the paste ones, and
+// the last two describes below the parseEntry and addEntry ones the extension had
+// nowhere else (ported from data-explorer-vscode test/constantNode.test.ts at
+// 546ba12, ahead of vscode's V4: titles and assertions unchanged, a model a fresh
+// core session over the text instead of view's getModel, an entry found by name).
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createSession, getSectionMetadata } from '../src/index.js';
+import { ingest } from '../src/core/ingest.js';
 import ConstantNode from '../src/datamodel/node/data/ConstantNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { parsedIsScalarNumeric } from '../src/datamodel/parser/MatlabValueParser.js';
@@ -117,5 +124,62 @@ describe('ConstantNode value validation on edit', () => {
     const c = ConstantNode.createDefault('K', null);
     expect(c.setProperty('Name', 'NewK')).toBe(true);
     expect(c.name).toBe('NewK');
+  });
+});
+
+// ---- Ported from data-explorer-vscode test/constantNode.test.ts at 546ba12 -----------------------
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+// The design/arch namespace URI, read from the core barrel.
+const NS_DESIGN = getSectionMetadata('design').namespace;
+
+// The runtime class name, as the extension's suite checked it (it could not use `instanceof` across
+// the package boundary).
+const classOf = (n: any): string | undefined => n?.constructor?.name;
+
+const archText = readFileSync('test/fixtures/arch.sldd', 'utf8');
+
+// view's getModel(uri, 'arch.sldd', archText) after invalidate(uri): a fresh session over the text.
+function model(_uri: string): any {
+  const bytes = new TextEncoder().encode(archText);
+  return ingest(createSession(), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, { filename: 'arch.sldd' });
+}
+// The first row of that name, section headers aside: what buildRows(m).find(...) then findNode gives.
+function entryNode(_uri: string, m: any, name: string) {
+  return (m.flatten() as any[]).find((n) => !n.isContainer && n.name === name);
+}
+function sectionOf(m: any, name: string) {
+  return m.children.find((s: any) => s.name === name);
+}
+
+describe('SectionNode.parseEntry forks on isderived', () => {
+  it('a derived Bus stays a BusNode (only plain variables become Constants)', () => {
+    const uri = 'test://bus-fork.sldd';
+    const m = model(uri);
+    const di = entryNode(uri, m, 'DataInterface');
+    expect(classOf(di)).toBe('BusNode');
+  });
+});
+
+describe('Add Constant via addEntry', () => {
+  it('adds a scalar-numeric Constant to the arch section', () => {
+    const uri = 'test://add-const.sldd';
+    const m = model(uri);
+    const arch = sectionOf(m, 'arch');
+    const node = arch.addEntry('Constant');
+    expect(classOf(node)).toBe('ConstantNode');
+    expect(node.kind).toBe('Constant');
+    expect((node.metadata as any).isderived).toBe('1');
+    expect((node.metadata as any).namespace).toBe(NS_DESIGN);
+    expect(node.isScalarNumeric).toBe(true);
+    expect(node.canAddChild()).toBe(false);
+  });
+
+  it('a Constant cannot be added to the design section', () => {
+    const uri = 'test://add-const-design.sldd';
+    const m = model(uri);
+    const design = sectionOf(m, 'design');
+    expect(design.addEntry('Constant')).toBeNull();
   });
 });
