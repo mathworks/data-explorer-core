@@ -344,7 +344,12 @@ function mapKeepingSame(items: readonly unknown[], f: (item: unknown) => unknown
 }
 
 // The bag of a `className` object without what withoutShownOfSaved drops of it, every value in it
-// walked too; the same bag where nothing is dropped. For a binary dictionary, a CoderInfo's in the
+// walked too; the same bag where nothing is dropped. For a binary dictionary, a Parameter's with its
+// Value first: MATLAB R2027a reads a binary dictionary's properties in the order they are written, and
+// a text dictionary's Parameter holds them by name, DataType before Value, so a struct-valued one
+// copied out of one was read with "The parameter DataType cannot be set to 'struct' unless the Value
+// is a structure", its DataType set while its Value was still a double. Every binary Parameter MATLAB
+// wrote in this repo holds its Value first (open-questions 14, E). And a CoderInfo's in the
 // order MATLAB writes one there (CODER_INFO_ORDER) too: MATLAB R2027a reads a binary dictionary's
 // properties in the order they are written, and an Alias or an Alignment set before the
 // StorageClass, under the 'Auto' it is until then, is lost (Alignment 8 read as -1). The order
@@ -358,6 +363,14 @@ function savedOnly(className: string, bag: Record<string, unknown>, binary: bool
       if (k in bag && bag[k] === v) {
         out = out ?? { ...bag };
         delete out[k];
+      }
+    }
+  } else if (binary && (className === 'Simulink.Parameter' || superclassOf(className) === 'Simulink.Parameter') && 'Value' in bag && Object.keys(bag)[0] !== 'Value') {
+    // A Parameter's Value first, as MATLAB writes one into a binary dictionary (above).
+    out = { Value: bag.Value };
+    for (const [k, v] of Object.entries(bag)) {
+      if (k !== 'Value') {
+        setOwn(out, k, v);
       }
     }
   } else if (className === 'Simulink.CoderInfo') {
