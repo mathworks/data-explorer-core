@@ -4,6 +4,31 @@ import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 const CLASS_NAME = 'Simulink.ConfigSet';
+// The Version of a fresh Simulink.ConfigSet (`get_param(Simulink.ConfigSet, 'Version')`) in each
+// release, read 2026-10-30 in that release itself. It is the config set's schema version, not a
+// spelling of the release: R2025b's is R2025a's, and R2026b's has a third part.
+const VERSION_OF_RELEASE = {
+    R2023b: '23.1.0',
+    R2024a: '24.0.0',
+    R2024b: '24.1.0',
+    R2025a: '25.0.0',
+    R2025b: '25.0.0',
+    R2026a: '26.0.0',
+    R2026b: '26.1.1',
+    R2027a: '27.0.0',
+};
+// For a release not in the table, or none: R2023b's, the oldest measured. R2023b and R2027a both
+// load a set stamped with it as their own fresh one (R2027a does so for any Version from 10.0.0 up).
+const FALLBACK_VERSION = '23.1.0';
+/**
+ * The Version MATLAB stamps on a config set saved by the release that wrote the dictionary holding
+ * `section` (SlddNode.Release), as VERSION_OF_RELEASE states it, or FALLBACK_VERSION where the release
+ * is not in it or is unknown (a hand-built file, a section of no dictionary).
+ */
+function versionFor(section) {
+    const release = section?.parent?.Release;
+    return typeof release === 'string' && Object.prototype.hasOwnProperty.call(VERSION_OF_RELEASE, release) ? VERSION_OF_RELEASE[release] : FALLBACK_VERSION;
+}
 export default class ConfigSetNode extends SimulinkObjectNode {
     // The config set's own Name property. In a .sldd the entry name and this
     // property are the same string — both parse paths build the node with
@@ -30,7 +55,10 @@ export default class ConfigSetNode extends SimulinkObjectNode {
     // the class owns, then the gated description.
     _serializedOverrides() { return Object.assign({ Name: this.ConfigName }, this._gatedProps({ Description: this.Description })); }
     static get defaultName() { return 'Configuration'; }
-    static createDefault(name, parent) { const rawVal = ConfigSetNode._defaultRawVal(CLASS_NAME, { Name: name || 'Configuration' }); const props = ConfigSetNode._propsOf(rawVal); return new ConfigSetNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    // With the Version MATLAB stamps on a config set it saves (versionFor): without one, R2027a loads
+    // the set as one an old release saved, and gives PropagateSignalLabelsOutOfModel 'off' where its
+    // own fresh set has 'on' (open-questions 15a). Nothing else is written: MATLAB fills in the rest.
+    static createDefault(name, parent) { const rawVal = ConfigSetNode._defaultRawVal(CLASS_NAME, { Name: name || 'Configuration', Version: versionFor(parent) }); const props = ConfigSetNode._propsOf(rawVal); return new ConfigSetNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
     static parse(rawVal, name, parent) { const props = ConfigSetNode._propsOf(rawVal); return new ConfigSetNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=ConfigSetNode.js.map
