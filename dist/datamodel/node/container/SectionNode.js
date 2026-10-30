@@ -16,6 +16,7 @@ import { withoutShownOfSaved } from '../mcosShown.js';
 import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import { valuePlace } from './valuePlace.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
 const ALLOWED_TYPES = {
     design: [
@@ -80,6 +81,17 @@ const ALLOWED_TYPES = {
 // so an entry made of it would be one MATLAB never made. Its node keeps createDefault, which the
 // tests build one with; the Add gallery offers none (open-questions 15b).
 const NOT_CREATED = new Set(['CustomObject']);
+// The place in `value`, an entry's value as a copy holds it, of its first missing string (valuePlace),
+// or null where it holds none: `x(2)` of a string array's second. A missing string is a null element
+// of a String bag, as the MAT reader holds one; no dictionary holds one.
+function missingStringAt(value, at) {
+    const found = valuePlace(value, at, (o) => {
+        const elements = o._array_type === 'String' && Array.isArray(o._elements) ? o._elements : null;
+        const i = elements ? elements.indexOf(null) : -1;
+        return i === -1 ? null : elements.length > 1 ? '(' + (i + 1) + ')' : '';
+    });
+    return found ? found.at : null;
+}
 // A new entry's metadata uuid: 32 random lowercase hex nibbles as 8-4-4-4-12, with no
 // version or variant nibble fixed, which is the shape this function has always written.
 //
@@ -559,6 +571,14 @@ export default class SectionNode extends ContainerNode {
             if (unread) {
                 throw new MatWriteError('Cannot write "' + String(rawEntry.name ?? '') + '": its ' + (unread.at || 'value') + " is MATLAB's own handle data, which was not read whole (" + unread.why
                     + '), and a dictionary would hold the rest as its defaults. Nothing was written.');
+            }
+            // And no missing string (<missing>), at any depth: MATLAB does not save one in a dictionary
+            // ("<missing> string element not supported", R2027a, at an entry, in a cell and in a struct),
+            // so no copy of one is a copy MATLAB would make. A MAT-file holds one, and it was written, as
+            // "" or as a null element MATLAB reads as "" (open-questions 14, group A).
+            const lost = missingStringAt(value, String(rawEntry.name ?? ''));
+            if (lost !== null) {
+                throw new MatWriteError('Cannot write "' + String(rawEntry.name ?? '') + '": ' + lost + ' is a missing string (<missing>), which MATLAB does not save in a dictionary. Nothing was written.');
             }
             // And by the keys MATLAB saves alone (mcosShown.withoutShownOfSaved): a MAT-file's object
             // holds what MATLAB shows of it under other names too, which its copy carried into the file.
