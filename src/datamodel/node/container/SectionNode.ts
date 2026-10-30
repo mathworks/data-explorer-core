@@ -11,7 +11,7 @@ import type DataNode from '../DataNode.js';
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
-import { isEnumBag, matlabTimestampNow } from '../../parser/XmlUtils.js';
+import { enumeralOf, isEnumBag, matlabTimestampNow, textEnumValueOf } from '../../parser/XmlUtils.js';
 import { newEntryName, uniqueName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { MatBudgetError, MatWriteError, enumSpelledInText, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
@@ -100,6 +100,30 @@ const ALLOWED_TYPES: Record<string, string[]> = {
 // so an entry made of it would be one MATLAB never made. Its node keeps createDefault, which the
 // tests build one with; the Add gallery offers none (open-questions 15b).
 const NOT_CREATED = new Set(['CustomObject']);
+
+// Why `o`, an enumeration value a copy holds, cannot be given to a binary dictionary as MATLAB stores
+// one there, or null where it can. Measured in R2027a: MATLAB stores an enumeration value by its
+// enumerals' names (`IsEnum`, `EnumerationName`; a name that does not match the value is reloaded by
+// the name, with a warning), and a cell or a struct holding a logical-backed one, a
+// matlab.lang.OnOffSwitchState, which is no Simulink enumeration class, as one MAT stream. So
+// 'spelled': one as a text dictionary spells it (XmlUtils.textEnumValueOf), which names no enumeral,
+// and was written as an empty object of its class; and 'stream': a logical-backed one as the MAT or
+// the binary reader holds it, which was written with `IsEnum` and read back as the char 'on' (or,
+// empty, a double, "Invalid Simulink enumeration class"). An integer-backed one of a Simulink
+// enumeration class, as those readers hold it, is written as MATLAB writes it, and lands. A
+// logical-backed one stands nowhere else a paste can put it: Design Data holds no entry of the
+// class, and a Simulink.Parameter's Value takes none.
+function enumUnstoredInBinary(o: Record<string, unknown>): 'stream' | 'spelled' | null {
+  if (textEnumValueOf(o) !== undefined) {
+    return 'spelled';
+  }
+  if (!isEnumBag(o)) {
+    return null;
+  }
+  const elements = Array.isArray(o._elements) ? (o._elements as unknown[]) : [];
+  const logical = elements.length === 0 ? o._array_class === 'matlab.lang.OnOffSwitchState' : elements.some((e) => enumeralOf(e)?.type === 'logical');
+  return logical ? 'stream' : null;
+}
 
 // A bag's size as MATLAB states it, `1x1x2`.
 function dimsOfBag(o: Record<string, unknown>): string {
@@ -655,6 +679,15 @@ export default class SectionNode extends ContainerNode {
           'Cannot write "' + String(rawEntry.name ?? '') + '": ' + unspelled.at + ' holds a ' + dimsOfBag(unspelled.bag) + ' ' + String(unspelled.bag._array_class)
             + ', which this editor cannot write into a text dictionary as MATLAB does. Nothing was written.',
         );
+      }
+      // And, into a binary dictionary, no enumeration value it cannot be given as MATLAB stores one
+      // there (enumUnstoredInBinary; open-questions 14, C).
+      const unstored = text ? null : valuePlace(value, String(rawEntry.name ?? ''), (o) => (enumUnstoredInBinary(o) !== null ? '' : null));
+      if (unstored !== null) {
+        const why = enumUnstoredInBinary(unstored.bag) === 'stream'
+          ? ' holds a ' + dimsOfBag(unstored.bag) + ' ' + String(unstored.bag._array_class) + ', which this editor cannot write into a binary dictionary as MATLAB does (MATLAB stores it as a MAT stream)'
+          : ' holds a ' + String(unstored.bag._array_class ?? unstored.bag._object_class) + ' as a text dictionary spells one, which names no enumeral, and a binary dictionary stores each by its name';
+        throw new MatWriteError('Cannot write "' + String(rawEntry.name ?? '') + '": ' + unstored.at + why + '. Nothing was written.');
       }
       // And by the keys MATLAB saves alone (mcosShown.withoutShownOfSaved): a MAT-file's object
       // holds what MATLAB shows of it under other names too, which its copy carried into the file.

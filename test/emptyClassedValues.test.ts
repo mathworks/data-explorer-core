@@ -325,6 +325,9 @@ describe('a typed `[]` is the 0x0 of its class', () => {
     const bin = open(HOST_XML);
     const payload: any = JSON.parse(JSON.stringify(entryNode(txt, 'widget').serialize()));
     payload.name = 'widgetCopy';
+    // Less its Mode, a GearMode as a text dictionary spells one, which a paste into a binary
+    // dictionary refuses (open-questions 14, C): it names no enumeral.
+    delete payload.value._elements[0]._properties.Mode;
     payload.metadata = { ...entryNode(bin.root, 'widget').metadata, uuid: '00000000-0000-4000-9000-000000000002' };
     bin.root.getSection('design').parseEntry(payload);
     const copy = entryOf(chunkOf(bin.session.serializeSource(bin.root.name)!.bytes!), 'widgetCopy');

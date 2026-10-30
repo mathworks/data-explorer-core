@@ -47,6 +47,7 @@ const parameterOf = (value: unknown) => ({ _array_class: 'Simulink.Parameter', _
 const cellOf = (...elements: unknown[]) => ({ _array_type: 'Cell', _dimensions: [1, elements.length], _elements: elements, _mw_element_type: 'MATLABArray' });
 const structOf = (fields: Record<string, unknown>) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [fields] });
 
+const ENUM_PLACE = 'the entry itself, an enumeration value';
 // Where a class the value names stands, the value holding it, and the path from the entry the
 // refusal names. `c` is the class: an object's own (`_object_class`) or an array's (`_array_class`).
 const PLACES: [place: string, value: (c: unknown) => unknown, path: string][] = [
@@ -57,7 +58,7 @@ const PLACES: [place: string, value: (c: unknown) => unknown, path: string][] = 
   ['the entry itself, empty', (c) => ({ _array_class: c, _dimensions: [0, 0], _elements: [], _mw_element_type: 'MATLABArray' }), ''],
   ['the entry itself, an array of two', (c) => arrayOf(c, [{ _properties: { A: 1 } }, { _properties: { A: 2 } }]), ''],
   [
-    'the entry itself, an enumeration value',
+    ENUM_PLACE,
     (c) => ({ _array_class: c, _dimensions: [1, 1], _elements: [{ _enum_value: { _type: 'int32', _value: '1' } }], _mw_element_type: 'MATLABArray' }),
     '',
   ],
@@ -225,6 +226,16 @@ describe('an object whose class is not a string, written as XML', () => {
       }
     });
     it(`at ${place}: a class named by a string is written, as before`, () => {
+      if (place === ENUM_PLACE) {
+        // A paste of an enumeration value as a text dictionary spells one into a binary dictionary
+        // is refused (open-questions 14, C): the spelling names no enumeral, and a binary dictionary
+        // stores each by its name. The text dictionary's own entry is written as XML as before.
+        expect(serializeEntryToXml(textEntry(written))).toContain('Class="my.Cls"');
+        expect(() => pastedIntoBinary(written)).toThrow(
+          'Cannot write "' + written.name + '": ' + written.name + ' holds a my.Cls as a text dictionary spells one, which names no enumeral, and a binary dictionary stores each by its name. Nothing was written.',
+        );
+        return;
+      }
       expectWritten(written, 'my.Cls');
     });
   }
