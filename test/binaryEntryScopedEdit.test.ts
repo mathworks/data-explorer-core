@@ -187,12 +187,16 @@ describe('binary .sldd entry-scoped repaint — narrow paint equals wide paint',
     d.session.mutateSubtree(bus, () => bus.setProperty('Name', 'MyRenamedBus'));
     d.spliceEntryText(bus, selector);
 
+    // The entry's rows, as vscode's case counted them (restored ahead of vscode's V4): the entry
+    // and each of its children, so that a rename that loses child rows fails.
+    const narrow = d.narrowPaint();
+    const entryRows = narrow.filter((line) => line.startsWith(bus.id + ' |') || line.startsWith(bus.id + '/'));
+    expect(entryRows.length).toBe(1 + bus.children.length);
     expectSubtreeResolves(d.session, bus);
     for (const stale of childIdsBefore) {
       expect(d.session.findNodeById(stale)).toBeNull();
     }
 
-    const narrow = d.narrowPaint();
     expect(narrow).toEqual(d.widePaint());
     d.dispose();
   });
