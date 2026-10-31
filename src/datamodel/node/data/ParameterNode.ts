@@ -66,6 +66,36 @@ function refusedAsField(parsed: ParsedValue): boolean {
     return parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 0;
 }
 
+// Why MATLAB's setter refuses the struct `valueNode` as a Parameter's Value, or null: a field, at any
+// depth, that MATLAB takes in no struct inside a Parameter (an empty double or char, a cell, a string
+// array: refusedAsField's rule, of the node), or one unlike its twin in another element of a struct
+// array (DataNode._differsFromTwins). In the words of the outermost struct, as an edit of the field
+// is refused in (ParameterNode._refuseValueBelow). Null for a Value that is no struct.
+function structValueRefusal(valueNode: BaseNode): string | null {
+    if (valueNode.className !== 'struct') {
+        return null;
+    }
+    const refusedField = (node: DataNode) => {
+        const shape = node._valueShape();
+        const count = shape.dims.reduce((a, b) => a * b, 1);
+        return shape.cls === 'cell' || (shape.cls === 'string' && count > 1) || (count === 0 && !shape.complex && (shape.cls === 'double' || shape.cls === 'char'));
+    };
+    // A struct's fields are its children; a struct array's children are its elements, which carry
+    // their subscript (BaseNode.isElementName), and whose children are the fields.
+    const refused = (node: BaseNode): boolean =>
+        node.children.some((child) => {
+            const field = !child._subscript;
+            if (field && (refusedField(child as DataNode) || (child as DataNode)._differsFromTwins((child as DataNode)._valueShape(), valueNode))) {
+                return true;
+            }
+            return child.className === 'struct' && refused(child);
+        });
+    if (!refused(valueNode)) {
+        return null;
+    }
+    return valueNode.children.some((child) => child._subscript) ? PRM_INVALID_ARRAY_OF_STRUCTS : PRM_INVALID_STRUCT;
+}
+
 // A numeric or logical empty of another class than double or another size than 0x0 (`zeros(0,3)`,
 // `zeros(1,0,'int8')`, `false(1,0)`), as the binary reader holds one (binaryEmptyForm); null for
 // any other value, a 0x0 double's `[]` among them.
@@ -449,10 +479,11 @@ export default class ParameterNode extends DataNode {
     // The Value of `copied`, another Parameter, as data: what a paste into a MAT-file gives a new
     // Parameter where no text makes the Value (a struct, which shows `<1x1 struct>`;
     // matPaste.carryInto). Held to what a Value edit is held to of the value it makes: a Value read
-    // from a stream and not edited, or held encoded or beside its class, takes none; and this
-    // Parameter's source judges the value (sourceValueRefusal: a MAT-file writes a struct of numbers,
-    // logicals and chars, and no cell, object or enumeration value). Taken, it is as an edit of the
-    // Value leaves it: marked Modified, its DataType, Dimensions and Complexity followed.
+    // from a stream and not edited, or held encoded or beside its class, takes none; MATLAB's rules
+    // for a struct Value, which an edit of one of its fields is held to (structValueRefusal); and
+    // this Parameter's source judges the value (sourceValueRefusal: a MAT-file writes a struct of
+    // numbers, logicals and chars, and no cell, object or enumeration value). Taken, it is as an
+    // edit of the Value leaves it: marked Modified, its DataType, Dimensions and Complexity followed.
     _carryValueOf(copied: ParameterNode): true | SetPropertyResult {
         const shown = String(copied.displayValue ?? '');
         const offered = this._refuseEncodedEdit('Value', shown) ?? this._refuseInlineBagEdit('Value', shown) ?? this._refuseStreamValue(shown);
@@ -461,6 +492,10 @@ export default class ParameterNode extends DataNode {
         }
         const raw = structuredClone(copied._valueNode ? copied._valueNode.serializeValue() : copied.Value);
         const valueNode = NodeRegistry.parseValue(raw === undefined ? [] : raw, 'Value', this) as DataNode;
+        const matlab = structValueRefusal(valueNode);
+        if (matlab) {
+            return { error: true, reason: matlab, invalidValue: shown, validValue: this.displayValue };
+        }
         const refused = sourceValueRefusal(this, 'Value', valueNode);
         if (refused) {
             return { error: true, reason: refused, invalidValue: shown, validValue: this.displayValue };

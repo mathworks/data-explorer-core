@@ -88,11 +88,16 @@ function expectRefused(payload: Any, reason: RegExp, into: Uint8Array = fixture(
   expect(t.session.pasteRefusal('t.mat', payload, { deep: true })).toBe(res.reason);
 }
 
-// A copy of `payload` whose Value is `value`, named `name`.
+// A copy of `payload` whose Value is `value`, named `name`, its Dimensions the Value's, as MATLAB keeps them.
 function withValue(payload: Any, name: string, value: unknown): Any {
   const p = structuredClone(payload);
   p.name = name;
-  p.value._elements[0]._properties.Value = value;
+  const props = p.value._elements[0]._properties;
+  props.Value = value;
+  const dims = (value as { _dimensions?: unknown })?._dimensions;
+  if (Array.isArray(dims)) {
+    props.Dimensions = dims;
+  }
   return p;
 }
 
@@ -166,11 +171,40 @@ describe('a Parameter whose Value no bare text makes, pasted into a MAT-file, ke
   });
 });
 
+describe("a struct Value MATLAB's setter refuses is refused in MATLAB's words, as an edit of its field is", () => {
+  // MATLAB refuses such a Value (Simulink:Parameters:PrmInvalidStruct, PrmInvalidArrayOfStructs), and
+  // makes no Parameter of it; only a file something else wrote could hold one. An edit of a field to
+  // one is refused so (ParameterNode._refuseValueBelow), and so is a copy carried as data.
+  const base = () => copied(COMPLEX.binary, 'pStruct');
+  const STRUCT = /\.Value could not be set to what was copied: A valid structure must be numeric\./;
+  const ARRAY = /\.Value could not be set to what was copied: A valid array of structures must be numeric and homogeneous in terms of data type and dimensions\./;
+
+  it('a field MATLAB takes in no struct inside a Parameter: an empty double or char, a cell, a string array', () => {
+    expectRefused(withValue(base(), 'pEmpty', struct([{ a: 1, e: [] }])), STRUCT);
+    expectRefused(withValue(base(), 'pEmptyChar', struct([{ a: 1, e: '' }])), STRUCT);
+    expectRefused(withValue(base(), 'pCell', struct([{ a: 1, c: cell([1, 'x']) }])), STRUCT);
+    expectRefused(withValue(base(), 'pStrings', struct([{ a: 1, s: ['x', 'y'] }])), STRUCT);
+  });
+
+  it('a struct array whose field is unlike its twin in another element, in size or in class', () => {
+    expectRefused(withValue(base(), 'pSizes', struct([{ a: 1 }, { a: [1, 2] }])), ARRAY);
+    expectRefused(withValue(base(), 'pClasses', struct([{ a: 1 }, { a: 'x' }])), ARRAY);
+  });
+
+  it('at any depth, in the words of the outermost struct', () => {
+    expectRefused(withValue(base(), 'pDeep', struct([{ s: struct([{ x: 1 }, { x: 'ab' }]) }])), STRUCT);
+    expectRefused(withValue(base(), 'pDeepEmpty', struct([{ a: 1 }, { a: 2 }].map((e) => ({ ...e, s: struct([{ e: [] }]) })))), ARRAY);
+  });
+
+  it('but a char field may differ in length, as MATLAB takes it', () => {
+    expectPasted(withValue(base(), 'pChars', struct([{ a: 'x' }, { a: 'yz' }])));
+  });
+});
+
 describe('what a MAT-file writes no Value of is refused in the words of its rule', () => {
   const base = () => copied(COMPLEX.binary, 'pStruct');
 
-  it('a struct holding a cell, or an object', () => {
-    expectRefused(withValue(base(), 'pCell', struct([{ a: 1, c: cell([1, 'x']) }])), /: pCell\.Value would be a struct holding a cell, which this editor does not write into a Simulink\.Parameter\./);
+  it('a struct holding an object', () => {
     const object = { _array_class: 'Simulink.Parameter', _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Value: 1 } }] };
     expectRefused(withValue(base(), 'pObj', struct([{ a: 1, o: object }])), /: pObj\.Value holds a Simulink\.Parameter, which this editor does not write into an object\./);
   });

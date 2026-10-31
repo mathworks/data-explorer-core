@@ -715,25 +715,32 @@ const CARRY_PASSES = 4;
 // exactly it where one does (ParameterNode._exactValueText: `int16(500)`, a long vector written out
 // whole), each set as a user's edit sets it (setShown); and where no text makes it, as data (a struct,
 // which shows `<1x1 struct>`: ParameterNode._carryValueOf), held to the rules such an edit is. 'held'
-// where `at` holds that Value already, or `from` states none; 'set' where it now does; or why not, as
-// a clause.
+// where `at` holds that Value already; 'set' where it now does; or why not, as a clause, a Value set
+// that is not the copy's among them, said at once rather than set again in every pass.
 function carryValue(at: ParameterNode, from: ParameterNode): 'held' | 'set' | string {
   if (valueDifference(from, at) === null) {
     return 'held';
   }
   const text = from._valueNode ? from._exactValueText() : (shownOf(from, 'Value') ?? '');
-  if (text === '') {
-    return 'held';
-  }
-  if (text !== null) {
-    return setShown(at, 'Value', text) ?? 'set';
-  }
+  const why = text !== null ? setShown(at, 'Value', text) : carryData(at, from);
+  return why ?? valueDifference(from, at) ?? 'set';
+}
+
+// `from`'s Value carried onto `at` as data (carryValue), the source's gate asked first as setShown
+// asks it; null where it is, or why not, as a clause.
+function carryData(at: ParameterNode, from: ParameterNode): string | null {
+  const what = at.name + '.Value could not be set to what was copied: ';
   const gate = sourceEditRefusal(at, 'Value');
   if (gate) {
-    return at.name + '.Value could not be set: ' + editorClause(gate);
+    return what + editorClause(gate);
   }
   const set = at._carryValueOf(from);
-  return set === true ? 'set' : editorClause(String(set.reason));
+  if (set === true) {
+    return null;
+  }
+  // The source's own refusal names the property; MATLAB's rule for a struct Value does not.
+  const reason = String(set.reason);
+  return /^Cannot edit "/.test(reason) ? editorClause(reason) : what + editorClause(reason);
 }
 
 // `key` of `node` set to `text` as a user's edit sets it, or why it is not, as a clause.
@@ -904,11 +911,10 @@ function valueDifference(source: BaseNode, made: BaseNode): string | null {
   }
   const what = (v: MatVariable) => (v.isComplex ? 'a complex ' : 'a ') + (v.dimensions ?? []).join('x') + ' ' + (v.isLogical ? 'logical' : v.className);
   if (what(va) !== what(vb)) {
-    return path + ' is ' + what(va) + ' in what was copied, and a new Simulink.Parameter of a MAT-file is given its Value as the text it shows, '
-      + 'which makes ' + what(vb) + ' of it';
+    return path + ' is ' + what(va) + ' in what was copied, where the new Simulink.Parameter of a MAT-file holds ' + what(vb);
   }
   const differs = variableDifference(va, vb, path);
-  return differs ? differs + ': the text a new Simulink.Parameter of a MAT-file is given its Value as does not hold it exactly' : null;
+  return differs ? differs + ': the new Simulink.Parameter of a MAT-file does not hold the copy\'s Value exactly' : null;
 }
 
 // What of the property bag of `source`, the copied object, no row of it shows, held to `made`'s, and
