@@ -14,7 +14,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMatlabString, zeroImaginaryAsRealValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
-import { valuePrint } from './editText.js';
+import { valuePrint, wholeText } from './editText.js';
 import { keptVerdict } from '../valueGeneration.js';
 import { parameterDataTypeAfter } from '../../parser/McosPropertyRules.js';
 const CLASS_NAME = 'Simulink.Parameter';
@@ -158,9 +158,24 @@ export default class ParameterNode extends DataNode {
             return null;
         }
         const bare = value._ownEditText();
-        if (bare === null) {
+        return bare === null ? null : this._valueTextOf(value, bare);
+    }
+    // The text this setter makes exactly this Value of, whether or not the Value shows a summary: its
+    // value written out whole (editText.wholeText), bare or spelled with its class as _editText spells
+    // it, `int16(500)`. Null where no text makes it: a struct, an enumeration value, a Value with no
+    // value node (a scalar, which its row shows whole). What a paste into a MAT-file gives a new
+    // Parameter's Value (matPaste.carryInto), whose own row may show it otherwise.
+    _exactValueText() {
+        const value = this._plainValueNode();
+        if (!value || this._valueIsEnum()) {
             return null;
         }
+        const whole = wholeText(value);
+        return 'text' in whole ? this._valueTextOf(value, whole.text) : null;
+    }
+    // Of `bare`, `value` written out whole, the text this setter makes this Value of: `bare`, or for
+    // an integer or single Value `bare` spelled with its class; null where it makes neither.
+    _valueTextOf(value, bare) {
         // Judged once of the Value, as the Value's own text is (valueGeneration.keptVerdict).
         const judged = keptVerdict(this, () => {
             const print = valuePrint(value);
@@ -379,6 +394,31 @@ export default class ParameterNode extends DataNode {
     // here, which is also just true of it.
     _adoptValueNode(rawValue, edited) {
         this._takeValueNode(NodeRegistry.parseValue(rawValue, 'Value', this), edited);
+    }
+    // The Value of `copied`, another Parameter, as data: what a paste into a MAT-file gives a new
+    // Parameter where no text makes the Value (a struct, which shows `<1x1 struct>`;
+    // matPaste.carryInto). Held to what a Value edit is held to of the value it makes: a Value read
+    // from a stream and not edited, or held encoded or beside its class, takes none; and this
+    // Parameter's source judges the value (sourceValueRefusal: a MAT-file writes a struct of numbers,
+    // logicals and chars, and no cell, object or enumeration value). Taken, it is as an edit of the
+    // Value leaves it: marked Modified, its DataType, Dimensions and Complexity followed.
+    _carryValueOf(copied) {
+        const shown = String(copied.displayValue ?? '');
+        const offered = this._refuseEncodedEdit('Value', shown) ?? this._refuseInlineBagEdit('Value', shown) ?? this._refuseStreamValue(shown);
+        if (offered) {
+            return offered;
+        }
+        const raw = structuredClone(copied._valueNode ? copied._valueNode.serializeValue() : copied.Value);
+        const valueNode = NodeRegistry.parseValue(raw === undefined ? [] : raw, 'Value', this);
+        const refused = sourceValueRefusal(this, 'Value', valueNode);
+        if (refused) {
+            return { error: true, reason: refused, invalidValue: shown, validValue: this.displayValue };
+        }
+        this._takeValueNode(valueNode, true);
+        this.Value = valueNode.serializeValue();
+        this._markModified();
+        this._followValueShape();
+        return true;
     }
     // `valueNode`, made under this Parameter, as its Value node, and its Value row where it needs one
     // (_adoptValueNode, and a Value a conversion typed makes).

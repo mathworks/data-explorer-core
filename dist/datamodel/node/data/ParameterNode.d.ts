@@ -21,6 +21,8 @@ export default class ParameterNode extends DataNode {
     get valueEditable(): boolean;
     _unofferedValueRefusal(stringValue: string): SetPropertyResult | null;
     _editText(): string | null;
+    _exactValueText(): string | null;
+    _valueTextOf(value: MatlabVariableNode, bare: string): string | null;
     _plainValueNode(): MatlabVariableNode | null;
     _editTextWhy(): string | null;
     get descriptionEditable(): boolean;
@@ -33,6 +35,7 @@ export default class ParameterNode extends DataNode {
     _restorerBelow(node: MatlabVariableNode): (() => void) | null;
     _refuseStructureBelow(container: DataNode, op: 'add' | 'remove'): string | null;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
+    _carryValueOf(copied: ParameterNode): true | SetPropertyResult;
     _takeValueNode(valueNode: DataNode, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;

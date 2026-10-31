@@ -50,6 +50,7 @@ import { elementCount } from '../../display/DisplayConvention.js';
 import { MAT_SHOWN_SAVED_KEYS, matCarriedKeysOf } from '../data/matObjectEdit.js';
 import { getSchema } from '../../schema/index.js';
 import type MatNode from './MatNode.js';
+import type ParameterNode from '../data/ParameterNode.js';
 
 /**
  * One entry handed to a paste: what DataNode.serialize answers for an entry of a dictionary or a
@@ -676,6 +677,16 @@ function carryInto(node: DataNode, source: DataNode, className: string): string 
     let changed = false;
     let refused: string | null = null;
     for (const { at, from, key } of items) {
+      // A Parameter's Value, as the text that makes exactly it, or as data (carryValue).
+      if (key === 'Value' && at === node && className === 'Simulink.Parameter') {
+        const carried = carryValue(node as ParameterNode, from as ParameterNode);
+        if (carried === 'set') {
+          changed = true;
+        } else if (carried !== 'held') {
+          refused ??= carried;
+        }
+        continue;
+      }
       const want = copied(from, key);
       // Nothing stated (rowsDifference), or what the object made shows already.
       if (want === undefined || want === '' || sameRowText(want, shownOf(at, key) ?? '')) {
@@ -698,6 +709,32 @@ function carryInto(node: DataNode, source: DataNode, className: string): string 
 // How many passes carryInto makes at most: each property is set at most once a pass, and an edit
 // that waits for another waits one pass.
 const CARRY_PASSES = 4;
+
+// The Value of `from`, a copied Parameter, carried onto `at`, the Parameter made of it: the text the
+// Value shows where it is held with no value node (a scalar, which shows whole), the text that makes
+// exactly it where one does (ParameterNode._exactValueText: `int16(500)`, a long vector written out
+// whole), each set as a user's edit sets it (setShown); and where no text makes it, as data (a struct,
+// which shows `<1x1 struct>`: ParameterNode._carryValueOf), held to the rules such an edit is. 'held'
+// where `at` holds that Value already, or `from` states none; 'set' where it now does; or why not, as
+// a clause.
+function carryValue(at: ParameterNode, from: ParameterNode): 'held' | 'set' | string {
+  if (valueDifference(from, at) === null) {
+    return 'held';
+  }
+  const text = from._valueNode ? from._exactValueText() : (shownOf(from, 'Value') ?? '');
+  if (text === '') {
+    return 'held';
+  }
+  if (text !== null) {
+    return setShown(at, 'Value', text) ?? 'set';
+  }
+  const gate = sourceEditRefusal(at, 'Value');
+  if (gate) {
+    return at.name + '.Value could not be set: ' + editorClause(gate);
+  }
+  const set = at._carryValueOf(from);
+  return set === true ? 'set' : editorClause(String(set.reason));
+}
 
 // `key` of `node` set to `text` as a user's edit sets it, or why it is not, as a clause.
 function setShown(node: DataNode, key: string, text: string): string | null {
