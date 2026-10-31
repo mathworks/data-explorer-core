@@ -4,8 +4,9 @@
 // data-explorer-vscode at c73da3c, held to what that extension's own unit tests assert of them.
 // Ported from its test/foldPasteEntries.test.ts, structuralEdit.test.ts, constantNode.test.ts and
 // pasteNonFiniteJson.test.ts: where those drive the rules through the extension's JSON text paste
-// (pasteEntry, which stays there), the same assertion is made of the rule called on core's own
-// section here, and through the session's paste in dictionaryPasteSession.test.ts.
+// (pasteEntry), the same assertion is made of the rule called on core's own section here, and
+// through the session's paste in dictionaryPasteSession.test.ts; the classless-paste case also runs
+// core's own copy of pasteEntry (src/edit/structuralEdit.ts), as the extension's case did.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createSession, getSectionMetadata } from '../src/index.js';
@@ -23,6 +24,7 @@ import {
 } from '../src/edit/dictionaryPaste.js';
 // The two entryOps helpers the rules use, entryOps.ts's since step 6a C3.
 import { findEntryBySelector, recordCopy } from '../src/edit/entryOps.js';
+import { pasteEntry } from '../src/edit/structuralEdit.js';
 
 type Any = any;
 
@@ -135,6 +137,15 @@ describe('the allow-list of core’s own sections', () => {
     expect(() => assertTypeAllowed(d.section('config'), number)).toThrow('A MATLAB variable is not allowed in Configurations.');
     expect(() => assertTypeAllowed(d.section('config'), struct)).toThrow('A MATLAB variable is not allowed in Configurations.');
     for (const name of ['design', 'other', 'arch']) expect(() => assertTypeAllowed(d.section(name), number), name).not.toThrow();
+    // And the whole paste, as vscode's structuralEdit.test.ts held it ("still accepts a plain
+    // MATLAB variable in Design Data and in Other Data", restored ahead of vscode's V4): the
+    // sections whose allow-lists name MatlabVariable take it.
+    const fixtureText = readFileSync(DATA, 'utf8');
+    for (const section of ['design', 'other']) {
+      const fresh = opened(DATA);
+      const payload = fresh.entry('Number').serialize();
+      expect(() => pasteEntry(fixtureText, fresh.section(section), payload), section).not.toThrow();
+    }
   });
 
   it('refuseDisallowedPaste refuses a class the section does not allow as a TransferRefused, in the words the paste always used', () => {
@@ -151,6 +162,19 @@ describe('the allow-list of core’s own sections', () => {
     expect((thrown as Error).name).toBe('TransferRefused');
     expect((thrown as Error).message).toBe('Failed to apply edit: A "Simulink.ServiceBus" entry is not allowed in Design Data.');
     expect(() => refuseDisallowedPaste(d.section('design'), [di])).not.toThrow();
+    // A classless payload into Configurations, as vscode's structuralEdit.test.ts pinned it ("a
+    // dictionary transfer target", restored ahead of vscode's V4): the full text, prefix and all.
+    const data = opened(DATA);
+    const payload = data.entry('Number').serialize() as Record<string, unknown>;
+    let refused: unknown;
+    try {
+      refuseDisallowedPaste(data.section('config'), [payload]);
+    } catch (err) {
+      refused = err;
+    }
+    expect(refused).toBeInstanceOf(TransferRefused);
+    expect((refused as Error).message).toBe('Failed to apply edit: A MATLAB variable is not allowed in Configurations.');
+    expect(() => refuseDisallowedPaste(data.section('other'), [payload]), 'and takes what it allows').not.toThrow();
   });
 });
 
