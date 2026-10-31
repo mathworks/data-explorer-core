@@ -183,6 +183,18 @@ function propertyEdit(edit: (prop: string, value: string) => unknown, node: any,
   return null;
 }
 
+// Other numbers of the size and class the value shown has, for a double array: a field of a struct
+// array a Parameter holds, which MATLAB takes only alike in every element ("A valid array of
+// structures must be numeric and homogeneous in terms of data type and dimensions").
+function sameShape(node: any): string[] {
+  const d = node.dims;
+  if (node.className !== 'double' || !Array.isArray(d) || d.length !== 2 || d[0] * d[1] < 2) {
+    return [];
+  }
+  const row = Array(d[1]).fill('7').join(' ');
+  return ['[' + Array(d[0]).fill(row).join('; ') + ']'];
+}
+
 /** An edit `node` takes for its Value, by what it is, and whether it took it. */
 function valueEdit(edit: (prop: string, value: string) => unknown, node: any): string | null {
   const parent = node.parent;
@@ -201,7 +213,7 @@ function valueEdit(edit: (prop: string, value: string) => unknown, node: any): s
             ? ['{7, 8}', '7']
             : node.className === 'logical'
               ? ['false', 'true', '7']
-              : ['7', '8', "'zz'", '[1 2 3]', '{7}', 'true'];
+              : ['7', '8', "'zz'", '[1 2 3]', '{7}', 'true', ...sameShape(node)];
   for (const value of candidates) {
     if (value === node.displayValue) {
       continue;

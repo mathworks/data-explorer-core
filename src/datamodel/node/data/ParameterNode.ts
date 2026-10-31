@@ -20,7 +20,7 @@ import MatlabValueParser, { classConversion, collapseExact, complexBag, formatMa
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
-import { valuePrint } from './editText.js';
+import { valuePrint, wholeText } from './editText.js';
 import { keptVerdict } from '../valueGeneration.js';
 import { parameterDataTypeAfter } from '../../parser/McosPropertyRules.js';
 
@@ -64,6 +64,36 @@ function refusedAsField(parsed: ParsedValue): boolean {
         return parsed.value === '';
     }
     return parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 0;
+}
+
+// Why MATLAB's setter refuses the struct `valueNode` as a Parameter's Value, or null: a field, at any
+// depth, that MATLAB takes in no struct inside a Parameter (an empty double or char, a cell, a string
+// array: refusedAsField's rule, of the node), or one unlike its twin in another element of a struct
+// array (DataNode._differsFromTwins). In the words of the outermost struct, as an edit of the field
+// is refused in (ParameterNode._refuseValueBelow). Null for a Value that is no struct.
+function structValueRefusal(valueNode: BaseNode): string | null {
+    if (valueNode.className !== 'struct') {
+        return null;
+    }
+    const refusedField = (node: DataNode) => {
+        const shape = node._valueShape();
+        const count = shape.dims.reduce((a, b) => a * b, 1);
+        return shape.cls === 'cell' || (shape.cls === 'string' && count > 1) || (count === 0 && !shape.complex && (shape.cls === 'double' || shape.cls === 'char'));
+    };
+    // A struct's fields are its children; a struct array's children are its elements, which carry
+    // their subscript (BaseNode.isElementName), and whose children are the fields.
+    const refused = (node: BaseNode): boolean =>
+        node.children.some((child) => {
+            const field = !child._subscript;
+            if (field && (refusedField(child as DataNode) || (child as DataNode)._differsFromTwins((child as DataNode)._valueShape(), valueNode))) {
+                return true;
+            }
+            return child.className === 'struct' && refused(child);
+        });
+    if (!refused(valueNode)) {
+        return null;
+    }
+    return valueNode.children.some((child) => child._subscript) ? PRM_INVALID_ARRAY_OF_STRUCTS : PRM_INVALID_STRUCT;
 }
 
 // A numeric or logical empty of another class than double or another size than 0x0 (`zeros(0,3)`,
@@ -194,9 +224,26 @@ export default class ParameterNode extends DataNode {
             return null;
         }
         const bare = value._ownEditText();
-        if (bare === null) {
+        return bare === null ? null : this._valueTextOf(value, bare);
+    }
+
+    // The text this setter makes exactly this Value of, whether or not the Value shows a summary: its
+    // value written out whole (editText.wholeText), bare or spelled with its class as _editText spells
+    // it, `int16(500)`. Null where no text makes it: a struct, an enumeration value, a Value with no
+    // value node (a scalar, which its row shows whole). What a paste into a MAT-file gives a new
+    // Parameter's Value (matPaste.carryInto), whose own row may show it otherwise.
+    _exactValueText(): string | null {
+        const value = this._plainValueNode();
+        if (!value || this._valueIsEnum()) {
             return null;
         }
+        const whole = wholeText(value);
+        return 'text' in whole ? this._valueTextOf(value, whole.text) : null;
+    }
+
+    // Of `bare`, `value` written out whole, the text this setter makes this Value of: `bare`, or for
+    // an integer or single Value `bare` spelled with its class; null where it makes neither.
+    _valueTextOf(value: MatlabVariableNode, bare: string): string | null {
         // Judged once of the Value, as the Value's own text is (valueGeneration.keptVerdict).
         const judged = keptVerdict(this, () => {
             const print = valuePrint(value);
@@ -427,6 +474,37 @@ export default class ParameterNode extends DataNode {
     // here, which is also just true of it.
     _adoptValueNode(rawValue: unknown, edited?: boolean): void {
         this._takeValueNode(NodeRegistry.parseValue(rawValue, 'Value', this) as DataNode, edited);
+    }
+
+    // The Value of `copied`, another Parameter, as data: what a paste into a MAT-file gives a new
+    // Parameter where no text makes the Value (a struct, which shows `<1x1 struct>`;
+    // matPaste.carryInto). Held to what a Value edit is held to of the value it makes: a Value read
+    // from a stream and not edited, or held encoded or beside its class, takes none; MATLAB's rules
+    // for a struct Value, which an edit of one of its fields is held to (structValueRefusal); and
+    // this Parameter's source judges the value (sourceValueRefusal: a MAT-file writes a struct of
+    // numbers, logicals and chars, and no cell, object or enumeration value). Taken, it is as an
+    // edit of the Value leaves it: marked Modified, its DataType, Dimensions and Complexity followed.
+    _carryValueOf(copied: ParameterNode): true | SetPropertyResult {
+        const shown = String(copied.displayValue ?? '');
+        const offered = this._refuseEncodedEdit('Value', shown) ?? this._refuseInlineBagEdit('Value', shown) ?? this._refuseStreamValue(shown);
+        if (offered) {
+            return offered;
+        }
+        const raw = structuredClone(copied._valueNode ? copied._valueNode.serializeValue() : copied.Value);
+        const valueNode = NodeRegistry.parseValue(raw === undefined ? [] : raw, 'Value', this) as DataNode;
+        const matlab = structValueRefusal(valueNode);
+        if (matlab) {
+            return { error: true, reason: matlab, invalidValue: shown, validValue: this.displayValue };
+        }
+        const refused = sourceValueRefusal(this, 'Value', valueNode);
+        if (refused) {
+            return { error: true, reason: refused, invalidValue: shown, validValue: this.displayValue };
+        }
+        this._takeValueNode(valueNode, true);
+        this.Value = valueNode.serializeValue();
+        this._markModified();
+        this._followValueShape();
+        return true;
     }
 
     // `valueNode`, made under this Parameter, as its Value node, and its Value row where it needs one

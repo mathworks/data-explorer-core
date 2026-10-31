@@ -1,7 +1,7 @@
 {
   "version": "27.1.0.3422810 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-26",
+  "date": "2026-10-31",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
@@ -277,6 +277,13 @@
         "other|vehicleObject: Data dictionary unable to create an object of class 'Vehicle' because the class cannot be loaded."
       ],
       "entries": 3,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_param_paste_r2027a_param_paste_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 11,
       "notSelfEqual": []
     },
     {
@@ -11125,6 +11132,192 @@
         "unedited": {
           "checked": 2,
           "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/param-paste/r2027a/param_paste_binary.sldd",
+      "variant": "",
+      "original": "orig_param_paste_r2027a_param_paste_binary.sldd",
+      "file": "m9_param_paste_r2027a_param_paste_binary_1.sldd",
+      "section": "design",
+      "entry": "pInt16",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pInt16M9",
+      "refused": "",
+      "save": {
+        "chunk": "92c6c353e551367edcc0b2241f4f620437b5f24aba8cd72c0fc609c7e33be692",
+        "parts": "928021b1a4e0fa5f550c9d629794c95da2b073692b9b114499e7e39116788791"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/param-paste/r2027a/param_paste_binary.sldd",
+      "variant": "",
+      "original": "orig_param_paste_r2027a_param_paste_binary.sldd",
+      "file": "m9_param_paste_r2027a_param_paste_binary_2.sldd",
+      "section": "design",
+      "entry": "pInt16",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "7a34b5fff2fb88baa3bfd599fe3f5e26857fd624f78484f3bea3a769b29621b9",
+        "parts": "928021b1a4e0fa5f550c9d629794c95da2b073692b9b114499e7e39116788791"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/param-paste/r2027a/param_paste_binary.sldd",
+      "variant": "",
+      "original": "orig_param_paste_r2027a_param_paste_binary.sldd",
+      "file": "m9_param_paste_r2027a_param_paste_binary_3.sldd",
+      "section": "design",
+      "entry": "sCell",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sCellM9",
+      "refused": "",
+      "save": {
+        "chunk": "38e32964daf13491ba85e9c886b40e3c71a13d0e038dee6f240b0830e8b58702",
+        "parts": "928021b1a4e0fa5f550c9d629794c95da2b073692b9b114499e7e39116788791"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/param-paste/r2027a/param_paste_binary.sldd",
+      "variant": "",
+      "original": "orig_param_paste_r2027a_param_paste_binary.sldd",
+      "file": "m9_param_paste_r2027a_param_paste_binary_4.sldd",
+      "section": "design",
+      "entry": "sCell",
+      "kind": "struct",
+      "path": {
+        "field": "a"
+      },
+      "edit": "field",
+      "prop": "Value",
+      "value": "5",
+      "refused": "",
+      "save": {
+        "chunk": "3fd0254717d0930a78a6ce5bc1dd460e5d3fec69c514a5281cc04e0aef600357",
+        "parts": "928021b1a4e0fa5f550c9d629794c95da2b073692b9b114499e7e39116788791"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
           "bySignature": 0,
           "differ": []
         },

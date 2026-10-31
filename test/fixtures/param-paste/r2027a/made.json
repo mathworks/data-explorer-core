@@ -1,0 +1,104 @@
+{
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
+  "release": "2027a",
+  "values": [
+    {
+      "name": "pNested",
+      "class": "struct",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pStructNest",
+      "class": "struct",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pStructArr",
+      "class": "struct",
+      "size": "1x2",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pStructTyped",
+      "class": "struct",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pInt16",
+      "class": "int16",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pInt16MinMax",
+      "class": "int16",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pSingle",
+      "class": "single",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pVec",
+      "class": "double",
+      "size": "1x11",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pInt32Vec",
+      "class": "int32",
+      "size": "1x4",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "pPlain",
+      "class": "double",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    },
+    {
+      "name": "sCell",
+      "class": "struct",
+      "size": "1x1",
+      "mat": "same",
+      "text": "same",
+      "binary": "same"
+    }
+  ],
+  "notConstructed": [
+    {
+      "name": "pStructCell",
+      "error": "A valid structure must be numeric"
+    },
+    {
+      "name": "pStructObj",
+      "error": "A valid structure must be numeric"
+    }
+  ]
+}
