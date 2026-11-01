@@ -863,7 +863,21 @@ function bagDifference(source, made, path, written = writtenBagOf(made)) {
     // As the bags spell them, for the kind of each (kindOf): a typed scalar's `Inf` is a number.
     const copiedAsSpelled = leavesOf(bagOf(source), '', new Map(), true);
     const writes = leavesOf(written, '', new Map(), true);
-    for (const [at, value] of leavesOf(bagOf(source))) {
+    const copied = leavesOf(bagOf(source));
+    // MATLAB's unset CoderInfo (a model workspace's Parameter): the pair is MATLAB's default, and so
+    // is all else it holds, or MATLAB reads what it does not (unsetCoderInfoOf).
+    const unset = unsetCoderInfoOf(cls, copied);
+    for (const [at, want] of Object.entries(unset ?? {})) {
+        const was = copied.get(at);
+        if (was !== undefined && !sameLeaf(was, want)) {
+            return path + '.' + at + ' is ' + leafText(was) + ' in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information '
+                + 'was never set up, where it reads ' + leafText(want);
+        }
+    }
+    for (const [at, value] of copied) {
+        if (unset && UNSET_PAIR.includes(at)) {
+            continue;
+        }
         if (covered.some((c) => at === c || at.startsWith(c + '.'))) {
             // A row shows it, and rowsDifference held its text to the copy's; but one text is a number and
             // a text alike (a Bus element's Dimensions `1`, which System Composer saves as the char '1'),
@@ -1024,6 +1038,36 @@ const CODER_INFO_DEFAULTS = (of) => ({
     'CoderInfo.IsCSCPackageOverridden': false,
     'CoderInfo.HasCoderInfo': true,
 });
+// MATLAB's unset CoderInfo: what a model workspace saves of a Parameter whose coder information was
+// never set up, and MATLAB keeps through every copy it makes (getVariable and save, copy(), addEntry):
+// HasCoderInfo false and CustomAttributes [] where a Parameter MATLAB makes holds true and its default
+// SimulinkCSC.AttribClass_Simulink_Default. MATLAB's isequal holds the two equal (R2027a, every
+// Parameter of five model workspaces against a MAT-file's same-named ones), and ignores any other coder
+// setting such a CoderInfo holds, reading MATLAB's default of it (a StorageClass set reads back Auto).
+const UNSET_PAIR = ['CoderInfo.HasCoderInfo', 'CoderInfo.CustomAttributes'];
+const UNSET_CODER_INFO = {
+    'CoderInfo.StorageClass': 'Auto',
+    'CoderInfo.Alias': '',
+    'CoderInfo.Identifier': '',
+    'CoderInfo.Alignment': -1,
+    'CoderInfo.TypeQualifier': '',
+    'CoderInfo.IsCSCPackageOverridden': false,
+    'CoderInfo.CSCPackageName': 'Simulink',
+    'CoderInfo.ParameterOrSignal': 'Parameter',
+    'CoderInfo.CustomStorageClass': 'Default',
+};
+// Where the copied object of `cls`, its bag's leaves `copied`, is a Parameter holding MATLAB's unset
+// CoderInfo, the pair together (UNSET_PAIR: HasCoderInfo false, CustomAttributes []), MATLAB's default
+// of every other leaf of it, which the copy is held to; null where it is not, whose two leaves are
+// then held to the object made, as every other is. A Signal is not: a model workspace saves one with
+// its coder information set (R2027a), and no other is measured.
+function unsetCoderInfoOf(cls, copied) {
+    const attributes = copied.get('CoderInfo.CustomAttributes');
+    if (cls !== 'Simulink.Parameter' || copied.get('CoderInfo.HasCoderInfo') !== false || !Array.isArray(attributes) || attributes.length !== 0) {
+        return null;
+    }
+    return UNSET_CODER_INFO;
+}
 const UNSHOWN_DEFAULTS = {
     'Simulink.Parameter': CODER_INFO_DEFAULTS('Parameter'),
     'Simulink.Signal': {
