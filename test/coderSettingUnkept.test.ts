@@ -96,7 +96,11 @@ describe('what an older edit left, and what was not measured', () => {
     expect(p.setProperty('alignment', '8')).toMatchObject({ error: true, reason: UNKEPT('Alignment') });
   });
 
-  it('a Signal holding the unset flag is as it was: a model workspace saves none, and none was measured', () => {
+  // No MATLAB route makes a Signal with the flag false (R2027a): constructed, out of a model workspace
+  // (getVariable, copy(), nested in a struct), through a MAT-file, a text or a binary dictionary, or
+  // saved by R2023b, every one reads true and MATLAB's default AttribClass, and keeps a coder edit in a
+  // MAT-file and a binary dictionary. So the rule takes only a Parameter; this one is crafted.
+  it('a Signal holding the unset flag is as it was: MATLAB makes none, and keeps a Signal\'s coder edit', () => {
     const s = craftedPws((x) => inPws(x, '<Element Class="Simulink.Parameter">', '<Element Class="Simulink.Signal">'));
     expect(s.className).toBe('Simulink.Signal');
     expect(offered(s, 'storageClass')[0]).toBe(true);
