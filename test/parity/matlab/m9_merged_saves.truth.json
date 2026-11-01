@@ -1,10 +1,17 @@
 {
   "version": "27.1.0.3422810 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
+      "opened": false,
+      "warnings": [],
+      "entries": 0,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_arch_service_binary.sldd",
       "opened": false,
       "warnings": [],
       "entries": 0,
@@ -667,6 +674,92 @@
         "edited": {},
         "unedited": {},
         "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "m9_arch_service_binary_1.sldd",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ServiceInterfaceM9",
+      "refused": "",
+      "save": {
+        "chunk": "0d67e22af20891443d6453153374d9ef55c81753143a8a111fd26164417049b7",
+        "parts": "bfba2795672118778dda0b670368f5615d6fc555986afc17b612ea5918a92a81"
+      },
+      "merged": true,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": false,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_service_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "m9_arch_service_binary_2.sldd",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "66ca29d87cee37cab3b4c054a34896ffba9b640eae800570d473811e9fca511b",
+        "parts": "fe0876adb1748f7d0d40e321dae72f2c83d5e93c882afc6a60eeca98cf7bec28"
+      },
+      "merged": true,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_service_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": {
+        "index": 1,
+        "name": "f"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "Cannot edit \"ServiceInterface\": a Simulink.FunctionElement has no Description.",
+      "matlab": {
+        "asked": false
       }
     },
     {
