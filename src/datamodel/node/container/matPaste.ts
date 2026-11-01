@@ -600,7 +600,9 @@ function carryObject(mat: MatNode, source: DataNode, className: string, name: st
   const node = added.node as DataNode;
   let why: string | null;
   try {
-    why = carryInto(node, source, className) ?? objectDifference(source, node);
+    // A coder setting an unset CoderInfo holds, said as one MATLAB ignores, before carryInto says it
+    // as its setter's rule refuses it (an Identifier or an Alignment under 'Auto').
+    why = unsetCoderInfoDifference(source, name) ?? carryInto(node, source, className) ?? objectDifference(source, node);
   } catch (e) {
     added.undo();
     throw e;
@@ -930,16 +932,9 @@ function bagDifference(source: BaseNode, made: BaseNode, path: string, written: 
   const copiedAsSpelled = leavesOf(bagOf(source), '', new Map(), true);
   const writes = leavesOf(written, '', new Map(), true);
   const copied = leavesOf(bagOf(source));
-  // MATLAB's unset CoderInfo (a model workspace's Parameter): the pair is MATLAB's default, and so
-  // is all else it holds, or MATLAB reads what it does not (unsetCoderInfoOf).
+  // MATLAB's unset CoderInfo (a model workspace's Parameter): the pair is MATLAB's default, and so is
+  // all else it holds (unsetCoderInfoDifference, asked before the carry).
   const unset = unsetCoderInfoOf(cls, copied);
-  for (const [at, want] of Object.entries(unset ?? {})) {
-    const was = copied.get(at);
-    if (was !== undefined && !sameLeaf(was, want)) {
-      return path + '.' + at + ' is ' + leafText(was) + ' in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information '
-        + 'was never set up, where it reads ' + leafText(want);
-    }
-  }
   for (const [at, value] of copied) {
     if (unset && UNSET_PAIR.includes(at)) {
       continue;
@@ -1134,6 +1129,21 @@ const UNSET_CODER_INFO: Readonly<Record<string, unknown>> = {
   'CoderInfo.ParameterOrSignal': 'Parameter',
   'CoderInfo.CustomStorageClass': 'Default',
 };
+
+// Where `source`, a copied Parameter, holds MATLAB's unset CoderInfo (unsetCoderInfoOf) with a coder
+// setting in it other than MATLAB's default, which MATLAB ignores, reading its default: that setting,
+// as a clause naming it of `name`, the object made; null otherwise.
+function unsetCoderInfoDifference(source: BaseNode, name: string): string | null {
+  const copied = leavesOf(bagOf(source));
+  for (const [at, want] of Object.entries(unsetCoderInfoOf(String(source.className ?? ''), copied) ?? {})) {
+    const was = copied.get(at);
+    if (was !== undefined && !sameLeaf(was, want)) {
+      return name + '.' + at + ' is ' + leafText(was) + ' in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information '
+        + 'was never set up, where it reads ' + leafText(want);
+    }
+  }
+  return null;
+}
 
 // Where the copied object of `cls`, its bag's leaves `copied`, is a Parameter holding MATLAB's unset
 // CoderInfo, the pair together (UNSET_PAIR: HasCoderInfo false, CustomAttributes []), MATLAB's default

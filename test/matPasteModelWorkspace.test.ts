@@ -102,6 +102,14 @@ describe("every Parameter of a model workspace pastes into a MAT-file, as MATLAB
     });
   }
 
+  it('but not a Signal holding the unset pair, which no model workspace saves (only a Parameter is taken so)', () => {
+    const sig = structuredClone(workspaceOf('test/fixtures/mcos/mcosfix.slx').find(({ entry }) => entry.className === 'Simulink.Signal')!.payload);
+    sig.name = 'sigUnset';
+    coderInfoOf(sig).HasCoderInfo = false;
+    coderInfoOf(sig).CustomAttributes = [];
+    expectRefused(sig, /: sigUnset\.CoderInfo\.HasCoderInfo is false in what was copied, a property no editor of a MAT-file's Simulink\.Signal writes/);
+  });
+
   it('and a Signal of one, whose coder information is set, as it did', () => {
     const sig = workspaceOf('test/fixtures/mcos/mcosfix.slx').find(({ entry }) => entry.className === 'Simulink.Signal')!;
     expect(coderInfoOf(sig.payload).HasCoderInfo).toBe(true);
@@ -123,6 +131,11 @@ describe('a copy whose coder information is not MATLAB\'s unset form is still re
   it('an unset CoderInfo holding a coder setting, which MATLAB ignores', () => {
     expectRefused(withCoderInfo('pStorage', (ci) => (ci.StorageClass = 'ExportedGlobal')), /: pStorage\.CoderInfo\.StorageClass is "ExportedGlobal" in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information was never set up, where it reads "Auto"\./);
     expectRefused(withCoderInfo('pAlias', (ci) => (ci.Alias = 'probeName')), /: pAlias\.CoderInfo\.Alias is "probeName" in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information was never set up, where it reads ""\./);
+  });
+
+  it('its Identifier and its Alignment too, in the same words, not as their setter refuses them under Auto', () => {
+    expectRefused(withCoderInfo('pIdent', (ci) => (ci.Identifier = 'probeName')), /: pIdent\.CoderInfo\.Identifier is "probeName" in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information was never set up, where it reads ""\./);
+    expectRefused(withCoderInfo('pAlign', (ci) => (ci.Alignment = { _type: 'int32', _value: '8' })), /: pAlign\.CoderInfo\.Alignment is 8 in what was copied, a coder setting MATLAB ignores on a Parameter whose coder information was never set up, where it reads -1\./);
   });
 
   it('half of the unset pair only', () => {
