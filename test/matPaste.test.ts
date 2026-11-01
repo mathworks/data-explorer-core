@@ -92,9 +92,9 @@ const REFUSED: Record<string, string[]> = {
   [TEXT_CASES]: ['aLookup', 'aVariant'],
   [BINARY_CASES]: ['aLookup', 'aVariant'],
   [MAT_CASES]: ['aLookup', 'aVariant', 'objRow', 'objCol', 'obj2x3', 'obj2x3x2'],
-  // A Bus element held alone, which no Add makes; and p1, whose Value is an int16, which the text
-  // a new Parameter's Value is given as does not say (matPasteRefusals.test.ts).
-  [MIXED]: ['be', 'p1'],
+  // A Bus element held alone, which no Add makes (matPasteRefusals.test.ts). Its p1, whose Value is
+  // an int16, was refused too, until the Value was carried as the text that makes it.
+  [MIXED]: ['be'],
 };
 
 describe('every entry of a source, pasted into a MAT-file, saved and opened again', () => {
