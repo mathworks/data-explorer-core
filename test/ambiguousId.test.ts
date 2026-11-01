@@ -213,6 +213,53 @@ describe('twins below the entry level', () => {
   });
 });
 
+describe('two variables of one name in a MAT-file', () => {
+  // As a MAT-file holding two records of a name reads (MATLAB writes none). A variable's id is
+  // its path too, `<src>/<name>`, so the two are one id, and the session resolves it to neither,
+  // exactly as for a dictionary's two entries. (view's copyRules › "an entry whose name its
+  // document holds twice" › "in a MAT-file…" leans on this.)
+  const scalar = (name: string, value: number) => ({
+    name,
+    className: 'double',
+    dimensions: [1, 1],
+    isComplex: false,
+    isLogical: false,
+    value,
+    fields: null,
+  });
+  const openMat = () => {
+    const s = createSession();
+    const src: any = s.addMatSourceParsed('twins.mat', {
+      header: 'MATLAB 5.0',
+      variables: [scalar('x', 1), scalar('str', 2), scalar('x', 3)],
+    });
+    return { s, src };
+  };
+
+  it('share one id, which findNodeById answers null for', () => {
+    const { s, src } = openMat();
+    expect(src.children.map((c: any) => [c.name, c.id])).toEqual([
+      ['x', 'twins.mat/x'],
+      ['str', 'twins.mat/str'],
+      ['x', 'twins.mat/x'],
+    ]);
+    expect(s.findNodeById('twins.mat/x')).toBeNull();
+    // The variable whose name is its own is found as before.
+    expect(s.findNodeById('twins.mat/str')).toBe(src.children[1]);
+  });
+
+  it('say so when the file opens, as a dictionary does', () => {
+    const { src } = openMat();
+    expect(src.warnings).toEqual([
+      {
+        code: 'duplicate-id',
+        part: 'x',
+        message: "Two entries in twins.mat are named 'x'. Neither can be edited or deleted until the file gives one of them another name.",
+      },
+    ]);
+  });
+});
+
 describe('a host that removes one twin itself', () => {
   it('leaves the other findable under the id they shared (unindexSubtree)', () => {
     const { s, design, named } = open();
