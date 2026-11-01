@@ -1,12 +1,13 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// A coder setting no MAT-file or compressed-binary dictionary keeps: one of a CoderInfo MATLAB never
-// set up (HasCoderInfo false), which a Parameter or a Signal copied out of a model workspace or a data
+// A coder setting no MAT-file or compressed-binary dictionary keeps: one of a Parameter's CoderInfo
+// MATLAB never set up (HasCoderInfo false), which a Parameter copied out of a model workspace or a data
 // dictionary holds, and MATLAB keeps so through every copy it makes. MATLAB ignores every coder setting
 // such a file holds of it (R2027a: a Storage Class core wrote there read back Auto, isequal to the file
 // without it; MATLAB's own save of a MAT-file drops one too). A text dictionary keeps it, and reads the
-// flag true. Asked of the schema's coder rows (schemaBridge) and of a MAT-file's own (matObjectEdit),
-// so that each says the same.
+// flag true. Not a Signal's: a model workspace saves a Signal with its coder information set, and no
+// unset one was measured (as matPaste.unsetCoderInfoOf takes none). Asked of the schema's coder rows
+// (schemaBridge) and of a MAT-file's own (matObjectEdit), so that each says the same.
 import { resolveSourcePath } from '../schema/index.js';
 import type BaseNode from './BaseNode.js';
 
@@ -15,8 +16,11 @@ import type BaseNode from './BaseNode.js';
 // model's workspace, where it was not measured.
 const UNKEPT_IN: ReadonlySet<string> = new Set(['mat', 'xml']);
 
-/** Whether a coder setting of `node`'s CoderInfo would not be kept: an unset CoderInfo, in a file UNKEPT_IN. */
+/** Whether a coder setting of `node`'s CoderInfo would not be kept: a Parameter's unset CoderInfo, in a file UNKEPT_IN. */
 export function coderSettingUnkept(node: BaseNode): boolean {
+  if ((node as unknown as { className?: unknown }).className !== 'Simulink.Parameter') {
+    return false;
+  }
   const bag = (node as unknown as { serial?: { _properties?: Record<string, unknown> } }).serial?._properties;
   const flag = resolveSourcePath(bag, 'CoderInfo.HasCoderInfo');
   if (flag !== false) {

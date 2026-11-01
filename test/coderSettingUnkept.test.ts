@@ -14,6 +14,7 @@
 // Alignment (the flag true); in a MAT-file, a binary and a text dictionary.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -72,6 +73,34 @@ describe('a coder setting of a Parameter whose coder information MATLAB never se
       expect(p.setProperty(key, value), key).toMatchObject({ error: true, reason: UNKEPT(label) });
     }
     expect(sameBytes(f.save(), unedited), 'the file saves as an unedited one does').toBe(true);
+  });
+});
+
+// The binary fixture's pWs, its entry's XML changed by `change` (a crafted file, made of MATLAB's).
+function craftedPws(change: (xml: string) => string): Any {
+  const parts = unzipSync(new Uint8Array(readFileSync(DIR + 'coder_info_binary.sldd')));
+  parts['data/chunk0.xml'] = strToU8(change(strFromU8(parts['data/chunk0.xml'])));
+  const root: Any = ingest(createSession(), bufferOf(zipSync(parts)), { filename: 'crafted.sldd' });
+  return root.children.flatMap((s: Any) => s.children ?? []).find((e: Any) => e.name === 'pWs');
+}
+// `xml` with the first `was` after pWs's entry starts made `now`.
+const inPws = (xml: string, was: string, now: string) => {
+  const at = xml.indexOf(was, xml.indexOf('>pWs<'));
+  return xml.slice(0, at) + now + xml.slice(at + was.length);
+};
+
+describe('what an older edit left, and what was not measured', () => {
+  it('an unset CoderInfo showing a storage class other than Auto (an older core edit): its Alignment offers no editor either', () => {
+    const p = craftedPws((x) => inPws(x, '<P Name="StorageClass" Class="char">Auto</P>', '<P Name="StorageClass" Class="char">ExportedGlobal</P>'));
+    expect(offered(p, 'alignment').some(Boolean)).toBe(false);
+    expect(p.setProperty('alignment', '8')).toMatchObject({ error: true, reason: UNKEPT('Alignment') });
+  });
+
+  it('a Signal holding the unset flag is as it was: a model workspace saves none, and none was measured', () => {
+    const s = craftedPws((x) => inPws(x, '<Element Class="Simulink.Parameter">', '<Element Class="Simulink.Signal">'));
+    expect(s.className).toBe('Simulink.Signal');
+    expect(offered(s, 'storageClass')[0]).toBe(true);
+    expect(s.setProperty('storageClass', 'ExportedGlobal')).toBe(true);
   });
 });
 
