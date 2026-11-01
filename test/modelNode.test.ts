@@ -7,6 +7,8 @@
 // hands back for the save path.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { zipSync, strToU8 } from 'fflate';
 import ModelNode from '../src/datamodel/node/container/ModelNode.js';
 import type { ParsedSlx } from '../src/datamodel/node/container/ModelNode.js';
@@ -362,6 +364,23 @@ describe('DataSourceNode', () => {
     const props = ds.toPIObject().objects[0];
     expect(props.Path).toBe('signals.mat');
     expect(props.Status).toBe('Not Loaded');
+  });
+});
+
+describe('ModelReferenceNode and DataSourceNode rows', () => {
+  // A real entry is never a positional element, and Name.element is the one thing that grays a
+  // Name, so a read-only model's entries render as any other format's do: the coloring is
+  // structural, never read off the read-only-ness. model_with_refs.slx holds a model reference
+  // and two data sources.
+  it('colors model entries as normal (element === false for real entries)', () => {
+    const bytes = new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/model_with_refs.slx', import.meta.url))));
+    const root = ModelNode.fromParsed(parseSlx(bytes.buffer, 'model_with_refs.slx'), 'model_with_refs.slx') as any;
+    const entries = root.children.flatMap((s: any) => s.children);
+    expect(entries.map((e: any) => [e.className, e.name, e.toRow().Name.element])).toEqual([
+      ['Model Reference', 'plant.slx', false],
+      ['Data Dictionary', 'params.sldd', false],
+      ['MAT File', 'signals.mat', false],
+    ]);
   });
 });
 

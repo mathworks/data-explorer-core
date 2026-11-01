@@ -1,0 +1,167 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "hdrParam",
+						"metadata": {
+							"uuid": "44573e61-8481-4dc1-96c5-5860b6a7d80f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261101T232218.444867",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+													"_properties": {
+														"DefinitionFile": "",
+														"HeaderFile": "params_hdr.h",
+														"Owner": "",
+														"PreserveDimensions": false
+													}
+												},
+												"CustomStorageClass": "ExportToFile",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Custom"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "double",
+										"Description": "param with header file",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 3.14
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "hdrSignal",
+						"metadata": {
+							"uuid": "ed8d1f3a-8e04-4d8b-8af1-541f796a4874",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261101T232218.504956",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Signal",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+													"_properties": {
+														"DefinitionFile": "",
+														"HeaderFile": "signals_hdr.h",
+														"Owner": "",
+														"PreserveDimensions": false
+													}
+												},
+												"CustomStorageClass": "ExportToFile",
+												"ParameterOrSignal": "Signal",
+												"StorageClass": "Custom"
+											}
+										},
+										"DataType": "double",
+										"Description": "signal with header file",
+										"LoggingInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.LoggingInfo",
+											"_properties": {}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "plainParam",
+						"metadata": {
+							"uuid": "42c364eb-8fc0-4482-821f-d25146b61a2a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261101T232218.505181",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "double",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 1
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

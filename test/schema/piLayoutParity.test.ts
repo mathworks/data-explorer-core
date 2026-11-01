@@ -1,5 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import ValueTypeNode from '../../src/datamodel/node/data/ValueTypeNode.js';
 import AliasTypeNode from '../../src/datamodel/node/data/AliasTypeNode.js';
 import NumericTypeNode from '../../src/datamodel/node/data/NumericTypeNode.js';
@@ -7,6 +9,7 @@ import { EnumTypeNode } from '../../src/datamodel/node/data/EnumTypeNode.js';
 import { BusNode } from '../../src/datamodel/node/data/BusNode.js';
 import { ConnectionBusNode } from '../../src/datamodel/node/data/ConnectionBusNode.js';
 import { ServiceBusNode } from '../../src/datamodel/node/data/ServiceBusNode.js';
+import DataModel from '../../src/core/DataModel.js';
 import '../../src/datamodel/node/data/NodeClassMap.js';
 
 // Every schema-driven class opens with a common, fixed-name "General" identity
@@ -82,5 +85,42 @@ describe('PI layout — common "General" identity group', () => {
     expect(groups(ConnectionBusNode.createDefault('cb', null)).slice(0, 2)).toEqual(['General', 'Value Properties']);
     expect(groups(ServiceBusNode.createDefault('sb', null)).slice(0, 2)).toEqual(['General', 'Value Properties']);
     expect(itemsIn(ConnectionBusNode.createDefault('cb', null), 'General')).toEqual(['Name', 'Kind', 'Class']);
+  });
+});
+
+// A Bus MATLAB wrote, as the property inspector is handed it: arch.sldd's DataInterface.
+function archBus(): any {
+  const uri = 'pilayout://arch.sldd';
+  DataModel.removeDataSource(uri);
+  const text = readFileSync(fileURLToPath(new URL('../fixtures/arch.sldd', import.meta.url)), 'utf8');
+  const root: any = DataModel.addDataSource(uri, JSON.parse(text), { path: 'arch.sldd' });
+  const bus = (root.flatten() as any[]).find((n) => n.name === 'DataInterface' && n.className === 'Simulink.Bus');
+  if (!bus) throw new Error('no DataInterface bus in arch.sldd');
+  return bus;
+}
+
+describe('PI layout — a Bus read from a dictionary', () => {
+  it('keeps the schema group order and titles each group by its display name', () => {
+    // A group's name is an internal id ('GeneralGroup'); its displayName is the title a host shows.
+    const pi = archBus().toPIObject();
+    expect((pi.propertySheet.groups as any[]).map((g) => [g.name, g.displayName])).toEqual([
+      ['GeneralGroup', 'General'],
+      ['ValuePropertiesGroup', 'Value Properties'],
+      ['CodeGenerationGroup', 'Code Generation'],
+      ['OtherGroup', 'Other'],
+    ]);
+  });
+
+  it('shows each property under its human display name, not its schema key', () => {
+    // The items are schema keys ('dataScope'); each property's displayName is MATLAB's name for it.
+    const pi = archBus().toPIObject();
+    const codeGen = (pi.propertySheet.groups as any[]).find((g) => g.displayName === 'Code Generation')!;
+    const label = (key: string) => (pi.propertySheet.properties as any[]).find((p) => p.name === key)!.displayName;
+    expect(codeGen.items.map((it: any) => [it.name, label(it.name)])).toEqual([
+      ['dataScope', 'Data Scope'],
+      ['headerFile', 'Header File'],
+      ['alignment', 'Alignment'],
+      ['preserveElementDimensions', 'Preserve Element Dimensions'],
+    ]);
   });
 });

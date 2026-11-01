@@ -424,6 +424,13 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_parity_binary_headerfile.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 3,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_parity_binary_params.sldd",
       "opened": true,
       "warnings": [
@@ -15991,6 +15998,190 @@
         "unedited": {
           "checked": 72,
           "same": 72,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/headerfile.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_headerfile.sldd",
+      "file": "m9_parity_binary_headerfile_1.sldd",
+      "section": "design",
+      "entry": "hdrParam",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "hdrParamM9",
+      "refused": "",
+      "save": {
+        "chunk": "cee2f8d387163dbae8bf6aa46473ab33f8f8aea5d9374d42b68cb9efc2bb1f2a",
+        "parts": "ca53c0ad35e9dc43b40cd1ca9101444a7afa65a8e3d6af01eec78699cc496cdb"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/headerfile.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_headerfile.sldd",
+      "file": "m9_parity_binary_headerfile_2.sldd",
+      "section": "design",
+      "entry": "hdrParam",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "6275648418da50487ec2d78feacc94429e32e6b8d35008d13a6e9018bf91d1c1",
+        "parts": "ca53c0ad35e9dc43b40cd1ca9101444a7afa65a8e3d6af01eec78699cc496cdb"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/headerfile.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_headerfile.sldd",
+      "file": "m9_parity_binary_headerfile_3.sldd",
+      "section": "design",
+      "entry": "hdrSignal",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "hdrSignalM9",
+      "refused": "",
+      "save": {
+        "chunk": "67cbba7567c3ae2b65c8d36c698beac306f5f9595b8912484253be12ff0c17ff",
+        "parts": "ca53c0ad35e9dc43b40cd1ca9101444a7afa65a8e3d6af01eec78699cc496cdb"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/headerfile.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_headerfile.sldd",
+      "file": "m9_parity_binary_headerfile_4.sldd",
+      "section": "design",
+      "entry": "hdrSignal",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "5be1a2ea4916a3756d535fbdae750f19aeb83570e45a85a6c5be76c885c55b23",
+        "parts": "ca53c0ad35e9dc43b40cd1ca9101444a7afa65a8e3d6af01eec78699cc496cdb"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
           "bySignature": 0,
           "differ": []
         },

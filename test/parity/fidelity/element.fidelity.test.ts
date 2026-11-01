@@ -275,6 +275,15 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       expect(dimProp.editor).toBe('label');
     });
 
+    // A label of the schema, yet the cell takes an editor: a dictionary offers one, as
+    // text, of a property a MAT-file's object takes an edit of (dictObjectEdit, through
+    // BaseNode.sourceOfferedEditor). This is the cell shape a host opens an editor from.
+    it('the Dimensions table cell is editable text, the editor the dictionary offers', () => {
+      const { entry } = freshBusEntry();
+      const elem = entry.children[0];
+      expect(elem.toRow().dimensions).toEqual({ text: '1', editable: true, editor: 'text', options: undefined });
+    });
+
     it('Unit prop has editor=label (read-only)', () => {
       const { entry } = freshBusEntry();
       const elem = entry.children[0];
