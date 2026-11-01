@@ -1,7 +1,7 @@
 {
   "version": "27.1.0.3422810 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "originals": [
     {
       "file": "orig_arch_binary.sldd",
@@ -225,6 +225,13 @@
       "opened": true,
       "warnings": [],
       "entries": 23,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_multiline_multiline_r2027a_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 3,
       "notSelfEqual": []
     },
     {
@@ -10091,6 +10098,98 @@
         "unedited": {
           "checked": 22,
           "same": 22,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/multiline/multiline_r2027a_binary.sldd",
+      "variant": "",
+      "original": "orig_multiline_multiline_r2027a_binary.sldd",
+      "file": "m9_multiline_multiline_r2027a_binary_1.sldd",
+      "section": "design",
+      "entry": "pCRLF",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pCRLFM9",
+      "refused": "",
+      "save": {
+        "chunk": "d6c019d868c9877968918c870dc8528da3abbd45efd53f10c2ae55c8b8419a83",
+        "parts": "fcb634cbde550e114dbe8e33d5afb42212524dff5b51895e4de13095d7d0cc80"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/multiline/multiline_r2027a_binary.sldd",
+      "variant": "",
+      "original": "orig_multiline_multiline_r2027a_binary.sldd",
+      "file": "m9_multiline_multiline_r2027a_binary_2.sldd",
+      "section": "design",
+      "entry": "pCRLF",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "9f7086c1b3232104773c4cacf3c4d7c8c5276398a0ddda55deaef7e6ecfeb563",
+        "parts": "fcb634cbde550e114dbe8e33d5afb42212524dff5b51895e4de13095d7d0cc80"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
           "bySignature": 0,
           "differ": []
         },
