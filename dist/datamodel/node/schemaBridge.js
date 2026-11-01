@@ -15,6 +15,7 @@
 import { getSchema, getSchemaClasses, getLayout, hydrate, isTypedScalar, sourceLeaf, writeSourcePath } from '../schema/index.js';
 import { formatMatlabNum } from '../parser/XmlUtils.js';
 import { shownOfSaved, shownPropertiesOf, withDefaultsShown } from './mcosShown.js';
+import { coderSettingUnkept, unkeptCoderWhy } from './unkeptCoder.js';
 import PropName from '../prop/PropName.js';
 import PropValue from '../prop/PropValue.js';
 import PropDataType from '../prop/PropDataType.js';
@@ -121,10 +122,10 @@ function toPropClass(prop, column, editorOverride) {
         pc.sourceEditable = true;
     }
     if (isAlignment(prop)) {
-        pc.editableFor = (node) => storageClassOf(node) !== 'Auto' && !heldOpaqueRefusal(node, prop) && leafHeld(node, prop);
+        pc.editableFor = (node) => storageClassOf(node) !== 'Auto' && !heldOpaqueRefusal(node, prop) && !unkeptCoderRefusal(node, prop) && leafHeld(node, prop);
     }
     else if (prop.sourcePath.startsWith('CoderInfo.')) {
-        pc.editableFor = (node) => !heldOpaqueRefusal(node, prop) && leafHeld(node, prop);
+        pc.editableFor = (node) => !heldOpaqueRefusal(node, prop) && !unkeptCoderRefusal(node, prop) && leafHeld(node, prop);
     }
     return pc;
 }
@@ -267,6 +268,10 @@ export function schemaEditRefusal(node, key, stringValue) {
     if (opaque) {
         return refuse(opaque);
     }
+    const unkept = unkeptCoderRefusal(node, prop);
+    if (unkept) {
+        return refuse(unkept);
+    }
     if (!leafHeld(node, prop)) {
         const holder = prop.sourcePath.split('.')[0];
         return refuse('Cannot edit "' + entryNameOf(node) + '": ' + node.matlabPath + ' holds no ' + holder + ' for its ' + prop.label + ', and this editor makes none.');
@@ -288,6 +293,15 @@ function heldOpaqueRefusal(node, prop) {
     return coder?._handleOpaque && !judges
         ? 'Cannot set ' + prop.label + ": its CoderInfo is held as MATLAB's own handle data, which this editor shows but writes only into a MAT-file."
         : null;
+}
+// Why an edit of `prop`, a coder setting of the node's CoderInfo, would not be kept (unkeptCoder.ts), as
+// the refusal says it; null otherwise.
+function unkeptCoderRefusal(node, prop) {
+    if (!prop.sourcePath.startsWith('CoderInfo.') || !coderSettingUnkept(node)) {
+        return null;
+    }
+    const entry = entryNameOf(node);
+    return 'Cannot edit "' + entry + '": ' + unkeptCoderWhy(node, prop.label) + '.';
 }
 // The node's own property bag, which an edit writes (writeSourcePath, writeAlignment).
 function propertiesOf(node) {

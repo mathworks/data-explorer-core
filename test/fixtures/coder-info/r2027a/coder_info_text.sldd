@@ -1,0 +1,114 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "pNew",
+						"metadata": {
+							"uuid": "2c72ee25-9f5f-4dc0-82e0-6356e777f8ef",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261101T004011.492059",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"Alias": "pNewId",
+												"Alignment": {
+													"_type": "int32",
+													"_value": "8"
+												},
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "ExportedGlobal"
+											}
+										},
+										"Complexity": "real",
+										"Description": "a Parameter made in the base workspace",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 3
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pWs",
+						"metadata": {
+							"uuid": "42528e12-e7dd-4db5-90a9-ca142e0022fc",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261101T004011.490621",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": [],
+												"CustomStorageClass": "Default",
+												"HasCoderInfo": false,
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Description": "a Parameter from a model workspace",
+										"Dimensions": [
+											1,
+											1
+										],
+										"DocUnits": "m",
+										"Max": 10,
+										"Min": 0,
+										"Value": 2.5
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

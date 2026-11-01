@@ -1,0 +1,96 @@
+{
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
+  "release": "2027a",
+  "values": [
+    {
+      "name": "pWs",
+      "class": "Simulink.Parameter",
+      "made": {
+        "HasCoderInfo": false,
+        "HasCoderInfoForCopy": false,
+        "StorageClass": "Auto",
+        "Identifier": "",
+        "Alignment": -1,
+        "CustomAttributes": "[] (double)",
+        "same": true
+      },
+      "mat": {
+        "HasCoderInfo": false,
+        "HasCoderInfoForCopy": false,
+        "StorageClass": "Auto",
+        "Identifier": "",
+        "Alignment": -1,
+        "CustomAttributes": "[] (double)",
+        "same": true
+      },
+      "binary": {
+        "HasCoderInfo": false,
+        "HasCoderInfoForCopy": false,
+        "StorageClass": "Auto",
+        "Identifier": "",
+        "Alignment": -1,
+        "CustomAttributes": "[] (double)",
+        "same": true
+      },
+      "text": {
+        "HasCoderInfo": true,
+        "HasCoderInfoForCopy": true,
+        "StorageClass": "Auto",
+        "Identifier": "",
+        "Alignment": -1,
+        "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+        "same": true
+      }
+    },
+    {
+      "name": "pNew",
+      "class": "Simulink.Parameter",
+      "made": {
+        "HasCoderInfo": true,
+        "HasCoderInfoForCopy": true,
+        "StorageClass": "ExportedGlobal",
+        "Identifier": "pNewId",
+        "Alignment": 8,
+        "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+        "same": true
+      },
+      "mat": {
+        "HasCoderInfo": true,
+        "HasCoderInfoForCopy": true,
+        "StorageClass": "ExportedGlobal",
+        "Identifier": "pNewId",
+        "Alignment": 8,
+        "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+        "same": true
+      },
+      "binary": {
+        "HasCoderInfo": true,
+        "HasCoderInfoForCopy": true,
+        "StorageClass": "ExportedGlobal",
+        "Identifier": "pNewId",
+        "Alignment": 8,
+        "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+        "same": true
+      },
+      "text": {
+        "HasCoderInfo": true,
+        "HasCoderInfoForCopy": true,
+        "StorageClass": "ExportedGlobal",
+        "Identifier": "pNewId",
+        "Alignment": 8,
+        "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+        "same": true
+      }
+    }
+  ],
+  "leftOut": "sWs: a model-workspace Signal holds HasCoderInfo true, so it is left out",
+  "sWsAsRead": {
+    "HasCoderInfo": true,
+    "HasCoderInfoForCopy": true,
+    "StorageClass": "Auto",
+    "Identifier": "",
+    "Alignment": -1,
+    "CustomAttributes": "SimulinkCSC.AttribClass_Simulink_Default",
+    "same": true
+  }
+}

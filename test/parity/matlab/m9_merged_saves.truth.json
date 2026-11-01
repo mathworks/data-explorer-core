@@ -116,6 +116,13 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_coder_info_r2027a_coder_info_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 2,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_complex_inf_complex_inf_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -3189,6 +3196,98 @@
         "unedited": {
           "checked": 13,
           "same": 13,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/coder-info/r2027a/coder_info_binary.sldd",
+      "variant": "",
+      "original": "orig_coder_info_r2027a_coder_info_binary.sldd",
+      "file": "m9_coder_info_r2027a_coder_info_binary_1.sldd",
+      "section": "design",
+      "entry": "pNew",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pNewM9",
+      "refused": "",
+      "save": {
+        "chunk": "bc4ebd1208c09989c9fdf2546829a85e333ba576f29c8d4aa76d60b0ee5baf51",
+        "parts": "897cdc5f03ab5771611846d63be1c9c6c4499db3066299e3394060c7413073eb"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/coder-info/r2027a/coder_info_binary.sldd",
+      "variant": "",
+      "original": "orig_coder_info_r2027a_coder_info_binary.sldd",
+      "file": "m9_coder_info_r2027a_coder_info_binary_2.sldd",
+      "section": "design",
+      "entry": "pNew",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "a4f0bb8e00e4d5427685e7d1886cf4880732a3c94bc266a1a1b9a81fde7d5c6b",
+        "parts": "897cdc5f03ab5771611846d63be1c9c6c4499db3066299e3394060c7413073eb"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
           "bySignature": 0,
           "differ": []
         },

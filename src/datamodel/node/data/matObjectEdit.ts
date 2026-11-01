@@ -43,6 +43,7 @@ import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
 import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, shapeShown, type McosObjectState } from './mcosObjectEdit.js';
 import type { McosHeld } from '../../parser/McosEditRules.js';
+import { coderSettingUnkept, unkeptCoderWhy } from '../unkeptCoder.js';
 
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
 // rules (McosPropertyRules) and written through the codec (McosObjectWrite): a property swapped,
@@ -267,6 +268,9 @@ function bagEditorFor(className: string, property: string): MatBagEditor | null 
 const bagSpots = (className: string): string[] => Object.values(BAG_EDITORS[className] ?? {}).filter((e) => !e.bag?.includes('.')).map((e) => e.property);
 
 // The properties each class's node offers an editor of, as its own node fields, or its bag's.
+// The rows a MAT-file's CoderInfo spots are shown as (HELD_COLUMNS), by the property each writes.
+const CODER_ROW_LABELS: Readonly<Record<string, string>> = { StorageClass: 'Storage Class', Identifier: 'Identifier', Alignment: 'Alignment' };
+
 const OWN_SPOTS: Readonly<Record<string, readonly string[]>> = {
   [PARAMETER]: ['Value', 'Min', 'Max', 'Description', 'Unit', 'DataType'],
   [SIGNAL]: ['Min', 'Max', 'Description', 'Unit', 'DataType', 'Complexity', 'DimensionsMode', ...bagSpots(SIGNAL)],
@@ -1296,6 +1300,10 @@ export function matSpotRefusal(state: MatObjectState, node: BaseNode, key: strin
   }
   if (s.exact) {
     return s.exact;
+  }
+  // A CoderInfo MATLAB never set up, of which MATLAB keeps no coder setting the file holds (unkeptCoder.ts).
+  if (s.spot.nested?.saved === 'CoderInfo' && coderSettingUnkept(node)) {
+    return unkeptCoderWhy(node, CODER_ROW_LABELS[s.spot.property] ?? s.spot.property);
   }
   // A CoderInfo's Identifier and Alignment, which MATLAB takes only under a storage class other than
   // 'Auto' (it refuses the one there, and resets the other with a warning).

@@ -13,6 +13,7 @@ import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
 import { dataTypeFollowedFrom, nodePropertyValue, REFUSED, shapeShown } from './mcosObjectEdit.js';
+import { coderSettingUnkept, unkeptCoderWhy } from '../unkeptCoder.js';
 // The edits of a MAT-file's MCOS objects a save writes, read off their nodes, held to the property
 // rules (McosPropertyRules) and written through the codec (McosObjectWrite): a property swapped,
 // one at its default given a value (a triple inserted), one set back to it (its triple removed),
@@ -197,6 +198,8 @@ function bagEditorFor(className, property) {
 // The properties of BAG_EDITORS of `className` that are its own (not its CoderInfo's), by the rules' names.
 const bagSpots = (className) => Object.values(BAG_EDITORS[className] ?? {}).filter((e) => !e.bag?.includes('.')).map((e) => e.property);
 // The properties each class's node offers an editor of, as its own node fields, or its bag's.
+// The rows a MAT-file's CoderInfo spots are shown as (HELD_COLUMNS), by the property each writes.
+const CODER_ROW_LABELS = { StorageClass: 'Storage Class', Identifier: 'Identifier', Alignment: 'Alignment' };
 const OWN_SPOTS = {
     [PARAMETER]: ['Value', 'Min', 'Max', 'Description', 'Unit', 'DataType'],
     [SIGNAL]: ['Min', 'Max', 'Description', 'Unit', 'DataType', 'Complexity', 'DimensionsMode', ...bagSpots(SIGNAL)],
@@ -1111,6 +1114,10 @@ export function matSpotRefusal(state, node, key, sharing) {
     }
     if (s.exact) {
         return s.exact;
+    }
+    // A CoderInfo MATLAB never set up, of which MATLAB keeps no coder setting the file holds (unkeptCoder.ts).
+    if (s.spot.nested?.saved === 'CoderInfo' && coderSettingUnkept(node)) {
+        return unkeptCoderWhy(node, CODER_ROW_LABELS[s.spot.property] ?? s.spot.property);
     }
     // A CoderInfo's Identifier and Alignment, which MATLAB takes only under a storage class other than
     // 'Auto' (it refuses the one there, and resets the other with a warning).
