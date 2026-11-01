@@ -50,3 +50,78 @@ jobs:
           git status --porcelain --untracked-files=all -- dist
           git diff --exit-code --stat -- dist
           test -z "$(git status --porcelain --untracked-files=all -- dist)"
+
+  # data-explorer-view (mathworks/data-explorer-view) is built on this package: its view
+  # model reads core's nodes and sessions, and its widgets show them. A core change must
+  # not regress it, and nothing else would see one: view's own CI installs the core tag
+  # that view's package.json pins, so it meets a core change only when someone moves the
+  # pin. So this job runs view's unit tests against this core, in place of the one view
+  # pins, as view's own CI runs the VS Code extension's tests against each view change.
+  #
+  # Not a required check, so a red here does not block a merge: an intentional change in
+  # what core does can break a view test that pinned the old behaviour, and that change
+  # must still be able to merge. When it is red, the pull request names the view change
+  # it needs (the view pull request that adapts the tests, or the issue for one). The
+  # push run on main is then red until that change reaches view's main; re-run it then.
+  # View's typecheck, build and browser tests are left out; its own CI runs them on the
+  # pull request that moves the pin.
+  downstream-view:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # View's main: the view this core reaches next. View is public, so the checkout
+      # needs no token of its own, and none is kept.
+      - uses: actions/checkout@v7
+        with:
+          repository: mathworks/data-explorer-view
+          ref: main
+          path: view
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            view/package-lock.json
+
+      - run: npm ci
+
+      # The dist/ this commit's src/ builds. build-and-test checks that the committed
+      # dist/ is the same, and is red under its own name when it is not; this job still
+      # tests what the source does.
+      - run: npm run build
+
+      # As view's CI installs them, core among them: by git, at the commit view's
+      # lockfile pins.
+      - name: Install view's dependencies
+        working-directory: view
+        run: npm ci
+
+      # This core in place of the pinned one, swapped as scripts/verify-consumer.mjs swaps
+      # it. Core publishes dist/ only (`files: ["dist"]`), so the installed package is
+      # dist/ and a manifest, and replacing the two is installing this commit. The manifest
+      # goes too because view reads core's version off it: test/sparseNoGrid.test.ts gates
+      # half its cases on it. The pinned dist/ is deleted first because cp -R onto a
+      # directory that exists copies into it. A dependency this core adds is not installed
+      # into view; Node finds it in core's own node_modules, above view/.
+      - name: Install this core over view's pin
+        run: |
+          rm -rf view/node_modules/data-explorer-core/dist
+          cp -R dist view/node_modules/data-explorer-core/dist
+          cp package.json view/node_modules/data-explorer-core/package.json
+
+      # The next step tests this core only if it is the one installed. A swap that kept the
+      # pinned core would make view's tests a test of the pin, green for the wrong reason.
+      - name: The installed core is this one
+        run: |
+          diff -r dist view/node_modules/data-explorer-core/dist
+          cmp package.json view/node_modules/data-explorer-core/package.json
+
+      - name: View's unit tests
+        working-directory: view
+        run: npx vitest run
