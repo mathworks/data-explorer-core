@@ -6,8 +6,10 @@
 // wraps; mutateEntry is given the session. Fixtures: arch.sldd is core's own, byte for byte; vscode's
 // arch_binary.sldd and compressed.sldd are not core's (core's arch_binary carries one more entry,
 // NumericType, with the same catalog interfaces; core's compressed.sldd has no catalog part either),
-// and core's serve every assertion made of them. vscode's arch_service_binary.sldd is not in core, so
-// the cases needing it are not ported (see the last describe).
+// and core's serve every assertion made of them. arch_service_binary.sldd is vscode's, byte for byte
+// (written by its test/fixtures/make-fixtures.mjs, not by MATLAB); the last describe's cases that
+// open it are vscode's test/scRenameCarry.test.ts at 632f6e0, with what data-explorer-view
+// test/binaryEngine/renameCarry.test.ts › "A service function rename…" (ce62a24) asks besides.
 //
 // RENAMING A CATALOGUED ENTRY WRITES TWO PLACES IN THE FILE.
 //
@@ -403,6 +405,15 @@ describe('carrying a rename in an uncompressed-text dictionary', () => {
     expect(edits).toHaveLength(1);
     expect(d.reread().systemComposer).toEqual(before);
   });
+
+  it('writes nothing for a rename that renames nothing', () => {
+    // The gate never asks this, but the helper answers it alone: a definition renamed to its
+    // own name has sites, and moving none of them is the only right edit.
+    const text = readFileSync(fixture('./fixtures/arch.sldd'), 'utf8');
+
+    expect(scJsonRenameEdits(text, 'StructType', 'Wheel')).toHaveLength(1);
+    expect(scJsonRenameEdits(text, 'StructType', 'StructType')).toEqual([]);
+  });
 });
 
 describe('carrying a rename in a compressed-binary dictionary', () => {
@@ -753,12 +764,192 @@ describe('carrying a function rename in an uncompressed-text dictionary', () => 
   });
 });
 
-// Not ported: every case of this describe that opens vscode's test/fixtures/arch_service_binary.sldd
-// (a hand-made binary service-interface dictionary core does not hold, and core's binary fixtures are
-// the ones MATLAB was asked about): the two catalog sites patched, f and g's namesakes left alone,
-// the five STEPS against core's own save, the re-zip, the undo byte for byte, the Prototype and
-// sibling refusals, and the unlisted function (12 cases).
+// arch_service_binary.sldd is the shape of the corpus's binary service interface, trimmed:
+// `ServiceInterface` holds `f: y = f(u)` and `g: [a,b] = g(g)`. It carries two traps, because the
+// host patches text: a DATA interface that is also named `f`, and `g`'s first argument, which is
+// named `g`. A rename of either function that took either of those would corrupt something else.
 describe('carrying a function rename in a compressed-binary dictionary', () => {
+  const SVC = 'arch_service_binary.sldd';
+  const ONE: Step = { entry: 'ServiceInterface', fn: 'f', to: 'compute' };
+  const encode = (text: string) => new TextEncoder().encode(text);
+  const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+  /** The catalog member core's own save writes after `steps`, of the fixture or of `bytes`. */
+  const coreSavedMember = (steps: Step[], bytes = new Uint8Array(readFileSync(fixture('./fixtures/' + SVC)))) => {
+    const out = coreSaved(bytes, SVC, steps);
+    expect(out.kind).toBe('binary');
+    return decode(unzipSync((out as { bytes: Uint8Array }).bytes)[SC_PART_XML]);
+  };
+
+  it('patches the function’s two catalog sites, and nothing else', () => {
+    const d = openBinary(SVC);
+    try {
+      const original = d.doc.zipMeta[SC_PART_XML];
+
+      const { part, functionCarry } = d.rename('ServiceInterface', 'compute', 'f');
+
+      expect(functionCarry).toEqual({ interfaceName: 'ServiceInterface', oldName: 'f', newName: 'compute' });
+      expect(part?.member).toBe(SC_PART_XML);
+      // `before` is the member's original bytes, so undo restores the file as read.
+      expect(part!.before).toBe(original);
+      // The function's p_FunctionPrototype and p_Name: the data interface named `f` stays.
+      expect(decode(part!.after)).toBe(
+        replacedOnce(decode(original), [
+          ['<p_FunctionPrototype>y = f(u)</p_FunctionPrototype>', '<p_FunctionPrototype>y = compute(u)</p_FunctionPrototype>'],
+          ['<p_Name>f</p_Name>\n        </p_FunctionElements>', '<p_Name>compute</p_Name>\n        </p_FunctionElements>'],
+        ]),
+      );
+      expect(d.doc.chunkXml).toContain('>compute<');
+      expect(d.doc.chunkXml).toContain('y = compute(u)');
+      // And the member a save writes is the one core's own save writes.
+      expect(decode(d.saved().zipMeta[SC_PART_XML])).toBe(coreSavedMember([ONE]));
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('leaves the data interface named f, and g’s argument named g, alone', () => {
+    const d = openBinary(SVC);
+    try {
+      const original = decode(d.doc.zipMeta[SC_PART_XML]);
+
+      const { part } = d.rename('ServiceInterface', 'h', 'g');
+
+      expect(decode(part!.after)).toBe(
+        replacedOnce(original, [
+          ['<p_FunctionPrototype>[a,b] = g(g)</p_FunctionPrototype>', '<p_FunctionPrototype>[a,b] = h(g)</p_FunctionPrototype>'],
+          ['<p_Name>g</p_Name>\n        </p_FunctionElements>', '<p_Name>h</p_Name>\n        </p_FunctionElements>'],
+        ]),
+      );
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it.each(STEPS)('writes the member core’s own save writes: %s', (_label, steps) => {
+    const d = openBinary(SVC);
+    try {
+      steps.forEach(({ entry, fn, to }) => {
+        const { part } = d.rename(entry, to, fn);
+        // A part forces the wide repaint, which re-reads chunk and parts together.
+        if (part) d.reread();
+      });
+      expect(decode(d.saved().zipMeta[SC_PART_XML])).toBe(coreSavedMember(steps));
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('survives the re-zip a save performs', () => {
+    const d = openBinary(SVC);
+    try {
+      const { part } = d.rename('ServiceInterface', 'compute', 'f');
+
+      const files = d.saved();
+      expect(files.zipMeta[SC_PART_XML]).toEqual(part!.after);
+      expect(files.chunkXml).toContain('>compute<');
+      const reread = d.roundTrip() as any;
+      expect(kindsOf(reread).ServiceInterface).toBe('Service Interface');
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('puts both surfaces back on undo, the member byte for byte', () => {
+    const d = openBinary(SVC);
+    try {
+      const originalPart = d.doc.zipMeta[SC_PART_XML];
+      const originalChunk = d.doc.chunkXml;
+
+      const { part, undo } = d.rename('ServiceInterface', 'compute', 'f');
+      // The edit swapped in the member core's own save writes.
+      expect(decode(d.doc.zipMeta[SC_PART_XML])).toBe(coreSavedMember([ONE]));
+      undo();
+
+      expect(d.doc.zipMeta[SC_PART_XML]).toBe(part!.before);
+      expect(d.doc.zipMeta[SC_PART_XML]).toBe(originalPart);
+      expect(d.doc.chunkXml).toBe(originalChunk);
+      // And a save after the undo writes the member as read.
+      expect(d.saved().zipMeta[SC_PART_XML]).toEqual(originalPart);
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('refuses a rename the Prototype cannot follow, with core’s reason, and patches nothing', () => {
+    const d = openBinary(SVC);
+    try {
+      d.doc.chunkXml = replacedOnce(d.doc.chunkXml, [['y = f(u)', 'y = step(u)']]);
+      const originalPart = d.doc.zipMeta[SC_PART_XML];
+      const originalChunk = d.doc.chunkXml;
+
+      const { result, part } = d.attemptRename('ServiceInterface', 'compute', 'f');
+
+      expect(result).toMatchObject({ error: true });
+      expect((result as { reason: string }).reason).toContain("'f' cannot be renamed: its Prototype 'y = step(u)'");
+      expect(part).toBeNull();
+      expect(d.doc.zipMeta[SC_PART_XML]).toBe(originalPart);
+      expect(d.doc.chunkXml).toBe(originalChunk);
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('refuses a sibling’s name, and patches nothing', () => {
+    const d = openBinary(SVC);
+    try {
+      const originalPart = d.doc.zipMeta[SC_PART_XML];
+
+      const { result, part } = d.attemptRename('ServiceInterface', 'g', 'f');
+
+      expect(result).toMatchObject({ error: true });
+      expect(part).toBeNull();
+      expect(d.doc.zipMeta[SC_PART_XML]).toBe(originalPart);
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('a function the catalog does not list leaves the member untouched', () => {
+    const d = openBinary(SVC);
+    try {
+      // The catalog stops listing `g`: drop its function element, so `g` is in the chunk alone.
+      const xml = decode(d.doc.zipMeta[SC_PART_XML]);
+      const listed = xml.match(/\n *<p_FunctionElements [^>]*uuid="fe-g">[\s\S]*?<\/p_FunctionElements>/g) ?? [];
+      expect(listed, 'the fixture’s catalog lists g once').toHaveLength(1);
+      d.doc.zipMeta[SC_PART_XML] = encode(xml.replace(listed[0], ''));
+      const member = d.doc.zipMeta[SC_PART_XML];
+      const bytes = zipSync({ ...d.doc.zipMeta, 'data/chunk0.xml': encode(d.doc.chunkXml) });
+      const step: Step = { entry: 'ServiceInterface', fn: 'g', to: 'h' };
+
+      const { part, functionCarry } = d.rename(step.entry, step.to, step.fn);
+
+      // The gate passes it, and the catalog has no site for it: no part.
+      expect(functionCarry).toEqual({ interfaceName: 'ServiceInterface', oldName: 'g', newName: 'h' });
+      expect(part).toBeNull();
+      expect(d.doc.chunkXml).toContain('[a,b] = h(g)');
+      expect(d.doc.zipMeta[SC_PART_XML]).toBe(member);
+      // So a save writes the member as read, which is how core's own save leaves it.
+      const saved = d.saved().zipMeta[SC_PART_XML];
+      expect(saved).toEqual(member);
+      expect(decode(saved)).toBe(coreSavedMember([step], bytes));
+    } finally {
+      d.dispose();
+    }
+  });
+
+  it('does not patch for a function the catalog does not list', () => {
+    const d = openBinary(SVC);
+    try {
+      // A name no function has; the data interface `f`, which has no functions; and an
+      // interface the catalog does not define at all.
+      expect(scXmlFunctionRenamePatch(d.doc.zipMeta, { interfaceName: 'ServiceInterface', oldName: 'h', newName: 'k' })).toBeNull();
+      expect(scXmlFunctionRenamePatch(d.doc.zipMeta, { interfaceName: 'f', oldName: 'f', newName: 'k' })).toBeNull();
+      expect(scXmlFunctionRenamePatch(d.doc.zipMeta, { interfaceName: 'Other', oldName: 'f', newName: 'k' })).toBeNull();
+    } finally {
+      d.dispose();
+    }
+  });
+
   it('does not patch a dictionary that has no catalog part at all', () => {
     const zip = unzipSync(new Uint8Array(readFileSync(fixture('./fixtures/compressed.sldd'))));
     const zipMeta: Record<string, Uint8Array> = {};

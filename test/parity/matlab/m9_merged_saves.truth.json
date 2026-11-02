@@ -11,6 +11,13 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_arch_service_binary.sldd",
+      "opened": false,
+      "warnings": [],
+      "entries": 0,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_bus_types_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -396,6 +403,13 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_typelink_typelink_binary.sldd",
+      "opened": false,
+      "warnings": [],
+      "entries": 0,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_variantbank_r2027a_binary.sldd",
       "opened": true,
       "warnings": [],
@@ -407,6 +421,13 @@
       "opened": true,
       "warnings": [],
       "entries": 5,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_vscode_632f6e0_arch_binary.sldd",
+      "opened": false,
+      "warnings": [],
+      "entries": 0,
       "notSelfEqual": []
     },
     {
@@ -424,6 +445,20 @@
       "notSelfEqual": []
     },
     {
+      "file": "orig_parity_binary_codegen.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 2,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_parity_binary_common.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 2,
+      "notSelfEqual": []
+    },
+    {
       "file": "orig_parity_binary_headerfile.sldd",
       "opened": true,
       "warnings": [],
@@ -438,6 +473,23 @@
         "lastwarn SLDD:sldd:ReferencedDictionaryNotFound: Unable to find data dictionary 'common.sldd' referenced by 'orig_parity_binary_params.sldd'."
       ],
       "entries": 40,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_parity_binary_util.sldd",
+      "opened": true,
+      "warnings": [
+        "[\bWarning: Failed to open file 'common.sldd'.]\b  [\bWarning: Unable to find data dictionary 'common.sldd' referenced by 'orig_parity_binary_util.sldd'.]\b",
+        "lastwarn SLDD:sldd:ReferencedDictionaryNotFound: Unable to find data dictionary 'common.sldd' referenced by 'orig_parity_binary_util.sldd'."
+      ],
+      "entries": 1,
+      "notSelfEqual": []
+    },
+    {
+      "file": "orig_parity_elem_binary_elements.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 3,
       "notSelfEqual": []
     }
   ],
@@ -674,6 +726,92 @@
         "edited": {},
         "unedited": {},
         "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "m9_arch_service_binary_1.sldd",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ServiceInterfaceM9",
+      "refused": "",
+      "save": {
+        "chunk": "0d67e22af20891443d6453153374d9ef55c81753143a8a111fd26164417049b7",
+        "parts": "bfba2795672118778dda0b670368f5615d6fc555986afc17b612ea5918a92a81"
+      },
+      "merged": true,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": false,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_service_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "m9_arch_service_binary_2.sldd",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "66ca29d87cee37cab3b4c054a34896ffba9b640eae800570d473811e9fca511b",
+        "parts": "fe0876adb1748f7d0d40e321dae72f2c83d5e93c882afc6a60eeca98cf7bec28"
+      },
+      "merged": true,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_arch_service_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/arch_service_binary.sldd",
+      "variant": "",
+      "original": "orig_arch_service_binary.sldd",
+      "file": "",
+      "section": "arch",
+      "entry": "ServiceInterface",
+      "kind": "Simulink.ServiceBus",
+      "path": {
+        "index": 1,
+        "name": "f"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "Cannot edit \"ServiceInterface\": a Simulink.FunctionElement has no Description.",
+      "matlab": {
+        "asked": false
       }
     },
     {
@@ -14300,6 +14438,138 @@
       }
     },
     {
+      "fixture": "fixtures/typelink/typelink_binary.sldd",
+      "variant": "",
+      "original": "orig_typelink_typelink_binary.sldd",
+      "file": "m9_typelink_typelink_binary_1.sldd",
+      "section": "design",
+      "entry": "MyAlias",
+      "kind": "Simulink.AliasType",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "MyAliasM9",
+      "refused": "",
+      "save": {
+        "chunk": "34e44d0e69bf8a7855c8d0e31825ca30831e2c4ddb940e4df7407bb096918e71",
+        "parts": "181289608b053b9f1d11c266d344e4b96eb38b7eb7ed721abbfed4df000b1638"
+      },
+      "merged": true,
+      "untouched": [
+        3,
+        3
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_typelink_typelink_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/typelink/typelink_binary.sldd",
+      "variant": "",
+      "original": "orig_typelink_typelink_binary.sldd",
+      "file": "m9_typelink_typelink_binary_2.sldd",
+      "section": "design",
+      "entry": "MyAlias",
+      "kind": "Simulink.AliasType",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "4bebbc8c1549911de1c6626d872e872dc041a4fdda3d592679f3abc7ff199eb6",
+        "parts": "181289608b053b9f1d11c266d344e4b96eb38b7eb7ed721abbfed4df000b1638"
+      },
+      "merged": true,
+      "untouched": [
+        3,
+        3
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_typelink_typelink_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/typelink/typelink_binary.sldd",
+      "variant": "",
+      "original": "orig_typelink_typelink_binary.sldd",
+      "file": "m9_typelink_typelink_binary_3.sldd",
+      "section": "design",
+      "entry": "Kp",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "KpM9",
+      "refused": "",
+      "save": {
+        "chunk": "234825ca83d288599815801515ab60f522fed4b81591e0e82064763966abf1bb",
+        "parts": "181289608b053b9f1d11c266d344e4b96eb38b7eb7ed721abbfed4df000b1638"
+      },
+      "merged": true,
+      "untouched": [
+        3,
+        3
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_typelink_typelink_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/typelink/typelink_binary.sldd",
+      "variant": "",
+      "original": "orig_typelink_typelink_binary.sldd",
+      "file": "m9_typelink_typelink_binary_4.sldd",
+      "section": "design",
+      "entry": "Kp",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "0374558303394272792f2110710d88deb391663f542533616ce6ba4b25f72d4a",
+        "parts": "181289608b053b9f1d11c266d344e4b96eb38b7eb7ed721abbfed4df000b1638"
+      },
+      "merged": false,
+      "untouched": [
+        3,
+        3
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_typelink_typelink_binary.sldd'."
+      }
+    },
+    {
       "fixture": "fixtures/variantbank_r2027a_binary.sldd",
       "variant": "",
       "original": "orig_variantbank_r2027a_binary.sldd",
@@ -14527,6 +14797,174 @@
           "differ": []
         },
         "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/vscode-632f6e0/arch_binary.sldd",
+      "variant": "",
+      "original": "orig_vscode_632f6e0_arch_binary.sldd",
+      "file": "m9_vscode_632f6e0_arch_binary_1.sldd",
+      "section": "arch",
+      "entry": "StructType",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "StructTypeM9",
+      "refused": "",
+      "save": {
+        "chunk": "c70bd223db93d22afffe3f6eacc2b823953b8a8392379207ce52893b551bf6ee",
+        "parts": "5952c5fa095f43afefe5a195dd1e531eafc910ef5f5b56c8742d17f37242197b"
+      },
+      "merged": true,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": false,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_vscode_632f6e0_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/vscode-632f6e0/arch_binary.sldd",
+      "variant": "",
+      "original": "orig_vscode_632f6e0_arch_binary.sldd",
+      "file": "m9_vscode_632f6e0_arch_binary_2.sldd",
+      "section": "arch",
+      "entry": "StructType",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "e058bf3cd368f3cc818022a30013455615af3d75c4a2e7f1ff13237ce49b1348",
+        "parts": "d7e66e2a97b65daf5a6592037b1a0275c10ecf2faa757249f7a522e12e4bde64"
+      },
+      "merged": true,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_vscode_632f6e0_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/vscode-632f6e0/arch_binary.sldd",
+      "variant": "",
+      "original": "orig_vscode_632f6e0_arch_binary.sldd",
+      "file": "m9_vscode_632f6e0_arch_binary_3.sldd",
+      "section": "arch",
+      "entry": "StructType",
+      "kind": "Simulink.Bus",
+      "path": {
+        "index": 1,
+        "name": "Element"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "25547be2c9abd5ca8c46276cbe50839ce7deaf44016539e92cf4934e6bf00248",
+        "parts": "d7e66e2a97b65daf5a6592037b1a0275c10ecf2faa757249f7a522e12e4bde64"
+      },
+      "merged": true,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_vscode_632f6e0_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/vscode-632f6e0/arch_binary.sldd",
+      "variant": "",
+      "original": "orig_vscode_632f6e0_arch_binary.sldd",
+      "file": "m9_vscode_632f6e0_arch_binary_4.sldd",
+      "section": "arch",
+      "entry": "ValueType",
+      "kind": "Simulink.ValueType",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "ValueTypeM9",
+      "refused": "",
+      "save": {
+        "chunk": "c50a8555f50fad833e28afe46413219903e1fe3cf8120c6b6f516fec0ab260c2",
+        "parts": "ea3dc3f0f1fdbc7a7c4ae8c512304cd8fd163e0628ae0ff870a53e7f25aae3bf"
+      },
+      "merged": true,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": false,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_vscode_632f6e0_arch_binary.sldd'."
+      }
+    },
+    {
+      "fixture": "fixtures/vscode-632f6e0/arch_binary.sldd",
+      "variant": "",
+      "original": "orig_vscode_632f6e0_arch_binary.sldd",
+      "file": "m9_vscode_632f6e0_arch_binary_5.sldd",
+      "section": "arch",
+      "entry": "ValueType",
+      "kind": "Simulink.ValueType",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "0c963ddeabc76155de48e98c8e93fa75934c3796e7258680b77c2e7a1de454ab",
+        "parts": "d7e66e2a97b65daf5a6592037b1a0275c10ecf2faa757249f7a522e12e4bde64"
+      },
+      "merged": true,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": false,
+        "warnings": [],
+        "asExpected": false,
+        "asOriginal": false,
+        "edited": {},
+        "unedited": {},
+        "error": "MATLAB cannot open the original: Failed to open file 'orig_vscode_632f6e0_arch_binary.sldd'."
       }
     },
     {
@@ -15998,6 +16436,328 @@
         "unedited": {
           "checked": 72,
           "same": 72,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/codegen.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_codegen.sldd",
+      "file": "m9_parity_binary_codegen_1.sldd",
+      "section": "design",
+      "entry": "cgParam",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cgParamM9",
+      "refused": "",
+      "save": {
+        "chunk": "368f645c18e39a839261548a77ae4e22f3e85e408d8efac8c5b5e192b8e371cf",
+        "parts": "9b32aab21514aeca2b6645208c9200ebdd3c15849aa4ffce2501efdaf84859c4"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/codegen.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_codegen.sldd",
+      "file": "m9_parity_binary_codegen_2.sldd",
+      "section": "design",
+      "entry": "cgParam",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "52f3b6c55be6b9dc1bb8e439f2c29648bc70c087a12d1421a58793dc83ad9587",
+        "parts": "9b32aab21514aeca2b6645208c9200ebdd3c15849aa4ffce2501efdaf84859c4"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/codegen.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_codegen.sldd",
+      "file": "m9_parity_binary_codegen_3.sldd",
+      "section": "design",
+      "entry": "cgSignal",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cgSignalM9",
+      "refused": "",
+      "save": {
+        "chunk": "1c494b531e08d26008be32e13a9b99e48a4d460578c584a054d91c7ab22439e4",
+        "parts": "9b32aab21514aeca2b6645208c9200ebdd3c15849aa4ffce2501efdaf84859c4"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/codegen.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_codegen.sldd",
+      "file": "m9_parity_binary_codegen_4.sldd",
+      "section": "design",
+      "entry": "cgSignal",
+      "kind": "Simulink.Signal",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "a289346cc42c515741f102659dd12945f70328c9f2c76cf1e09b22e0bcb83a0b",
+        "parts": "9b32aab21514aeca2b6645208c9200ebdd3c15849aa4ffce2501efdaf84859c4"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Signal",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/common.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_common.sldd",
+      "file": "m9_parity_binary_common_1.sldd",
+      "section": "design",
+      "entry": "sharedGain",
+      "kind": "double",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sharedGainM9",
+      "refused": "",
+      "save": {
+        "chunk": "288f3cf472f8c8b9bab2367a8c23acc495f8d052d8346cfec5497fe7a830feb6",
+        "parts": "36bbaa58a5243992737b21d76c23da31540f00232bed3004286f83f18bc657d7"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/common.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_common.sldd",
+      "file": "m9_parity_binary_common_2.sldd",
+      "section": "design",
+      "entry": "sharedOffset",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "sharedOffsetM9",
+      "refused": "",
+      "save": {
+        "chunk": "684f680e6080d4e8cbfddf908cd7a9086e790371fbfbeedc4defb8800bd94d32",
+        "parts": "36bbaa58a5243992737b21d76c23da31540f00232bed3004286f83f18bc657d7"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/common.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_common.sldd",
+      "file": "m9_parity_binary_common_3.sldd",
+      "section": "design",
+      "entry": "sharedOffset",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "79620c275a49b0341572e67e686717cbc49c80e41ae4354bb59013d022aedd0d",
+        "parts": "36bbaa58a5243992737b21d76c23da31540f00232bed3004286f83f18bc657d7"
+      },
+      "merged": false,
+      "untouched": [
+        1,
+        1
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 1,
+          "same": 1,
           "bySignature": 0,
           "differ": []
         },
@@ -18105,6 +18865,449 @@
           "differ": []
         },
         "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/binary/util.sldd",
+      "variant": "",
+      "original": "orig_parity_binary_util.sldd",
+      "file": "m9_parity_binary_util_1.sldd",
+      "section": "design",
+      "entry": "utilConst",
+      "kind": "double",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "utilConstM9",
+      "refused": "",
+      "save": {
+        "chunk": "b3566ced9942b69db5bcae88e38c9a71bde795a0a27f60f0c3ccc5babef499ac",
+        "parts": "6974628dc1aa7ecab1e58ff36d8119a20cce8ad210ea944503968a23d9eca957"
+      },
+      "merged": false,
+      "untouched": [
+        0,
+        0
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [
+          "[\bWarning: Failed to open file 'common.sldd'.]\b  [\bWarning: Unable to find data dictionary 'common.sldd' referenced by 'm9_parity_binary_util_1.sldd'.]\b",
+          "lastwarn SLDD:sldd:ReferencedDictionaryNotFound: Unable to find data dictionary 'common.sldd' referenced by 'm9_parity_binary_util_1.sldd'."
+        ],
+        "asExpected": false,
+        "asOriginal": true,
+        "edited": {
+          "class": "double",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 0,
+          "same": 0,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_1.sldd",
+      "section": "design",
+      "entry": "MyBus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "MyBusM9",
+      "refused": "",
+      "save": {
+        "chunk": "43855b265d7ea1222b6868a43b28912008a41ad7bb6a49a753307670562ab467",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_2.sldd",
+      "section": "design",
+      "entry": "MyBus",
+      "kind": "Simulink.Bus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "e89c7d9e303acaf7ac9ce1113a9b10e560c6d1a1a9914129243c99acc77a525c",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_3.sldd",
+      "section": "design",
+      "entry": "MyBus",
+      "kind": "Simulink.Bus",
+      "path": {
+        "index": 1,
+        "name": "x"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "508c808291f71c1a9749b800dec6b420188b2db0a1cb68c91b53e3d86863c59c",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Bus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_4.sldd",
+      "section": "design",
+      "entry": "MyConnBus",
+      "kind": "Simulink.ConnectionBus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "MyConnBusM9",
+      "refused": "",
+      "save": {
+        "chunk": "8c59a76710f5a40f81f60676ab71f3d6a5361cbd3d33cece0c5459add9c89383",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.ConnectionBus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_5.sldd",
+      "section": "design",
+      "entry": "MyConnBus",
+      "kind": "Simulink.ConnectionBus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "b614c493e5a44b966ede3c5ce64e71a3860772372403611cf41764e601ebef74",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.ConnectionBus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_6.sldd",
+      "section": "design",
+      "entry": "MyConnBus",
+      "kind": "Simulink.ConnectionBus",
+      "path": {
+        "index": 1,
+        "name": "c1"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "211acea1a6487ed3f917e2ab0c4b7b73b3e062f83eea628ebd9ea70f3676ec97",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.ConnectionBus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_7.sldd",
+      "section": "design",
+      "entry": "MyServiceBus",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "MyServiceBusM9",
+      "refused": "",
+      "save": {
+        "chunk": "156371cb77bdf0e904aa8e7a699446cb0241de8a7272adfc17c56ca3fb114c10",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.ServiceBus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "m9_parity_elem_binary_elements_8.sldd",
+      "section": "design",
+      "entry": "MyServiceBus",
+      "kind": "Simulink.ServiceBus",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "6af0a748af60cf8b01682e8450994285415dcec049bb37b8b87b56fe7b89c344",
+        "parts": "85897c8f2f158e0999c04e72432b042cce117e48278ab49a05ba768366dd698d"
+      },
+      "merged": false,
+      "untouched": [
+        2,
+        2
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.ServiceBus",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 2,
+          "same": 2,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "parity/artifacts/elem_binary/elements.sldd",
+      "variant": "",
+      "original": "orig_parity_elem_binary_elements.sldd",
+      "file": "",
+      "section": "design",
+      "entry": "MyServiceBus",
+      "kind": "Simulink.ServiceBus",
+      "path": {
+        "index": 1,
+        "name": "f1"
+      },
+      "edit": "element",
+      "prop": "Description",
+      "value": "M9: an element Description set by core",
+      "refused": "Cannot edit \"MyServiceBus\": a Simulink.FunctionElement has no Description.",
+      "matlab": {
+        "asked": false
       }
     }
   ]
