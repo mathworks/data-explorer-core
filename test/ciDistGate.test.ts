@@ -41,19 +41,33 @@ interface Step {
 
 const indentOf = (line: string): number => line.length - line.trimStart().length;
 
-// Just enough YAML for these two files: one job, a `steps:` list, and per step either
-// an inline value or a `|` block. Full-line comments are dropped. In a `run: |` block
-// they are shell comments, so dropping them leaves what the shell runs unchanged.
+// The job whose steps are read in each file. In ci.yml it is build-and-test, the one
+// required check: the gate's red blocks a merge only there, and ci.yml's other job
+// (downstream-view) is report-only.
+const JOB: Record<string, string> = { 'ci.yml': 'build-and-test', 'release.yml': 'release' };
+
+// Just enough YAML for these two files: a `jobs:` map, a `steps:` list in the job named
+// above, and per step either an inline value or a `|` block. Full-line comments are
+// dropped. In a `run: |` block they are shell comments, so dropping them leaves what the
+// shell runs unchanged.
 function stepsOf(workflow: string): Step[] {
   const lines = readFileSync(join(WORKFLOWS, workflow), 'utf8')
     .split('\n')
     .filter((l) => l.trim() !== '' && !l.trimStart().startsWith('#'));
-  const lists = lines.flatMap((l, i) => (/^\s*steps:\s*$/.test(l) ? [i] : []));
-  expect(lists, `${workflow} has exactly one steps: list`).toHaveLength(1);
+  const jobs = lines.findIndex((l) => /^jobs:\s*$/.test(l));
+  expect(jobs, `${workflow} has a jobs: map`).toBeGreaterThanOrEqual(0);
+  const jobIndent = indentOf(lines[jobs + 1]!);
+  const starts = lines.flatMap((l, i) => (i > jobs && indentOf(l) === jobIndent && l.trim() === `${JOB[workflow]}:` ? [i] : []));
+  expect(starts, `${workflow} has exactly one ${JOB[workflow]} job`).toHaveLength(1);
+  let end = starts[0]! + 1;
+  while (end < lines.length && indentOf(lines[end]!) > jobIndent) end++;
+  const job = lines.slice(starts[0]! + 1, end);
+  const lists = job.flatMap((l, i) => (/^\s*steps:\s*$/.test(l) ? [i] : []));
+  expect(lists, `${workflow}'s ${JOB[workflow]} job has exactly one steps: list`).toHaveLength(1);
 
   const blocks: string[][] = [];
   let dash = -1;
-  for (const line of lines.slice(lists[0]! + 1)) {
+  for (const line of job.slice(lists[0]! + 1)) {
     if (dash < 0) dash = indentOf(line);
     if (indentOf(line) < dash) break;
     if (indentOf(line) === dash) {

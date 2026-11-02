@@ -47,7 +47,8 @@ describe('every variable of every MAT-file: a copy not refused lands where it is
   });
 
   for (const path of MAT_FILES) {
-    it(path, () => {
+    // mcos/fieldless_1e4x1e4.mat: 0.7 s alone, 6.5 s under test:coverage in a full run, past vitest's 5 s default.
+    it(path, { timeout: 30_000 }, () => {
       const session = createSession();
       let root: Any;
       try {
