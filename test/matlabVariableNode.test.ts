@@ -1274,6 +1274,23 @@ describe('MatlabVariableNode — cell-array children', () => {
     expect(n.displayValue).toBe("{1, 'two', 3}");
   });
 
+  it("reports arrayType 'double' whatever its elements are, so only className names it a cell", () => {
+    // `arrayType` is the scalar class a numeric array's elements have, and a cell has none of
+    // its own: it answers the default, 'double', for a cell of doubles and a cell of chars alike.
+    // A host that titled a value `<dims> <arrayType>` would call a 2x2 cell "2x2 double"; it must
+    // read className. (view's coreMatrixFacts › "a cell array reports arrayType of its ELEMENTS"
+    // leans on this, over a cell of doubles, where the two readings agree.)
+    const cases: Array<[unknown[], number[]]> = [
+      [[1, 2, 3, 4], [2, 2]],
+      [['a', 'bc'], [1, 2]],
+      [['a', 2], [1, 2]],
+    ];
+    for (const [elements, dims] of cases) {
+      const n = cellArray(elements, dims);
+      expect([n.className, n.dataType, n.arrayType], JSON.stringify(elements)).toEqual(['cell', 'cell', 'double']);
+    }
+  });
+
   it('refuses add/remove on a 2-D cell matrix', () => {
     const n = cellArray([1, 2, 3, 4], [2, 2]);
     expect([n.canAddChild(), n.canRemoveChild()]).toEqual([false, false]);

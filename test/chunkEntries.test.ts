@@ -146,6 +146,28 @@ describe('scanChunkEntries on every tracked binary dictionary', () => {
     });
   }
 
+  it("sweeps the dictionaries data-explorer-vscode's copy of these checks ran over that this tree lacked", () => {
+    // vscode's test/chunkEntries.test.ts ran the three checks above over twenty binary
+    // dictionaries. Nine had no copy here, and these are their copies, byte for byte: vscode's
+    // arch_binary.sldd is another file than this tree's, so it is under vscode-632f6e0/, and
+    // typelink_binary.sldd is from its test-integration/fixtures/typelink/. Its
+    // object_array_binary.sldd and compressed.sldd differ from this tree's only in their zip
+    // entries' timestamps, every part the same bytes, so the checks over these cover them.
+    expect(BINARY_FIXTURES).toEqual(
+      expect.arrayContaining([
+        'test/fixtures/arch_service_binary.sldd',
+        'test/fixtures/empty_bin.sldd',
+        'test/fixtures/typelink/typelink_binary.sldd',
+        'test/fixtures/vscode-632f6e0/arch_binary.sldd',
+        'test/parity/artifacts/binary/codegen.sldd',
+        'test/parity/artifacts/binary/common.sldd',
+        'test/parity/artifacts/binary/headerfile.sldd',
+        'test/parity/artifacts/binary/util.sldd',
+        'test/parity/artifacts/elem_binary/elements.sldd',
+      ]),
+    );
+  });
+
   it('reads Name and UUID as the bytes spell them, and the key decodes them as the reader does', () => {
     // MATLAB never spells an entry name with a character reference (a name is an identifier),
     // but the key is what pairs bytes with the model, so it must decode as the reader does.

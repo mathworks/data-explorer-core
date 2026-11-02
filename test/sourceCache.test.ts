@@ -581,4 +581,44 @@ describe('a dictionary the read could not recover is refused, not read as empty'
     // file with no names in it, which resolves nothing but still claims the file was read.
     expect(entry.cheap.summary.slddByName.size).toBe(0);
   });
+
+  // The other way a dictionary goes unread: the scan does not recover, it THROWS. A zip with no
+  // data/chunk0.xml, a text dictionary whose JSON does not parse. The artifact is the same empty
+  // one, and the file is still in the pass. (view's graphSources › "a folder pass survives the
+  // files it cannot read" and nameScan › "contributes nothing for a dictionary the read cannot
+  // recover" lean on this.)
+  const toBuffer = (u8: Uint8Array): ArrayBuffer => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+  const THROWN: Array<[string, () => ArrayBuffer]> = [
+    ['a zip with no data/chunk0.xml', () => toBuffer(zipSync({ 'metadata/mwcoreProperties.xml': strToU8('<x/>') }))],
+    ['malformed JSON', () => toBuffer(strToU8('{ oops'))],
+    ['a text dictionary cut short', () => toBuffer(strToU8('{ "__MW_TEXT_PARTS__": trunc'))],
+  ];
+
+  it.each(THROWN)('is a scan that throws, for %s', (_what, bytesOfBroken) => {
+    // The precondition, apart: if the scan learned to recover from one of these, the test below
+    // would pass through the source-unreadable route instead, and say nothing about the catch.
+    expect(() => scanSldd(bytesOfBroken(), [])).toThrow();
+  });
+
+  it.each(THROWN)('caches the empty artifact for %s, and the dictionary beside it its own', async (_what, bytesOfBroken) => {
+    const broken = file('broken.sldd');
+    const healthy = file('chain_top.sldd');
+    const reading: SourceReader = {
+      version: async () => 'v1',
+      bytes: async (f) => (f.path === broken.path ? bytesOfBroken() : bytesOf(nameOf(f.path))),
+    };
+    const cheap = await cheapAll(newSourceCache(), reading, [broken, healthy]);
+    // Still in the pass, in its place: a file missing here is missing from a host's tree.
+    expect([...cheap.keys()]).toEqual([broken.uriString, healthy.uriString]);
+    const entry = cheap.get(broken.uriString);
+    if (entry?.cheap.kind !== 'sldd') throw new Error(`expected a dictionary, got ${entry?.cheap.kind}`);
+    expect(entry.cheap.refs).toEqual([]);
+    expect(entry.cheap.names).toEqual([]);
+    expect(entry.cheap.summary.slddByName.size).toBe(0);
+    // Non-vacuity: the pass did not merely come back empty for both.
+    const other = cheap.get(healthy.uriString);
+    if (other?.cheap.kind !== 'sldd') throw new Error(`expected a dictionary, got ${other?.cheap.kind}`);
+    expect(other.cheap.refs).toContain('chain_leaf.sldd');
+    expect(other.cheap.summary.slddByName.size).toBe(1);
+  });
 });

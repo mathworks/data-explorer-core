@@ -1415,7 +1415,10 @@ describe('no accepted edit of any binary fixture leaves the entry it changes unm
       for (const [entry, a] of unchecked.splice(0)) run((i) => (i === entry ? a : undefined));
       expect(unchecked).toEqual([]);
       expect(holes).toEqual([]);
-      expect(accepted).toBeGreaterThan(0);
+      // Every fixture accepts some edit, but an empty dictionary (empty_bin.sldd, as MATLAB saves
+      // one), which holds no entry to make one in.
+      if (plan.length === 0) expect(relative(HERE, path)).toBe('fixtures/empty_bin.sldd');
+      else expect(accepted).toBeGreaterThan(0);
     }, 120_000);
   }
 });

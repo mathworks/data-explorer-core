@@ -1169,6 +1169,36 @@ describe('parseProject — the monolithic layout', () => {
     ]);
   });
 
+  it('keeps both labels a category declares at one Location', () => {
+    // MATLAB writes no store with two labels at one Location, but a monolithic store is one
+    // XML document a person or a tool can write, and the parser reads what it says rather than
+    // keeping one of the two. A host that maps labels by id decides between them itself.
+    // (view's mspLabelOwnKey leans on this.) The order is today's, not the document's: the
+    // second label at a Location comes after the category's other labels.
+    const body = `
+    <Categories Location="Root">
+      <Category Location="msp">
+        <Info DataType="None" Name="MSP" ReadOnly="0" SingleValued="0"/>
+        <Label Location="shared"><Info Name="InterfaceDictionary" ReadOnly="WRITABLE"/></Label>
+        <Label Location="shared"><Info Name="toString" ReadOnly="WRITABLE"/></Label>
+        <Label Location="other"><Info Name="PrivateDictionary" ReadOnly="WRITABLE"/></Label>
+      </Category>
+    </Categories>
+    <Files Location="Root">
+      <File Location="a.sldd">
+        <Info><Category UUID="msp"><Label UUID="shared"/></Category></Info>
+      </File>
+    </Files>`;
+    const parsed = parseProject(monoStore(body), 'fallback');
+    expect(parsed.format).toBe('monolithic');
+    expect(parsed.labels.map((l) => [l.id, l.name])).toEqual([
+      ['shared', 'InterfaceDictionary'],
+      ['other', 'PrivateDictionary'],
+      ['shared', 'toString'],
+    ]);
+    expect(parsed.files.map((f) => [f.path, f.labels])).toEqual([['a.sldd', ['shared']]]);
+  });
+
   it('puts the startup files in run order', () => {
     // The order lives only in the `<Extension StartUpPrev>` chain nested inside each
     // entry point's def — so this also pins that a def's own child elements survive

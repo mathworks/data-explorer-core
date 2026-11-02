@@ -429,6 +429,23 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
     ]);
   });
 
+  it('lists the blocks in the order the models were given, not sorted', () => {
+    // Every other test here gives a.slx before b.slx, where input order and sorted order are
+    // one order. A host lists a Usage cell's blocks in the order it hands the files over (its
+    // folder order), so the same dictionary shows the same cell on every open: reversing the
+    // input must be the only thing that reverses the output. (view's usageEndToEnd › "lists
+    // the blocks in file order, not in read-completion order" leans on this.)
+    const files = [
+      file('b.slx', slxModel({ dictionary: 'params.sldd', blocks: block('Gb', 'Gain', 'Gain', 'Kp') })),
+      file('a.slx', slxModel({ dictionary: 'params.sldd', blocks: block('Ga', 'Gain', 'Gain', 'Kp') })),
+      file('params.sldd', slddBytes(['Kp'])),
+    ];
+    const given = buildUsageIndex(files).usagesOf('params.sldd', 'Kp');
+    expect(given.map((u) => u.linkTarget)).toEqual(['1@b.slx', '1@a.slx']);
+    const swapped = buildUsageIndex([files[1], files[0], files[2]]).usagesOf('params.sldd', 'Kp');
+    expect(swapped.map((u) => u.linkTarget)).toEqual(['1@a.slx', '1@b.slx']);
+  });
+
   it('credits every name in an expression, not just the first', () => {
     // `Kp*Ki` really is a usage of both, so both cells name the block. The FORWARD answer
     // is the one that has to pick one, because a parameter has a single origin.
