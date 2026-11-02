@@ -18,7 +18,9 @@
 //
 // What MATLAB read: every save of a fixture MATLAB can open reads as its original does, the edited
 // entry as MATLAB makes the same edit, every other entry as it was, and with no error or warning
-// but those the original itself gives. Three fixtures core wrote by hand, MATLAB cannot open at all.
+// but those the original itself gives. Four fixtures written by hand, MATLAB cannot open at all: three
+// core's make-fixtures.mjs wrote, and arch_service_binary.sldd, which data-explorer-vscode's
+// test/fixtures/make-fixtures.mjs wrote (copied byte for byte for scRenameCarry.test.ts).
 // And MATLAB's own rename does one thing core's does not: it writes the new name into the value's
 // Name property too, where it has one (a Simulink.VariantBank, the fixtures' MyGadget).
 //
@@ -121,16 +123,23 @@ describe("MATLAB's read-back of S2's merged binary saves (M9)", () => {
     });
   }
 
-  it('the one edit core refuses is not asked: a property at its default of an object in an encoded value', () => {
+  it('the edits core refuses are not asked: a property at its default of an object in an encoded value, and a Description of a service function, which has none', () => {
     expect(TRUTH.cases.filter((c) => c.refused !== '').map((c) => [c.fixture, c.entry, c.edit])).toEqual([
+      ['fixtures/arch_service_binary.sldd', 'ServiceInterface', 'element'],
       ['fixtures/sparse/hexobj_binary.sldd', 'pTall', 'description'],
     ]);
   });
 
-  it('MATLAB cannot open the three fixtures core wrote by hand (make-fixtures.mjs), so no save of theirs is held to them', () => {
-    expect(ORIGINALS.filter((o) => !o.opened).map((o) => o.file)).toEqual(['orig_arch_binary.sldd', 'orig_compressed.sldd', 'orig_object_array_binary.sldd']);
+  it("MATLAB cannot open the four fixtures written by hand (make-fixtures.mjs, core's and vscode's), so no save of theirs is held to them", () => {
+    // arch_service_binary.sldd is data-explorer-vscode's, written by its test/fixtures/make-fixtures.mjs.
+    expect(ORIGINALS.filter((o) => !o.opened).map((o) => o.file)).toEqual([
+      'orig_arch_binary.sldd',
+      'orig_arch_service_binary.sldd',
+      'orig_compressed.sldd',
+      'orig_object_array_binary.sldd',
+    ]);
     const unheld = asked.filter((c) => !ORIGINALS.find((o) => o.file === c.original)!.opened);
-    expect(unheld.length).toBe(10);
+    expect(unheld.length).toBe(12);
     for (const c of unheld) {
       expect(c.matlab.error, c.file).toMatch(/^MATLAB cannot open the original: Failed to open file/);
     }
@@ -138,7 +147,7 @@ describe("MATLAB's read-back of S2's merged binary saves (M9)", () => {
 
   it('every other save reads in MATLAB as the original does: the edited entry as MATLAB edits it, every other entry as it was', () => {
     const held = asked.filter((c) => ORIGINALS.find((o) => o.file === c.original)!.opened);
-    expect(held.length).toBe(asked.length - 10);
+    expect(held.length).toBe(asked.length - 12);
     const wrong = held
       .filter((c) => !(c.matlab.error === '' && c.matlab.asOriginal && c.matlab.edited!.same && c.matlab.edited!.absentOld && list(c.matlab.unedited!.differ).length === 0))
       .map((c) => `${c.file} ${c.entry} ${c.edit}: ${c.matlab.error || c.matlab.edited?.why || list(c.matlab.unedited?.differ).join('; ')}`);
