@@ -64,6 +64,7 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 | `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). Writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
 | `gen_block_params.m` | the option-list parameter table — see [The block-parameter gate](#the-block-parameter-gate). The only generator that writes into **`src/`**, because the parser imports its output at parse time |
 | `gen_project.m` | one project in all four definition-file formats — see [The project corpus](#the-project-corpus). The only generator whose output is a tree of openable projects rather than files |
+| `gen_headerfile.m` | `../artifacts/{text,binary}/headerfile.sldd`: a Parameter and a Signal with a Header File (an ExportToFile custom storage class) and one without, for `test/parity/fidelity/schemaColumns.fidelity.test.ts`. The committed binary one is data-explorer-view's, byte for byte; see the script's header |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
@@ -81,7 +82,8 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 
 **`text/params.sldd` and `binary/params.sldd` are not part of this corpus.** They
 are the older, hand-made fidelity fixtures used by `test/parity/fidelity/*.test.ts`,
-and they predate `gen_truth.m` — it neither reads nor rewrites them. The two
+and they predate `gen_truth.m` — it neither reads nor rewrites them. Nor are
+`text/headerfile.sldd` and `binary/headerfile.sldd`, `gen_headerfile.m`'s. The two
 suites share the `artifacts/` tree only so that
 `roundTripHarness.loadModel(format, fixture, uri)`, which resolves
 `../artifacts/{text|binary}/<fixture>`, works on both unchanged.

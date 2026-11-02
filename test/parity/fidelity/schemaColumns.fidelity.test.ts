@@ -3,8 +3,9 @@
 // Fidelity tests for schema-projected Code Generation columns (storageClass,
 // headerFile, alignment). Verifies that editable StorageClass round-trips
 // through both sldd formats and that invalid values are rejected, and that
-// read-only columns (headerFile, alignment) are not writable.
-import { describe, it, expect } from 'vitest';
+// read-only columns (headerFile, alignment) are not writable. And that the Header
+// File column reads the HeaderFile MATLAB wrote, in both formats.
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   loadModel,
   entryByName,
@@ -247,6 +248,33 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       const bag =
         coderInfo?._properties ?? coderInfo?._elements?.[0]?._properties;
       expect(bag?.StorageClass).toBe('Auto');
+    });
+  });
+
+  // A Header File is not a property of a Parameter or a Signal: the column reads
+  // CoderInfo.CustomAttributes.HeaderFile, which only a file-based custom storage
+  // class has. headerfile.sldd is MATLAB's (test/parity/matlab/gen_headerfile.m):
+  // hdrParam and hdrSignal under ExportToFile, plainParam under Auto.
+  describe(`Header File column (${format})`, () => {
+    const uri = `test://schema-headerfile-${format}.sldd`;
+    let model: any;
+    beforeAll(() => {
+      model = loadModel(format, 'headerfile.sldd', uri);
+    });
+    const headerFileCell = (name: string) => entryByName(model, uri, name).toRow().headerFile;
+
+    it('a Parameter with ExportToFile CSC surfaces its HeaderFile', () => {
+      expect(entryByName(model, uri, 'hdrParam').className).toBe('Simulink.Parameter');
+      expect(headerFileCell('hdrParam')).toBe('params_hdr.h');
+    });
+
+    it('a Signal with ExportToFile CSC surfaces its HeaderFile', () => {
+      expect(entryByName(model, uri, 'hdrSignal').className).toBe('Simulink.Signal');
+      expect(headerFileCell('hdrSignal')).toBe('signals_hdr.h');
+    });
+
+    it('an entry with a plain (Auto) CSC has no HeaderFile — the cell is blank', () => {
+      expect(headerFileCell('plainParam')).toBe('');
     });
   });
 }

@@ -1,9 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // ProjectNode data model: building the four-section tree from a ParsedProject
-// and the per-item row projection (toRow). The presentation-layer buildRows
-// assertions (section headers, tree validity, entry coloring) live with the
-// extension's integration tests.
+// and the per-item row projection (toRow), the Name cell's element flag, which
+// colors an entry, included. The presentation-layer buildRows assertions
+// (section headers, tree validity) live with the hosts' tests.
 import { describe, it, expect } from 'vitest';
 import ProjectNode from '../src/datamodel/node/container/ProjectNode.js';
 import type { ParsedProject } from '../src/datamodel/parser/ProjectParser.js';
@@ -220,6 +220,20 @@ describe('ProjectItemNode', () => {
     expect(item.isEntry).toBe(true);
     expect(item.nameEditable).toBe(false);
     expect(item.valueEditable).toBe(false);
+  });
+
+  it('renders project items in normal color (element === false)', () => {
+    // A project item is never renamable, but it is a real entry, not a positional element, and
+    // Name.element is the one thing that grays a Name: never read off the read-only-ness.
+    const all = items(makeParsed());
+    expect(all.map((c) => [c.name, c.nameEditable, (c.toRow() as any).Name.element])).toEqual([
+      ['models', false, false],
+      ['controller.slx', false, false],
+      ['utils', false, false],
+      ['Design', false, false],
+      ['Test', false, false],
+      ['SharedLib', false, false],
+    ]);
   });
 
   it('shows Name, Type, Location and Labels in one General group', () => {
