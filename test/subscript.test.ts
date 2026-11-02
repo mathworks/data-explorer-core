@@ -4,9 +4,12 @@
 // and string element lists reach the node layer ROW-major (MatParser transposes
 // each page on the way in), while object and struct element lists reach it
 // COLUMN-major (MATLAB's own order, which the MCOS decoder and both SLDD paths
-// preserve). One helper, told which it is holding.
+// preserve). One helper, told which it is holding. The last block is the rule on a
+// variable's own children, beside the shape their node reports.
 import { describe, it, expect } from 'vitest';
 import { subscriptLabel, ind2sub } from '../src/datamodel/display/Subscript.js';
+import StructNode from '../src/datamodel/node/data/StructNode.js';
+import { createSession } from '../src/index.js';
 
 describe('ind2sub', () => {
   it('matches MATLAB ind2sub on a 0-based column-major index', () => {
@@ -84,5 +87,58 @@ describe('subscriptLabel — shape normalization', () => {
 
   it('falls back to a linear subscript when dims are missing', () => {
     expect(subscriptLabel('v', 0, undefined, 'row-major', '()')).toBe('v(1)');
+  });
+});
+
+// The rule on a variable's own children, labelled from the shape its node reports. Ported from
+// data-explorer-view test/coreMatrixFacts.test.ts at ce62a24 ("core fact: dims are RAW…"), which pins
+// the two facts its Variable Editor's payload builder reads; the variable is built as a host hands
+// over a parse of its own (addMatSourceParsed), as there.
+describe('subscriptLabel — a variable\'s children: dims are RAW, MATLAB size() semantics have to be mirrored', () => {
+  let seq = 0;
+  function variable(name: string, dimensions: number[], value: number[]): any {
+    const uri = `facts-${seq++}.mat`;
+    const mat: any = createSession().addMatSourceParsed(uri, {
+      header: 'MATLAB 5.0',
+      variables: [{ name, className: 'double', dimensions, isComplex: false, isLogical: false, value, fields: null }],
+    }, { path: uri });
+    return mat.children[0];
+  }
+  const labels = (node: any) => node.children.map((c: any) => c.displayName);
+
+  it('a [2,3,1] double reports three dims but labels two subscripts', () => {
+    const sq = variable('Squeeze', [2, 3, 1], [1, 2, 3, 4, 5, 6]);
+    expect(sq.constructor.name).toBe('MatlabVariableNode');
+    expect(sq.dims).toEqual([2, 3, 1]); //              raw
+    expect(sq.displayValue).toBe('[1 2 3; 4 5 6]'); //  but displayed as 2-D
+    expect(labels(sq)).toEqual([
+      'Squeeze(1,1)', 'Squeeze(1,2)', 'Squeeze(1,3)',
+      'Squeeze(2,1)', 'Squeeze(2,2)', 'Squeeze(2,3)',
+    ]);
+  });
+
+  it('an array extending along one axis only is labelled with a LINEAR subscript', () => {
+    // subscriptLabel's own `spread <= 1` branch, on a rank-3 shape.
+    const thin = variable('Thin', [1, 1, 4], [1, 2, 3, 4]);
+    expect(labels(thin)).toEqual(['Thin(1)', 'Thin(2)', 'Thin(3)', 'Thin(4)']);
+    const vec = variable('Vec', [1, 3], [7, 8, 9]);
+    expect(labels(vec)).toEqual(['Vec(1)', 'Vec(2)', 'Vec(3)']);
+  });
+
+  it('a [2,3,1] struct array reports [2,3]: StructNode normalizes the shape MatlabVariableNode keeps raw', () => {
+    // Not a rule: the two node classes answer `dims` for one shape differently (StructNode
+    // through effectiveDims, MatlabVariableNode with its _dims as given), an open question this
+    // pins as it stands. Settling it on either side changes this test.
+    const struct = StructNode.parse({
+      _array_type: 'Struct',
+      _dimensions: [2, 3, 1],
+      _fields: ['a'],
+      _mw_element_type: 'MATLABArray',
+      _elements: Array.from({ length: 6 }, (_, i) => ({ a: i + 1 })),
+    } as never, 'S', null);
+    expect(struct.dims).toEqual([2, 3]);
+    expect(variable('Squeeze', [2, 3, 1], [1, 2, 3, 4, 5, 6]).dims).toEqual([2, 3, 1]);
+    // The labels agree all the same: both go through subscriptLabel, which normalizes.
+    expect(labels(struct)).toEqual(['S(1,1)', 'S(2,1)', 'S(1,2)', 'S(2,2)', 'S(1,3)', 'S(2,3)']);
   });
 });

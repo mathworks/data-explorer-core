@@ -9,8 +9,11 @@
 // The rule lives in NodeClassMap.parseValue (format-independent), so this unit
 // suite over the value-object shape proves the routing. Per-format fixtures (that
 // each parser hands the same shape up) are covered by the extension's integration
-// tests and by objectExpansion.test.ts's authentic .mat fixtures.
+// tests, and a MATLAB-written .mat by the two blocks at the end (paramArray.mat,
+// busArray.mat), whose objects reach the rule through the MCOS decoder.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createSession } from '../src/index.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -215,5 +218,122 @@ describe('general array rule — the columns an object element row fills', () =>
       // No DataType key on disk means MATLAB's default, 'auto' — see ParameterNode.
       ['Simulink.Parameter', 'auto'],
     ]);
+  });
+});
+
+// ---- The rule on a .mat MATLAB wrote: object arrays out of the MCOS decoder -------
+// Ported from data-explorer-view test/objectExpansion.test.ts at ce62a24 (its two
+// "MCOS object array expansion — .mat" blocks), whose assertions were on view's
+// rows (buildMatRows). Here they are on the nodes and each node's own toRow(),
+// which those rows are built from: a row is expandable where its node has children.
+
+/** The variable `name` of the MATLAB-written fixtures/mcos/`file`, read by a session. */
+function matVariable(file: string, name: string): any {
+  const bytes = new Uint8Array(readFileSync(new URL(`./fixtures/mcos/${file}`, import.meta.url)));
+  const mat: any = createSession().addMatSource(file, bytes);
+  return mat.children.find((c: any) => c.name === name);
+}
+
+const labelOf = (node: any) => node.toRow().Name.label;
+const childLabelled = (node: any, label: string) => node.children.find((c: any) => labelOf(c) === label);
+
+// paramArray.mat: arr = [Simulink.Parameter(5) Simulink.Parameter([1 2 3]) Simulink.Parameter(struct('a',1))].
+describe('MCOS object array expansion — .mat (1x3 Simulink.Parameter, heterogeneous)', () => {
+  const top = matVariable('paramArray.mat', 'arr');
+
+  it('shows <1x3 Simulink.Parameter> on the top row and makes it expandable', () => {
+    expect(top).toBeDefined();
+    const row = top.toRow();
+    expect(row.ID).toBe('paramArray.mat/arr');
+    expect(row.Class).toBe('Simulink.Parameter');
+    expect(String(row.Value)).toBe('<1x3 Simulink.Parameter>');
+    expect(top.children.length).toBeGreaterThan(0);
+  });
+
+  it('expands into 3 element rows arr(1)..arr(3), each a scalar Simulink.Parameter', () => {
+    expect(top.children.map(labelOf)).toEqual(['arr(1)', 'arr(2)', 'arr(3)']);
+    top.children.forEach((e: any) => {
+      expect(e.constructor.name).toBe('ParameterNode');
+      expect(e.toRow().Class).toBe('Simulink.Parameter');
+      expect(e.toRow().parent).toBe(top.id);
+    });
+  });
+
+  it('draws the array row and its element rows with the parameter icon', () => {
+    // A MATLAB array is homogeneous, so the container row stands for three
+    // parameters and has to read as one. On the row's iconId, which is what a tree
+    // draws (objectIcon.test.ts pins the nodes' icon on the same file).
+    expect([top, ...top.children].map((n: any) => n.toRow().Name.iconId))
+      .toEqual(['wsParameters', 'wsParameters', 'wsParameters', 'wsParameters']);
+  });
+
+  it('decodes each element Value in its own shape: scalar, numeric vector, struct', () => {
+    // Proves the decoder walks every object id in the handle (not just the first)
+    // and resolves each element's distinct Value type through the typed node.
+    expect(top.children.map((e: any) => String(e.toRow().Value))).toEqual([
+      '5', //            Simulink.Parameter(5)
+      '[1 2 3]', //      Simulink.Parameter([1 2 3])
+      '<1x1 struct>', // Simulink.Parameter(struct('a',1))
+    ]);
+  });
+
+  it('lets a struct-valued element expand further into its struct fields', () => {
+    const structElem = top.children[2];
+    expect(structElem.children.length).toBeGreaterThan(0);
+    // arr(3).Value is the struct; drill into it to reach field `a` = 1.
+    const value = childLabelled(structElem, 'Value');
+    expect(value).toBeDefined();
+    expect(value.children.length).toBeGreaterThan(0);
+    const fieldA = childLabelled(value, 'a');
+    expect(fieldA).toBeDefined();
+    expect(String(fieldA.toRow().Value)).toBe('1');
+  });
+});
+
+// An object array whose elements THEMSELVES contain a nested object ARRAY property
+// must keep every element at BOTH levels. busArray.mat is authentic MATLAB output:
+//   buses = [b1 b2 b3]  where b1/b2/b3 are Simulink.Bus with 1 / 2 / 3
+//   Simulink.BusElement children respectively.
+// This guards a second, deeper truncation the top-level array fix did NOT cover: a
+// Bus's Elements_internal is itself an object-array-valued PROPERTY, decoded by the
+// MCOS resolveValue object-handle path, which once read only the first element id —
+// so buses(2) lost 'y' and buses(3) lost 'q','r'.
+describe('MCOS object array expansion — .mat (1x3 Simulink.Bus, each a different element count)', () => {
+  const top = matVariable('busArray.mat', 'buses');
+
+  it('shows <1x3 Simulink.Bus> on the top row and makes it expandable', () => {
+    expect(top).toBeDefined();
+    const row = top.toRow();
+    expect(row.ID).toBe('busArray.mat/buses');
+    expect(row.Class).toBe('Simulink.Bus');
+    expect(String(row.Value)).toBe('<1x3 Simulink.Bus>');
+    expect(top.children.length).toBeGreaterThan(0);
+  });
+
+  it('expands into 3 Bus element rows buses(1)..buses(3), each itself expandable', () => {
+    expect(top.children.map(labelOf)).toEqual(['buses(1)', 'buses(2)', 'buses(3)']);
+    top.children.forEach((e: any) => {
+      expect(e.toRow().Class).toBe('Simulink.Bus');
+      expect(e.children.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('keeps EACH bus’s full, distinct set of BusElements (1, 2, and 3 elements)', () => {
+    expect(top.children.map((bus: any) => bus.children.map(labelOf))).toEqual([['a'], ['x', 'y'], ['p', 'q', 'r']]);
+  });
+
+  it('decodes each BusElement’s DataType through the typed BusElement node', () => {
+    const dtOf = (bus: any, name: string) => {
+      const element = childLabelled(bus, name);
+      expect(element.constructor.name).toBe('BusElementNode');
+      return String(element.toRow().DataType);
+    };
+    const [b1, b2, b3] = top.children;
+    expect(dtOf(b1, 'a')).toBe('double');
+    expect(dtOf(b2, 'x')).toBe('single');
+    expect(dtOf(b2, 'y')).toBe('int32');
+    expect(dtOf(b3, 'p')).toBe('uint8');
+    expect(dtOf(b3, 'q')).toBe('boolean');
+    expect(dtOf(b3, 'r')).toBe('double');
   });
 });

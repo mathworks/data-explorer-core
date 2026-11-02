@@ -2,7 +2,8 @@
 //
 // Ported from data-explorer-vscode test/entrySplice.test.ts at c73da3c: imports point at core's copy
 // (src/edit/entrySplice.ts), and the fixture is core's test/fixtures/numeric_json.sldd, byte for byte
-// vscode's test-integration/fixtures/workspace/data.sldd. Every assertion is vscode's.
+// vscode's test-integration/fixtures/workspace/data.sldd. Every assertion is vscode's. The last block,
+// a JSON host's write of an edit held to core's save, is data-explorer-view's (see there).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,20 @@ import {
   findEntriesArrayInsertion,
   detectIndent,
 } from '../src/edit/entrySplice.js';
+import {
+  addChild,
+  addChildToModel,
+  applyTextPatch,
+  deleteChild,
+  findOwningEntry,
+  removeChildFromModel,
+  reserializeEntry,
+} from '../src/edit/structuralEdit.js';
+import { cellEdit, mutateEntry } from '../src/edit/entryOps.js';
+import { entrySelectorOf } from '../src/datamodel/parser/entrySelector.js';
+import { nodeAt, openEditBash, saved } from './tools/editBash.js';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const fixturePath = fileURLToPath(new URL('./fixtures/numeric_json.sldd', import.meta.url));
 const fixtureText = readFileSync(fixturePath, 'utf8');
@@ -191,5 +206,118 @@ describe('detectIndent', () => {
 
   it('falls back to two spaces for single-line JSON with no indent', () => {
     expect(detectIndent('{"a":1}')).toBe('  ');
+  });
+});
+
+// ------------------------------------------------- a JSON host's write of an edit ---
+//
+// Ported from data-explorer-view test/editors/dictionaryEditorSaves.test.ts at ce62a24 ("JSON .sldd:
+// the saved TextDocument is the text core writes"), which drove view's JSON engine; this drives the
+// core calls that engine makes, in its order. A JSON host does not save through serializeSource: it
+// writes the edited entry's text into the document itself, reserializeEntry's text over the span
+// findEntrySpan finds for the entry's selector as read BEFORE the edit (a rename changes it), and an
+// Add or a Delete inside an entry through addChild / deleteChild, which splice the same way. So the
+// text it writes is held here to serializeSource's text after the same model edit, on a read of its
+// own, but for each entry's lastmod (the clock of the edit), for edits at every depth of the
+// edit-bash R2027a text dictionary: a field, an element of a struct array, a cell inside cells, a
+// member of a Parameter's struct Value, a Bus element; values, a property, renames, an Add and a
+// Delete. The two numbers past 2^63 are there for the writer: a double JSON.stringify spells as an
+// integer literal is a dictionary MATLAB cannot open, so the two writers have to spell them alike.
+
+/** An edit at the node whose matlabPath is `path`: `key` is the column a value/prop edit names. */
+interface Edit {
+  path: string;
+  op: 'value' | 'prop' | 'name' | 'add' | 'delete';
+  key?: string;
+  text?: string;
+}
+
+const EDITS: Edit[] = [
+  { path: 'dRow(1)', op: 'value', key: 'Value', text: '7' },
+  { path: 'strRow(1)', op: 'value', key: 'Value', text: '"abc"' },
+  { path: 'sLeaves.dScalar', op: 'value', key: 'Value', text: '[1;2;3]' },
+  { path: 'sArr(1).a', op: 'value', key: 'Value', text: '+5' },
+  { path: 'cLeaves{1}', op: 'value', key: 'Value', text: '[1 2 3]' },
+  { path: 'sNest.c{2}.s.f', op: 'value', key: 'Value', text: '0' },
+  { path: 'cNest{1}{2}{1}', op: 'value', key: 'Value', text: '[1 2; 3 4]' },
+  { path: 'pStruct.Value.a', op: 'value', key: 'Value', text: '-3.25' },
+  { path: 'pStruct.Value.inner.x', op: 'value', key: 'Value', text: '.5' },
+  { path: 'pStructArr.Value(1).a', op: 'value', key: 'Value', text: '-0' },
+  { path: 'pInt8.Value(1)', op: 'value', key: 'Value', text: 'NaN' },
+  { path: 'sHoldsParam.p', op: 'prop', key: 'Min', text: '0' },
+  { path: 'bus.e1', op: 'prop', key: 'complexity', text: 'complex' },
+  { path: 'sNest.c{2}.s', op: 'name', text: 'zz_new' },
+  { path: 'pStruct.Value.inner.x', op: 'name', text: 'zz_new' },
+  { path: 'sLeaves.dRow', op: 'add' },
+  { path: 'saCell(2).c{1}', op: 'add' },
+  { path: 'pStruct.Value.inner.y', op: 'add' },
+  { path: 'cNest{1}{2}{1}', op: 'delete' },
+  { path: 'pStruct.Value.b(1)', op: 'delete' },
+  { path: 'sArr(2).b', op: 'value', key: 'Value', text: '18446744073709551615' },
+  { path: 'cNest{1}{2}{2}', op: 'value', key: 'Value', text: '-9223372036854775808' },
+  { path: 'cLeaves{9}', op: 'value', key: 'Value', text: '{[1 2], true}' },
+];
+
+const EDIT_BASH_TEXT = readFileSync(fileURLToPath(new URL('./fixtures/edit-bash/r2027a/values_text.sldd', import.meta.url)), 'utf8');
+const columnOf = (edit: Edit): string => (edit.op === 'name' ? 'Name' : (edit.key ?? 'Value'));
+const labelOf = (e: Edit) => `${e.op} ${e.path}${e.key && e.op === 'prop' ? '.' + e.key : ''}${e.text !== undefined ? ' = ' + e.text : ''}`;
+// When an entry was last modified is the edit's clock, not the edit.
+const withoutClock = (text: string) => text.replace(/("lastmod": ?")[^"]*"/g, '$1<T>"');
+
+/** The edit-bash text dictionary, read, and its node at `edit.path` with the entry that owns it. */
+function openAt(edit: Edit): { o: ReturnType<typeof openEditBash>; node: any; entry: any } {
+  const o = openEditBash('json');
+  const node = nodeAt(o, edit.path);
+  if (!node) throw new Error(`no node at ${edit.path}`);
+  return { o, node, entry: findOwningEntry(node) };
+}
+
+/** The document text a JSON host writes for `edit`. */
+function hostWrite(edit: Edit): string {
+  const text = EDIT_BASH_TEXT;
+  const { o, node, entry } = openAt(edit);
+  if (edit.op === 'add' || edit.op === 'delete') {
+    const transform = edit.op === 'add' ? addChild : deleteChild;
+    return mutateEntry(entry, () => transform(text, node), o.session).newText;
+  }
+  const selector = entrySelectorOf(entry);
+  const { result, unchanged } = cellEdit(entry, node, columnOf(edit), edit.text ?? '', o.session);
+  if (result !== true || unchanged) throw new Error(`the edit was not made (${JSON.stringify(result)})`);
+  const span = findEntrySpan(text, selector);
+  if (!span) throw new Error(`no span for ${entry.name}`);
+  return applyTextPatch(text, { offset: span.offset, length: span.length, text: reserializeEntry(entry, detectIndent(text)) });
+}
+
+/** serializeSource's text after the same model edit, on a read of its own. */
+function coreSave(edit: Edit): string {
+  const { o, node, entry } = openAt(edit);
+  if (edit.op === 'add') o.session.mutateSubtree(entry, () => addChildToModel(node));
+  else if (edit.op === 'delete') o.session.mutateSubtree(entry, () => removeChildFromModel(node));
+  else {
+    const result = o.session.mutateSubtree(entry, () => node.setProperty(columnOf(edit), edit.text ?? ''));
+    if (result !== true) throw new Error(`core refused ${edit.path}: ${JSON.stringify(result)}`);
+  }
+  return new TextDecoder().decode(saved(o));
+}
+
+describe("a JSON host's entry splice is core's save", () => {
+  it(`writes the text serializeSource writes, but for lastmod, for ${EDITS.length} edits at every depth of values_text.sldd`, () => {
+    const wrong: string[] = [];
+    for (const [i, edit] of EDITS.entries()) {
+      let written: string;
+      try {
+        written = hostWrite(edit);
+      } catch (err) {
+        wrong.push(`${labelOf(edit)}: the host's write threw (${(err as Error).message})`);
+        continue;
+      }
+      if (withoutClock(written) === withoutClock(EDIT_BASH_TEXT)) wrong.push(`${labelOf(edit)}: the host's write changed nothing`);
+      if (withoutClock(written) !== withoutClock(coreSave(edit))) wrong.push(`${labelOf(edit)}: the host's write is not core's save`);
+      // The comparison can fail: core's save of another value is another text.
+      if (i === 0) {
+        expect(withoutClock(written), 'a save of 8 is told from a write of 7').not.toBe(withoutClock(coreSave({ ...edit, text: '8' })));
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });
