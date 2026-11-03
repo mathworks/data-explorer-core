@@ -60,7 +60,7 @@ normalization happens upstream, before any node is built: `SlxParser.configSetId
 reads `props.SourceName ?? props.WSVarName ?? ''` into `ParsedConfigSet.sourceName`
 (`src/datamodel/parser/SlxParser.ts:192` for the R2026b+ JSON layout, `:211` for every
 XML era), and `ModelSectionNode.addConfigSetEntry` writes it back as `props.SourceName`
-(`src/datamodel/node/container/ModelSectionNode.ts:69-71`).
+(`ModelSectionNode.addConfigSetEntry`, `src/datamodel/node/container/ModelSectionNode.ts`).
 
 ### SourceName is read-only, where MATLAB offers a combobox
 

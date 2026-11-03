@@ -6,6 +6,7 @@ import ConfigSetNode from '../data/ConfigSetNode.js';
 import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
+import { UNWORDED } from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { basenameOf, isModelFile } from '../../fileKinds.js';
 export default class ModelSectionNode extends ContainerNode {
@@ -31,6 +32,26 @@ export default class ModelSectionNode extends ContainerNode {
             default:
                 return { columns: ['Name', 'Value', 'DataType', 'UsedBy'] };
         }
+    }
+    // A model's elements, configuration sets, references and external data are shown and not
+    // edited: no save writes them. So an edit of a row in any of those sections is refused, its
+    // editors with it, as a MAT-file refuses one its save would not write. BaseNode.sourceEditRefusal
+    // asks the first container above an entry, which is this, and every editability getter,
+    // structural gate and setter asks it. Without it a section answered nothing and took every edit
+    // its nodes take: a config set's rename marked the model dirty and recorded an undo step that no
+    // save could keep. The Model Workspace answers by its own rules.
+    _editRefusal(_entry, _node, _key, describe = true) {
+        if (this.name === 'workspace') {
+            return null;
+        }
+        return describe ? this._notEditedWhy() : UNWORDED;
+    }
+    /** Why an entry of this section is not deleted, as a clause (the session's deleteRefusal). */
+    removeEntryRefusal(_node) {
+        return this._notEditedWhy();
+    }
+    _notEditedWhy() {
+        return 'it is in the ' + this.label + ' section of "' + (this.parent?.name ?? '') + '", which this editor shows but does not edit';
     }
     // One variable the node builders cannot make a node of refused the whole model: a complex
     // one whose flags word was overwritten with a class the reader does not model (255, say)
