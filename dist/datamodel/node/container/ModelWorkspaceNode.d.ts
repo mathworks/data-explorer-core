@@ -1,0 +1,66 @@
+import MatNode from './MatNode.js';
+import type { TableColumnConfig } from '../ContainerNode.js';
+import type BaseNode from '../BaseNode.js';
+import type { PIGroupDef, PropClass, SourceOfferedEditor, SourceRetyped, SourceSetResult } from '../BaseNode.js';
+import { type WorkspaceStreamRead } from '../../parser/ModelWorkspaceStream.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
+import { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, type ModelPackage } from '../../parser/ModelPackage.js';
+export { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART };
+/** What a model is read as for its workspace: ModelNode.fromParsed's parse, as wide as that one is. */
+export interface WorkspaceOfModel {
+    zipEntries: Record<string, Uint8Array> | null;
+    workspaceSource?: string;
+    workspaceDataSource?: string | null;
+}
+/**
+ * A model's Model Workspace, as a `.slx` keeps it: a MAT-file's editor over the MAT-file the
+ * workspace part converts into (ModelWorkspaceStream), under the model, so that every rule of a
+ * MAT-file's editor applies to it (BaseNode.sourceEditRefusal asks the first container above an
+ * entry, which is this) and what a save of it writes converts back into the part. It shows as the
+ * section it replaces did: its label, its icon, its columns and its key, `workspace`, which every
+ * id of a variable in it starts with.
+ *
+ * It takes no edit where a save of the model would not keep one (_modelRefusal): a workspace the
+ * model makes anew from another source each time it opens (WSDataSource), which holds no part.
+ */
+export default class ModelWorkspaceNode extends MatNode {
+    label: string;
+    iconId: string;
+    _part: string | null;
+    _streamRead: WorkspaceStreamRead | null;
+    _modelRefusal: string | null;
+    _packageVerdict: string | null | undefined;
+    constructor();
+    get icon(): string;
+    get displayName(): string;
+    get tableColumnConfig(): TableColumnConfig;
+    getProperties(): PropClass[];
+    getPILayout(): PIGroupDef[] | null;
+    get _noun(): string;
+    get _warnsUndecoded(): boolean;
+    /** The model's file, which a save of the workspace is a save of. */
+    get _saveLabel(): string;
+    get _namespaceLabel(): string;
+    get _modelName(): string;
+    _fileRefusal(): string | null;
+    _classRefusal(className: string): string | null;
+    _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
+    _editRefusal(entry: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
+    removeEntryRefusal(node: BaseNode): string | null;
+    _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
+    _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /** Whether `name` is one of the model's arguments (ParameterArgumentNames). */
+    _isArgument(name: string): boolean;
+    _keptNameWhy(node: BaseNode, done: 'renamed' | 'deleted'): string | null;
+    _partHandedAway(model: ModelPackage): boolean;
+    /**
+     * The Model Workspace of `parsed`, a `.slx`'s parse, as a MAT-file's editor, or null where its part
+     * is not one this converts into a MAT-file exactly, or the parse holds no parts at all (a host's
+     * parse without them, a `.mdl`): the model then shows it as before, a section of what was read,
+     * which takes no edit. `warnings` gets what building it found that the model reports: the
+     * objects the decoder could not read, as the section did. What the MAT-file's own reader says of
+     * a part the model's reader already read is not said twice.
+     */
+    static ofModel(parsed: WorkspaceOfModel, filename: string, warnings: ParseWarning[] | undefined): ModelWorkspaceNode | null;
+}
+//# sourceMappingURL=ModelWorkspaceNode.d.ts.map

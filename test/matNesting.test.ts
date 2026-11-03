@@ -209,9 +209,9 @@ describe('a MAT value nested deeper than the reader reads', () => {
   });
 
   it('in a model workspace, the model opens with every variable, the deep one read to the cap, and says nothing', () => {
-    // A workspace is a struct whose fields are its variables, so the workspace is level 1 and a
-    // variable in it level 2: the deep one is read to its own level 127, and its level 128 is the
-    // value recorded at the cap.
+    // A workspace's part is a struct whose fields are its variables, and the workspace is read as
+    // the MAT-file it is edited as (ModelWorkspaceNode), each variable a record of its own: the
+    // deep one is read to the cap as a MAT-file's variable is, and as the dictionaries' above.
     const ws = structVar('', ['deep', 'ok'], [{ deep: nested('cell', '', 5000), ok: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 2], real: [1, 2] }) }]);
     const entries = unzipSync(testFile('parity/artifacts/slx/cases.slx'));
     expect(Object.keys(entries)).toContain('simulink/modelWorkspace.mxarray');
@@ -219,9 +219,9 @@ describe('a MAT value nested deeper than the reader reads', () => {
     const zipped = zipSync(entries);
     const model: any = createSession().addModelSource('cases.slx', zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer);
     const workspace = model.children.find((s: any) => s.name === 'workspace');
-    expect(workspace.children.map((n: any) => [n.name, n.displayValue])).toEqual([['deep', summaryAbove('cell', CAP - 1)], ['ok', '[1 2]']]);
+    expect(workspace.children.map((n: any) => [n.name, n.displayValue])).toEqual([['deep', summaryAbove('cell', CAP)], ['ok', '[1 2]']]);
     const [levels, cut] = bottom(workspace.children[0]);
-    expect([levels, cut.displayValue]).toEqual([CAP, '<1x1 cell, not decoded>']);
+    expect([levels, cut.displayValue]).toEqual([CAP + 1, '<1x1 cell, not decoded>']);
     // A model workspace does not report a value it did not decode (the C-232 ruling).
     expect(model.warnings ?? []).toEqual([]);
   });

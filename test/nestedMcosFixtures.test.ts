@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadFile } from './parity/loadFile.js';
 import { nodeAt } from './tools/matlabPath.js';
-import { presentation } from './tools/nodePresentation.js';
+import { coderAsText, presentation } from './tools/nodePresentation.js';
 
 interface TruthRecord {
   class: string;
@@ -84,7 +84,7 @@ describe('every nested object presents exactly as its top-level twin', () => {
         const a = nodeAt(variables, nested);
         const b = nodeAt(variables, twin);
         expect(a.constructor, 'node class').toBe(b.constructor);
-        expect(presentation(a, a.displayName)).toEqual(presentation(b, b.displayName));
+        expect(coderAsText(presentation(a, a.displayName))).toEqual(coderAsText(presentation(b, b.displayName)));
       });
     }
   }
@@ -95,10 +95,11 @@ describe('a nested object takes the name rules of the place it sits', () => {
   // belongs to its position, whatever the class of the node in it: a decoded object (a
   // ParameterNode, a BusNode) is no exception. A struct's fields take a rename in a
   // MAT-file, whose save writes the struct fresh under its rows' names (the objects in it
-  // as the elements they were read as), and not in a model workspace, whose value is its
-  // stream; a cell's elements and a struct array's are their positions in both.
+  // as the elements they were read as), and so in a model workspace, which is edited by a
+  // MAT-file's rules (ModelWorkspaceNode); a cell's elements and a struct array's are their
+  // positions in both.
   for (const fx of FIXTURES) {
-    const mat = fx.file.endsWith('.mat');
+    const mat = fx.file.endsWith('.mat') || fx.file.endsWith('.slx');
     const containers = Object.entries(fx.truth.paths).filter(([, t]) => isContainer(t));
     for (const [path, t] of containers) {
       const fields = mat && t.class === 'struct' && t.numel === 1;

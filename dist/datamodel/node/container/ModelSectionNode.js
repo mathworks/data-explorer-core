@@ -39,11 +39,10 @@ export default class ModelSectionNode extends ContainerNode {
     // asks the first container above an entry, which is this, and every editability getter,
     // structural gate and setter asks it. Without it a section answered nothing and took every edit
     // its nodes take: a config set's rename marked the model dirty and recorded an undo step that no
-    // save could keep. The Model Workspace answers by its own rules.
+    // save could keep. A `.slx`'s Model Workspace is no section but a MAT-file's editor
+    // (ModelWorkspaceNode), and answers by its rules; a workspace that is a section (a `.mdl`'s, or
+    // one whose part does not convert) is one no save writes, and refuses every edit too.
     _editRefusal(_entry, _node, _key, describe = true) {
-        if (this.name === 'workspace') {
-            return null;
-        }
         return describe ? this._notEditedWhy() : UNWORDED;
     }
     /** Why an entry of this section is not deleted, as a clause (the session's deleteRefusal). */

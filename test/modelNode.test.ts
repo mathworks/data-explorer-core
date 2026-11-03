@@ -621,17 +621,6 @@ describe('ModelNode.serialize', () => {
     expect(out).not.toBe(zipEntries);
   });
 
-  it('folds an edited workspace variable back into the parsed variable list', () => {
-    // The .mxarray is re-serialized from `_workspaceVars` on save, so an edit made
-    // on the node has to be copied back or it is silently dropped.
-    const parsed = parsedSlx({ zipEntries: { 'simulink/modelWorkspace.mxarray': new Uint8Array([1]) } });
-    const m = ModelNode.fromParsed(parsed, 'm.slx') as any;
-    m.getSection('workspace').children[0].setProperty('Value', '7');
-
-    m.serialize();
-    expect(parsed.workspace[0]).toMatchObject({ name: 'Kp', value: 7, _modified: true });
-  });
-
   it('leaves untouched workspace variables alone', () => {
     const parsed = parsedSlx({ zipEntries: { 'simulink/modelWorkspace.mxarray': new Uint8Array([1]) } });
     (ModelNode.fromParsed(parsed, 'm.slx') as any).serialize();

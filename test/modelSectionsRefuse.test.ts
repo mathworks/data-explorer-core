@@ -103,7 +103,6 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
     const { s, src } = modelSession(LAYOUTS);
     for (const [key, label] of [
       ['blocks', 'Model Elements'],
-      ['workspace', 'Model Workspace'],
       ['config', 'Configurations'],
       ['references', 'Model References'],
       ['dataSources', 'External Data'],
@@ -119,15 +118,19 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
     expectUntouched(s, src);
   });
 
-  it('takes no paste into a model', () => {
+  it("takes no paste into a model's other sections, nor by the model's own id", () => {
     const { s, src, name } = modelSession(CASES);
-    const ws = sectionOf(src, 'workspace');
-    const before = ws.children.length;
     const payload = { name: 'pasted', metadata: null, value: 3 };
-    expect(s.pasteRefusal(name, payload)).toBeTruthy();
-    expect(s.pasteRefusal(ws.id, payload)).toBeTruthy();
-    s.pasteEntries(ws.id, [payload]);
-    expect(ws.children.length).toBe(before);
+    expect(s.pasteRefusal(name, payload)).toBe(
+      'Cannot paste into "cases.slx": a model takes a paste into its Model Workspace, named by its id ("cases.slx/workspace"). Nothing was pasted.',
+    );
+    for (const key of ['blocks', 'config', 'references', 'dataSources']) {
+      const section = sectionOf(src, key);
+      const before = section.children.length;
+      expect(s.pasteRefusal(section.id, payload), key).toBeTruthy();
+      s.pasteEntries(section.id, [payload]);
+      expect(section.children.length, key).toBe(before);
+    }
     expectUntouched(s, src);
   });
 });

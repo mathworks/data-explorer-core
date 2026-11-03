@@ -1,6 +1,7 @@
 import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
+import ModelWorkspaceNode from './ModelWorkspaceNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
@@ -48,7 +49,7 @@ export default class ModelNode extends ContainerNode {
     /** The model's arguments, names of its workspace variables (ParameterArgumentNames). */
     modelArguments: string[];
     rawContents: Record<string, string> | null;
-    dirty: boolean;
+    _ownDirty: boolean;
     blockParamUsages: BlockParamUsage[];
     /**
      * The mask workspaces of this model's masked subsystems, which findUsages needs to
@@ -57,9 +58,20 @@ export default class ModelNode extends ContainerNode {
      */
     masks: MaskScope[];
     _zipEntries: Record<string, Uint8Array> | null;
-    _workspaceVars: MatVariable[] | null;
     constructor(name: string);
     get tableColumnConfig(): TableColumnConfig;
+    /**
+     * Whether the model has unsaved changes: its own, or its Model Workspace's, which marks itself
+     * dirty as a MAT-file does (MatNode's execAddEntry, execRemoveEntry and retype, and a paste's put
+     * back). Set false (a save, a revert), both are clean.
+     */
+    get dirty(): boolean;
+    set dirty(value: boolean);
+    /**
+     * Why the last addEntry into this model added nothing, as its Model Workspace says (the session's
+     * addEntryRefusal of the active source), or null.
+     */
+    addEntryRefusal(): string | null;
     get displayName(): string;
     get readOnly(): boolean;
     get sourceFormat(): string;
@@ -68,8 +80,10 @@ export default class ModelNode extends ContainerNode {
     get NumberOfEntries(): number;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
+    getSection(key: 'workspace'): ModelSectionNode | ModelWorkspaceNode | null;
     getSection(key: string): ModelSectionNode | null;
     serialize(): unknown;
     static fromParsed(parsed: ParsedSlx, filename: string): ModelNode;
+    static _addWorkspaceSection(node: ModelNode, parsed: ParsedSlx): void;
 }
 //# sourceMappingURL=ModelNode.d.ts.map

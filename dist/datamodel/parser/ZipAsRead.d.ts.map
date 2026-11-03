@@ -1,0 +1,1 @@
+{"version":3,"file":"ZipAsRead.d.ts","sourceRoot":"","sources":["../../../src/datamodel/parser/ZipAsRead.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAc,QAAQ,EAAE,MAAM,QAAQ,CAAC;AACnD,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,cAAc,CAAC;AAOnD;;;;;;;;GAQG;AACH,wBAAgB,MAAM,CAAC,OAAO,EAAE,MAAM,CAAC,MAAM,EAAE,UAAU,CAAC,EAAE,MAAM,EAAE,SAAS,cAAc,EAAE,GAAG,SAAS,GAAG,QAAQ,CAgBnH"}

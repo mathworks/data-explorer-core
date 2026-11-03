@@ -20,7 +20,8 @@ import { inflateZlib } from './Inflate.js';
 // its last, unnamed record. So the stream is converted into a MAT-file (matOfWorkspaceStream), which
 // MatNode edits by a MAT-file's rules, and what that MAT-file's save writes is converted back
 // (workspaceStreamOfMat). Both are exact: a variable no edit changed goes back as the bytes it was
-// read from, and a stream with nothing edited goes back as it was.
+// read from, and a stream with nothing edited goes back as it was. Where a variable was added,
+// renamed or deleted, the variables are written in the order MATLAB's save writes them.
 //
 // A field MATLAB wrote as an miMATRIX of no bytes (an empty `[]` of no class) has no name to set:
 // it becomes a named 0x0 double, which is what MATLAB loads it as, and goes back as it was read
@@ -144,7 +145,18 @@ export function workspaceStreamOfMat(mat: Uint8Array, read: WorkspaceStreamRead)
     names.push(record.name);
     fields.push(field);
   }
-  const head = names.length === read.names.length && names.every((n, i) => n === read.names[i]) ? read.head : structHead(read.head, names);
+  // As read where the names are; where a variable was added, renamed or deleted, in the order
+  // MATLAB's save writes them, by their characters' codes (measured on R2027a: A_, Alpha, Beta, a1,
+  // a10, a2, a_, alpha, b), and the struct's head written anew for them.
+  const same = names.length === read.names.length && names.every((n, i) => n === read.names[i]);
+  if (!same) {
+    const order = names.map((_, i) => i).sort((a, b) => (names[a] < names[b] ? -1 : names[a] > names[b] ? 1 : 0));
+    const sortedNames = order.map((i) => names[i]);
+    const sortedFields = order.map((i) => fields[i]);
+    names.splice(0, names.length, ...sortedNames);
+    fields.splice(0, fields.length, ...sortedFields);
+  }
+  const head = same ? read.head : structHead(read.head, names);
   const body = concat([head, ...fields]);
   return concat([read.preamble, u32le(MI_MATRIX), u32le(body.length), body, ...(subsystem ? [subsystem] : [])]);
 }

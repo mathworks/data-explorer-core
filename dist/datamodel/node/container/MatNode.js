@@ -910,6 +910,13 @@ export default class MatNode extends ContainerNode {
     get _noun() {
         return 'MAT-file';
     }
+    /**
+     * Whether a variable no node could be made of, shown as not decoded, is reported as a warning:
+     * of a MAT-file, yes. A model's workspace says nothing of one (the maintainer's C-232 ruling).
+     */
+    get _warnsUndecoded() {
+        return true;
+    }
     // The format an out-of-process host is told this source is, since SourceDTO carries
     // this field and nothing else in the projection names the format. One value, unlike
     // ModelNode's three: a MAT-file has on-disk levels (4, 5, 7, 7.3) but only one of them
@@ -1982,7 +1989,7 @@ function variableNodeOf(variable, parent, warnings) {
     }
     catch (e) {
         const name = variable.name;
-        if (warnings && !warnings.some((w) => namesPieceOf(w.part, name))) {
+        if (warnings && parent._warnsUndecoded && !warnings.some((w) => namesPieceOf(w.part, name))) {
             warnings.push({
                 code: 'part-unreadable',
                 message: `"${name}" could not be read (${reasonOf(e)}), so it is shown as not decoded.`,

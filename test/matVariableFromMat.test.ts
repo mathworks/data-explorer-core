@@ -23,10 +23,12 @@
 //      and the saved file.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
 import ModelNode from '../src/datamodel/node/container/ModelNode.js';
-import type { ParsedSlx } from '../src/datamodel/node/container/ModelNode.js';
 import { createSession } from '../src/index.js';
 import { CLASS, MI, matFile, numericVar, structVar, charVar, matrix, arrayFlags, dims, varName } from './tools/matBytes.js';
 
@@ -426,40 +428,19 @@ describe('MatlabVariableNode._var — REGRESSION: an edit below the variable mus
   });
 });
 
-// The .slx model workspace is the other writer, and it reads `_var` through a
-// _modified gate rather than replacing the variable wholesale — so it can fail in
-// a way the .mat path does not.
-describe('ModelNode workspace — REGRESSION: an edited workspace variable reaches serialize()', () => {
-  function wsModel(value: unknown, dimensions: number[]) {
-    const workspace = [
-      { name: 'v', className: 'double', dimensions, isComplex: false, isLogical: false, value, fields: null },
-    ] as MatVariable[] & { _trailingElements: Uint8Array[] };
-    workspace._trailingElements = [];
-    const parsed = {
-      name: 'm.slx', release: 'R2026b', creator: 'me', lastModified: '', uuid: 'u1',
-      dataDictionary: null, modelReferences: [], externalDataSources: [], configSets: [],
-      workspace, blockParamUsages: [], rawContents: null,
-      zipEntries: { 'simulink/blockdiagram.xml': new Uint8Array([60, 120, 47, 62]) },
-    } as unknown as ParsedSlx;
-    const model = ModelNode.fromParsed(parsed, 'm.slx');
-    return { model, workspace };
-  }
-
-  it('carries an edited element into the spliced workspace variable', () => {
-    const { model, workspace } = wsModel([1, 2, 3], [1, 3]);
-    const node = model.getSection('workspace')!.children[0] as MatlabVariableNode;
+// A model's workspace is a MAT-file's editor (ModelWorkspaceNode), saved by session.serializeSource.
+// ModelNode.serialize used to fold an edited variable back into the parse's own variables, which a
+// host shares between documents (vscode's model tab cache): an edit of one document then changed
+// the parse every other one read.
+describe("ModelNode workspace: an edit leaves the parse's variables as they were", () => {
+  it('a value edited in the workspace of a .slx, and serialize() asked', () => {
+    const b = readFileSync(fileURLToPath(new URL('./parity/artifacts/slx/cases.slx', import.meta.url)));
+    const parsed = parseSlx(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, 'cases.slx');
+    const before = JSON.stringify(parsed.workspace.find((v) => v.name === 'rowVec'));
+    const model = ModelNode.fromParsed(parsed, 'cases.slx');
+    const node = model.getSection('workspace')!.children.find((c) => c.name === 'rowVec') as MatlabVariableNode;
     expect(node.children[1].setProperty('Value', '99')).toBe(true);
     model.serialize();
-    expect(workspace[0].value).toEqual([1, 99, 3]);
-    // The splice is gated on this flag; false here means the new value never gets
-    // re-encoded no matter what `value` holds.
-    expect(workspace[0]._modified).toBe(true);
-  });
-
-  it('leaves an untouched workspace variable alone', () => {
-    const { model, workspace } = wsModel([1, 2, 3], [1, 3]);
-    model.serialize();
-    expect(workspace[0].value).toEqual([1, 2, 3]);
-    expect(workspace[0]._modified).toBeFalsy();
+    expect(JSON.stringify(parsed.workspace.find((v) => v.name === 'rowVec'))).toBe(before);
   });
 });

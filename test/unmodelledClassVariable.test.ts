@@ -276,7 +276,6 @@ const refusedCopyAt = (name: string, path: string, shape: string) =>
 
 describe('a real value of a class the reader does not model is shown as not decoded, wherever it stands (B-21)', () => {
   const five = () => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
-  const fiveRow = (name: string) => [name, '5', 'double', true, []];
 
   for (const [word, spelled] of REAL_WORDS) {
     it(`a .mat scalar's flags word set to ${spelled}: not decoded, said once, and its copy refused`, () => {
@@ -336,12 +335,16 @@ describe('a real value of a class the reader does not model is shown as not deco
     }]);
     const entries = unzipSync(testFile('parity/artifacts/slx/cases.slx'));
     const { model, sections, warnings } = openedModel('cases.slx', { ...entries, [PART]: new Uint8Array(mxArrayFile(ws.subarray(8))) });
-    // Before: x, c{1} and s.a each showed `null`, editable, of class unknown.
+    // Before: x, c{1} and s.a each showed `null`, editable, of class unknown. The 5 beside each is
+    // as read and takes no edit, as a MAT-file's: the workspace is edited by a MAT-file's rules
+    // (ModelWorkspaceNode), and a save writes c and s fresh or not at all, with nothing to write the
+    // element it did not decode from.
+    const readOnlyFive = (name: string) => [name, '5', 'double', false, []];
     expect(sections.find(([n]) => n === 'workspace')![1]).toEqual([
       ['ok', '7', 'double', true, []],
       notDecoded('x', '1x1', 'unknown'),
-      ['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), fiveRow('2')]],
-      ['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), fiveRow('b')]],
+      ['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), readOnlyFive('2')]],
+      ['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), readOnlyFive('b')]],
       ['tail', '9', 'double', true, []],
     ]);
     // A model workspace does not report a value it did not decode (the C-232 ruling).

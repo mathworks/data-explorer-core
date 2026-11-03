@@ -334,11 +334,16 @@ export default class MatNode extends ContainerNode {
     get _saveLabel(): string;
     /** What this is called where a refusal says what it takes: a MAT-file, or a model workspace. */
     get _noun(): string;
+    /**
+     * Whether a variable no node could be made of, shown as not decoded, is reported as a warning:
+     * of a MAT-file, yes. A model's workspace says nothing of one (the maintainer's C-232 ruling).
+     */
+    get _warnsUndecoded(): boolean;
     get sourceFormat(): string;
     get icon(): string;
     get NumberOfEntries(): number;
     getProperties(): PropClass[];
-    getPILayout(): PIGroupDef[];
+    getPILayout(): PIGroupDef[] | null;
     getSection(): null;
     /**
      * The classes a new variable of this file may be, which a host offers (its Add gallery) and
