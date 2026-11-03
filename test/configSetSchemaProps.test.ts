@@ -144,25 +144,22 @@ describe('Simulink.ConfigSetRef — Description and SourceName', () => {
     expect(n.toRow()!.Description).toBe('points at the shared set');
   });
 
-  it('DISPLAYS SourceName in a real row, whose value matches the field the node saves', () => {
-    // Unlike Description, this row resolves to the SCHEMA descriptor (`sourceName` is not
-    // an ATOM_BY_KEY key), so it hydrates `serial._properties.SourceName` rather than
-    // reading `node.SourceName`. Both are asserted, and their agreement is the point: the
-    // row is read-only (`editor: 'label'`, and the PI has no edit channel), so the two
-    // cannot drift today. They WOULD the moment SourceName becomes editable — an edit
-    // lands on the field and this row would keep showing the untouched bag. That is the
-    // divergence ValueTypeNode's getPILayout comment records; the fix then is an atom, not
-    // a descriptor, and this assertion is what fails to say so.
+  it('DISPLAYS SourceName in a real row, which reads the field the node saves, an edit of it too', () => {
+    // The row is the node atom PropSourceName (schemaBridge's ATOM_BY_KEY `sourceName`), which reads
+    // `node.SourceName`, and not the schema descriptor, which hydrates `serial._properties.SourceName`:
+    // the row is editable, and an edit lands on the field, which a descriptor's row would not show
+    // (the divergence ValueTypeNode's getPILayout comment records).
     const n = ConfigSetRefNode.parse(raw('Simulink.ConfigSetRef', { SourceName: 'sharedCfg' }), 'Ref', null);
-    expect(piValue(n, 'sourceName')).toBe('sharedCfg');
-    expect(n.SourceName).toBe('sharedCfg');
+    expect(piValue(n, 'SourceName')).toBe('sharedCfg');
+    expect(n.setProperty('SourceName', 'otherCfg')).toBe(true);
+    expect([n.SourceName, piValue(n, 'SourceName')]).toEqual(['otherCfg', 'otherCfg']);
   });
 
-  it('labels the SourceName row and keeps it read-only', () => {
-    const row = (n: any) => (n.toPIObject().propertySheet.properties as any[]).find((p) => p.name === 'sourceName');
+  it('labels the SourceName row and takes an edit of it', () => {
+    const row = (n: any) => (n.toPIObject().propertySheet.properties as any[]).find((p) => p.name === 'SourceName');
     const n = ConfigSetRefNode.parse(raw('Simulink.ConfigSetRef', { SourceName: 'sharedCfg' }), 'Ref', null);
     expect(row(n).displayName).toBe('Source Name');
-    expect(row(n).editable).toBe(false);
+    expect(row(n).editable).toBe(true);
   });
 
   it('opens with the identity group, then SourceName, then Description', () => {
@@ -178,7 +175,7 @@ describe('Simulink.ConfigSetRef — Description and SourceName', () => {
       null,
     );
     expect(piGroups(n)).toEqual([
-      { name: 'General', items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'sourceName', 'Description'] },
+      { name: 'General', items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'SourceName', 'Description'] },
     ]);
   });
 
@@ -194,7 +191,7 @@ describe('Simulink.ConfigSetRef — Description and SourceName', () => {
     );
     const names = piPropertyNames(n);
     expect(names.filter((p) => p === 'Description')).toEqual(['Description']);
-    expect(names.filter((p) => p === 'sourceName')).toEqual(['sourceName']);
+    expect(names.filter((p) => p === 'SourceName')).toEqual(['SourceName']);
     expect(names).not.toContain('Other.Description');
     expect(names).not.toContain('Other.SourceName');
     expect(piGroups(n)[1]).toEqual({ name: 'Other', items: ['Other.UseLocalSolver'] });

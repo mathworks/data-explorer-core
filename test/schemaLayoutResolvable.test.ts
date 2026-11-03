@@ -77,6 +77,7 @@ import PropCoderInfoDefinitionFile from '../src/datamodel/prop/PropCoderInfoDefi
 import PropPreStatement from '../src/datamodel/prop/PropPreStatement.js';
 import PropPostStatement from '../src/datamodel/prop/PropPostStatement.js';
 import PropQualifier from '../src/datamodel/prop/PropQualifier.js';
+import PropSourceName from '../src/datamodel/prop/PropSourceName.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ const LAYOUT_ATOMS: Record<string, PropClass> = {
     preStatement: PropPreStatement as unknown as PropClass,
     postStatement: PropPostStatement as unknown as PropClass,
     qualifier: PropQualifier as unknown as PropClass,
+    sourceName: PropSourceName as unknown as PropClass,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -257,6 +259,7 @@ const ATOM_PROBE_KIND: Record<string, ProbeKind> = {
     preStatement: 'string',
     postStatement: 'string',
     qualifier: 'string',
+    sourceName: 'string',
 };
 
 // A field-backed atom whose raw key is the saveobj envelope (SAVEOBJ_KEY) reads one FIELD of it,
