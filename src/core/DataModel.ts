@@ -2926,11 +2926,14 @@ function deleteWhy(node: INode): string | null {
     return notEditedWhy(node);
   }
   if (node.isEntry) {
+    // The section's own refusal first, where it has one: a model's says which of its sections the
+    // entry is in (ModelSectionNode.removeEntryRefusal).
     const section = node.parent as IContainerNode | null;
-    if (!section || !section.execRemoveEntry) {
-      return notEditedWhy(node);
+    const refused = section?.removeEntryRefusal ? section.removeEntryRefusal(node) : null;
+    if (refused || !section || !section.execRemoveEntry) {
+      return refused ?? notEditedWhy(node);
     }
-    return section.removeEntryRefusal ? section.removeEntryRefusal(node) : null;
+    return null;
   }
   const parent = node.parent;
   if (!parent) {
