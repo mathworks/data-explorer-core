@@ -10,6 +10,7 @@ import { parseSlx } from './SlxParser.js';
 import type ModelNode from '../node/container/ModelNode.js';
 import type ModelWorkspaceNode from '../node/container/ModelWorkspaceNode.js';
 import { CONTENT_TYPES, EMPTY_WORKSPACE, ROOT_RELS, WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, packageRefusal } from './ModelPackage.js';
+import { ActiveMarkError, withActiveSet } from './ActiveConfigMark.js';
 import { basenameOf } from '../fileKinds.js';
 
 // A save of a `.slx`: the package as it was read, every member's bytes as read, in the order its
@@ -28,6 +29,10 @@ import { basenameOf } from '../fileKinds.js';
 // (a value, a variable added, one deleted, with and without Embedded Coder code mappings:
 // probe_model_dictionary_sync.m). What MATLAB opens of every save is probe_model_workspace_save's
 // gate to say.
+//
+// And where another configuration set was made active, the one member that marks it, with the mark
+// moved (ActiveConfigMark), which MATLAB opens as its own save of the same change
+// (probe_active_config_set.m).
 
 const RELATIONSHIP_TYPE = 'http://schemas.mathworks.com/simulinkModel/2010/relationships/modelWorkspaceData';
 const PART_TYPES: Record<string, { extension: string; contentType: string }> = {
@@ -38,9 +43,11 @@ const PART_TYPES: Record<string, { extension: string; contentType: string }> = {
 /**
  * The bytes of the `.slx` `model` is, as it stands now: its package as read, with its Model
  * Workspace's member as the workspace's save writes it, or no member where the workspace holds no
- * variable. Throws MatWriteError, naming the model and why, for a package no save of which can be
- * written (ModelPackage.packageRefusal), for a workspace whose save is refused (MatFileWriter's refusals, in
- * its words), and for a package that does not read back holding the workspace saved.
+ * variable, and the active configuration set marked where another was made active. Throws
+ * MatWriteError, naming the model and why, for a package no save of which can be written
+ * (ModelPackage.packageRefusal), for a workspace whose save is refused (MatFileWriter's refusals, in
+ * its words), for a mark that cannot be moved (ActiveConfigMark), and for a package that does not
+ * read back holding the workspace saved and the set made active.
  */
 export function serializeModelFile(model: ModelNode): Uint8Array {
   const label = basenameOf(model.name) || model.name;
@@ -53,8 +60,20 @@ export function serializeModelFile(model: ModelNode): Uint8Array {
   if (workspace && workspace._modelRefusal === null) {
     writeWorkspace(entries, workspace, model);
   }
+  const active = model._activeSetToWrite;
+  if (active !== null) {
+    try {
+      const marked = withActiveSet(model._zipEntries!, active);
+      entries[marked.member] = marked.bytes;
+    } catch (e) {
+      if (e instanceof ActiveMarkError) {
+        throw new MatWriteError('Cannot save "' + label + '": ' + e.message + '. Nothing was written.');
+      }
+      throw e;
+    }
+  }
   const zipped = zipSync(asRead(entries, packageStampsOf(model._zipEntries)), { level: 6 });
-  readsBack(zipped, label, workspace);
+  readsBack(zipped, label, workspace, active);
   return zipped;
 }
 
@@ -170,13 +189,20 @@ function withoutLine(xml: string, element: RegExp): string {
   return blankBefore && blankAfter ? xml.slice(0, start) + xml.slice(end < 0 ? xml.length : end + 1) : xml.slice(0, m.index) + xml.slice(m.index + m[0].length);
 }
 
-// The package written, read back: it holds the workspace's variables, by name, as saved.
-function readsBack(zipped: Uint8Array, label: string, workspace: ModelWorkspaceNode | null): void {
+// The package written, read back: it holds the workspace's variables, by name, as saved, and the set
+// made active (`active`, where one was) is the one active.
+function readsBack(zipped: Uint8Array, label: string, workspace: ModelWorkspaceNode | null, active: string | null): void {
   let back;
   try {
     back = parseSlx(zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer, label);
   } catch (e) {
     throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back as a model (' + (e as Error).message + '). Nothing was written.');
+  }
+  if (active !== null) {
+    const got = back.configSets.filter((c) => c.active).map((c) => c.name);
+    if (got.length !== 1 || got[0] !== active) {
+      throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back with "' + active + '" the active configuration set. Nothing was written.');
+    }
   }
   if (!workspace || workspace._modelRefusal !== null) {
     return;

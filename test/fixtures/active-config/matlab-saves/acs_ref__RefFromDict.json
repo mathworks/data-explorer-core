@@ -1,0 +1,13 @@
+{
+  "ConfigSetInfo":[
+    {
+      "ConfigSetName":"Configuration",
+      "PartName":"\/simulink\/configSet0.json"
+    },
+    {
+      "Active":true,
+      "ConfigSetName":"RefFromDict",
+      "PartName":"\/simulink\/configSet1.json"
+    }
+  ]
+}

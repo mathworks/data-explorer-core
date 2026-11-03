@@ -414,6 +414,16 @@ source a MAT-file, a MATLAB file or MATLAB code, which make it anew each time th
 and a package that does not name its parts, take no edit and say why, as a MAT-file a save could
 not keep does (`readOnly`). A model's other sections take no edit, and a `.mdl` none at all.
 
+`session.setActiveConfigSet(nodeId)` makes one of a `.slx`'s configuration sets the active one, as
+one undo step; its save moves the one mark the package keeps of which set is active, every other
+member as read, which MATLAB opens as its own save of the same change. It is taken whatever the
+Model Workspace takes. `session.activeConfigSetRefusal(nodeId)` says why a set is not made active,
+naming it, or `null` where it is: it is active already; no save of the model can be written. A
+`Simulink.ConfigSetRef` is made active too, and `session.activeConfigSetCaution(nodeId)` says, for a
+host to warn with, what that cannot check: MATLAB uses a reference only once it finds the set it
+refers to, in the model's data dictionary or, with none, the base workspace, which this package
+cannot look in.
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a

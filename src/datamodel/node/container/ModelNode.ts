@@ -4,6 +4,10 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
 import ModelWorkspaceNode from './ModelWorkspaceNode.js';
+import ConfigSetNode from '../data/ConfigSetNode.js';
+import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
+import { ActiveMarkError, withActiveSet } from '../../parser/ActiveConfigMark.js';
+import { packageRefusal } from '../../parser/ModelPackage.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
@@ -93,6 +97,8 @@ export default class ModelNode extends ContainerNode {
    */
   masks: MaskScope[];
   _zipEntries: Record<string, Uint8Array> | null;
+  /** The configuration set the package marked active as it was read, by name, or null. */
+  _activeAsRead: string | null;
 
   constructor(name: string) {
     super(name, null);
@@ -109,6 +115,7 @@ export default class ModelNode extends ContainerNode {
     this.blockParamUsages = [];
     this.masks = [];
     this._zipEntries = null;
+    this._activeAsRead = null;
 
     SECTION_DEFS.forEach((def) => {
       this.addChild(new ModelSectionNode(def.key, this, def.label, def.icon));
@@ -148,6 +155,72 @@ export default class ModelNode extends ContainerNode {
 
   get displayName(): string {
     return this.name;
+  }
+
+  /** The configuration set active now, or null where none is (a `.mdl`, which marks none). */
+  get activeConfigSet(): ConfigSetNode | ConfigSetRefNode | null {
+    const sets = (this.getSection('config')?.children ?? []) as (ConfigSetNode | ConfigSetRefNode)[];
+    return sets.find((c) => c.active) ?? null;
+  }
+
+  /**
+   * Why `set` is not made the model's active configuration set, as a clause, or null where it is:
+   * it is no set of this model, it is the active one already, no save of the model can be written
+   * (ModelPackage.packageRefusal), or the mark its package keeps of the active set cannot be moved
+   * (ActiveConfigMark). A reference is made active as a set is, with a warning (activeSetCaution).
+   */
+  activeSetRefusal(set: unknown): string | null {
+    const config = this.getSection('config');
+    if (!(set instanceof ConfigSetNode || set instanceof ConfigSetRefNode) || set.parent !== config) {
+      return 'it is not a configuration set of a model';
+    }
+    if (set.active) {
+      return 'it is the active one already';
+    }
+    const refused = packageRefusal(this);
+    if (refused) {
+      return refused;
+    }
+    try {
+      withActiveSet(this._zipEntries!, set.name);
+    } catch (e) {
+      if (e instanceof ActiveMarkError) {
+        return e.message;
+      }
+      throw e;
+    }
+    return null;
+  }
+
+  /**
+   * What making `set` active cannot check, where it is made active and is a reference, as a
+   * sentence, or null: MATLAB uses a reference only once it finds the set it refers to, in the
+   * model's data dictionary or, with none, the base workspace (probe_active_config_set.m), which
+   * this editor cannot look in without MATLAB.
+   */
+  activeSetCaution(set: unknown): string | null {
+    if (!(set instanceof ConfigSetRefNode) || this.activeSetRefusal(set) !== null) {
+      return null;
+    }
+    const where = this.dataDictionary ? 'in the data dictionary "' + this.dataDictionary + '"' : 'in the base workspace';
+    return '"' + set.name + '" refers to the configuration set "' + set.SourceName + '" ' + where +
+      '. Without MATLAB this editor cannot check that the set is there: open the model in MATLAB to confirm.';
+  }
+
+  /** Make `set` the active configuration set, and answer the one that was, which no longer is. */
+  _makeActive(set: ConfigSetNode | ConfigSetRefNode): ConfigSetNode | ConfigSetRefNode | null {
+    const was = this.activeConfigSet;
+    if (was) {
+      was.active = false;
+    }
+    set.active = true;
+    return was;
+  }
+
+  /** The name of the set a save marks active, where it is not the one marked as read, or null. */
+  get _activeSetToWrite(): string | null {
+    const now = this.activeConfigSet?.name ?? null;
+    return now !== null && now !== this._activeAsRead ? now : null;
   }
 
   // Whether nothing of the model takes an edit a save writes: its Model Workspace is the one part of
@@ -338,6 +411,7 @@ export default class ModelNode extends ContainerNode {
     for (const cfg of parsed.configSets) {
       cfgSection.addConfigSetEntry(cfg);
     }
+    node._activeAsRead = parsed.configSets.find((c) => c.active)?.name ?? null;
 
     // Populate model references section
     const refSection = node.getSection('references')!;

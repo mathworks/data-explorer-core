@@ -2,6 +2,8 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
 import ModelWorkspaceNode from './ModelWorkspaceNode.js';
+import ConfigSetNode from '../data/ConfigSetNode.js';
+import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
@@ -58,6 +60,8 @@ export default class ModelNode extends ContainerNode {
      */
     masks: MaskScope[];
     _zipEntries: Record<string, Uint8Array> | null;
+    /** The configuration set the package marked active as it was read, by name, or null. */
+    _activeAsRead: string | null;
     constructor(name: string);
     get tableColumnConfig(): TableColumnConfig;
     /**
@@ -73,6 +77,26 @@ export default class ModelNode extends ContainerNode {
      */
     addEntryRefusal(): string | null;
     get displayName(): string;
+    /** The configuration set active now, or null where none is (a `.mdl`, which marks none). */
+    get activeConfigSet(): ConfigSetNode | ConfigSetRefNode | null;
+    /**
+     * Why `set` is not made the model's active configuration set, as a clause, or null where it is:
+     * it is no set of this model, it is the active one already, no save of the model can be written
+     * (ModelPackage.packageRefusal), or the mark its package keeps of the active set cannot be moved
+     * (ActiveConfigMark). A reference is made active as a set is, with a warning (activeSetCaution).
+     */
+    activeSetRefusal(set: unknown): string | null;
+    /**
+     * What making `set` active cannot check, where it is made active and is a reference, as a
+     * sentence, or null: MATLAB uses a reference only once it finds the set it refers to, in the
+     * model's data dictionary or, with none, the base workspace (probe_active_config_set.m), which
+     * this editor cannot look in without MATLAB.
+     */
+    activeSetCaution(set: unknown): string | null;
+    /** Make `set` the active configuration set, and answer the one that was, which no longer is. */
+    _makeActive(set: ConfigSetNode | ConfigSetRefNode): ConfigSetNode | ConfigSetRefNode | null;
+    /** The name of the set a save marks active, where it is not the one marked as read, or null. */
+    get _activeSetToWrite(): string | null;
     get readOnly(): boolean;
     get sourceFormat(): string;
     get icon(): string;

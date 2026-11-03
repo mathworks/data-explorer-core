@@ -63,6 +63,9 @@ export declare function createSession(opts?: CreateSessionOptions): {
     deleteNodesById: (nodeIds: string[]) => boolean;
     addChildRefusal: (nodeId: string) => string | null;
     deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
+    setActiveConfigSet: (nodeId: string) => boolean;
+    activeConfigSetRefusal: (nodeId: string) => string | null;
+    activeConfigSetCaution: (nodeId: string) => string | null;
     renameRefusal: (nodeId: string) => string | null;
     valueEditRefusal: (nodeId: string) => string | null;
     editText: (nodeId: string) => string | null;
@@ -135,6 +138,9 @@ declare const DataModel: {
     deleteNodesById: (nodeIds: string[]) => boolean;
     addChildRefusal: (nodeId: string) => string | null;
     deleteRefusal: (nodeIds: string | readonly string[]) => string | null;
+    setActiveConfigSet: (nodeId: string) => boolean;
+    activeConfigSetRefusal: (nodeId: string) => string | null;
+    activeConfigSetCaution: (nodeId: string) => string | null;
     renameRefusal: (nodeId: string) => string | null;
     valueEditRefusal: (nodeId: string) => string | null;
     editText: (nodeId: string) => string | null;
