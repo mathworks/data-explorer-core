@@ -327,6 +327,13 @@ export default class MatNode extends ContainerNode {
     _namespaceHolds(name: string): number;
     /** Where a rename into a name already held is said to collide (DataNode.setProperty): this file. */
     get _namespaceLabel(): string;
+    /**
+     * What a save of this is said to be of, in the refusal of one (MatFileWriter): this file. A MatNode
+     * that is not a file of its own (a model's Model Workspace) names the file it is saved in.
+     */
+    get _saveLabel(): string;
+    /** What this is called where a refusal says what it takes: a MAT-file, or a model workspace. */
+    get _noun(): string;
     get sourceFormat(): string;
     get icon(): string;
     get NumberOfEntries(): number;
@@ -543,6 +550,14 @@ export default class MatNode extends ContainerNode {
     static fromParsed(parsed: MatParse, filename: string, options?: {
         nodeCeiling?: number;
     }): MatNode;
+    /**
+     * `node`, an empty MatNode or one of a subclass of it, built of `parsed` as fromParsed builds a
+     * file's: its variables, the records a save splices and every check of them. For a MatNode that
+     * is not a file of its own: a model's Model Workspace, which a model holds under it.
+     */
+    static _populate<T extends MatNode>(node: T, parsed: MatParse, options?: {
+        nodeCeiling?: number;
+    }): T;
     _bindRecord(child: BaseNode, record: MatRecord | undefined): void;
     static _addVariables(node: MatNode, parsed: {
         variables: MatVariable[];

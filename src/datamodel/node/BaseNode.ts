@@ -885,6 +885,12 @@ export default class BaseNode {
     if (typeof source._nodeEdited === 'function') {
       source._nodeEdited(this);
     }
+    // And a source below the root, which a model's Model Workspace is (a MatNode under the model):
+    // the first container above the node's entry, the one sourceEditRefusal asks.
+    const inner = sourceOf(this).source as unknown as { _nodeEdited?: (node: BaseNode) => void } | null;
+    if (inner && inner !== (source as unknown) && typeof inner._nodeEdited === 'function') {
+      inner._nodeEdited(this);
+    }
     mcosStreamGateAbove(this)?._nodeEdited(this);
     // Every mutation reaches here, so this is where a rename — the edit that actually moves
     // a link — is caught. A value edit drops the index too, needlessly; the rebuild rides
