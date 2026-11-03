@@ -33,10 +33,11 @@
 //   - the text package records no creator and no date (MATLAB reopens it with an empty
 //     Creator, so its `.slx` twin has none either) and its UUID is a per-save stamp
 //   - a reference is named with the parent model's own extension
-//   - a struct's field names are renamable in the `.mdl`'s tree and not in the `.slx`'s,
-//     because a JSON struct is the text dictionary's node and an mxarray struct the MAT
-//     file's. The model is read-only either way; it is a property of the node, not of
-//     what was read.
+//   - what takes an edit: the `.slx`'s Model Workspace is edited by a MAT-file's rules
+//     (ModelWorkspaceNode), its cells offering the editors a MAT-file's do and its property
+//     sheet grouping its rows as a MAT-file's does, where the `.mdl`, which no save writes,
+//     takes no edit at all. Not a property of what was read: the trees are compared by what
+//     each cell shows.
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -94,17 +95,32 @@ function opcBookkeeping(part: string): boolean {
 /**
  * Every node under the model, depth-first, as what a host is shown of it: its row and its
  * property sheet's values. The file's own name, which every id and link is built from, is
- * replaced by a placeholder, and a struct field's renamability is left out (see the head).
- * The references section's rows are left out too: they are named after the parent's
- * extension, which is asserted on its own.
+ * replaced by a placeholder, and what takes an edit is left out (see the head): a cell is
+ * its text, a row's editability flags are dropped, and a sheet's value is keyed by its
+ * property, whichever group shows it. The references section's rows are left out too: they
+ * are named after the parent's extension, which is asserted on its own.
  */
 function tree(model: any, file: string): string[] {
   const out: string[] = [];
   const own = new RegExp(file.replace(/[.]/g, '[.]'), 'g');
+  const shown = (row: Record<string, any>): Record<string, any> => {
+    const out: Record<string, any> = {};
+    for (const [key, cell] of Object.entries(row)) {
+      if (key === '_valueEditable' || key === '_descriptionEditable') continue;
+      if (key === 'Name' && cell && typeof cell === 'object') {
+        const { editable: _editable, disabled: _disabled, ...name } = cell;
+        out[key] = name;
+      } else {
+        out[key] = cell && typeof cell === 'object' && 'text' in cell ? cell.text : cell;
+      }
+    }
+    return out;
+  };
+  const sheet = (object: Record<string, any>): Record<string, any> =>
+    Object.fromEntries(Object.entries(object).map(([k, v]) => [k.replace(/^[A-Za-z ]+\./, ''), v]).sort(([a], [b]) => (a < b ? -1 : 1)));
   const visit = (node: any, depth: number): void => {
-    const row = node.toRow() ?? {};
-    if (row.Name && typeof row.Name === 'object') delete row.Name.editable;
-    const pi = node.toPIObject()?.objects ?? null;
+    const row = shown(node.toRow() ?? {});
+    const pi = node.toPIObject()?.objects?.map(sheet) ?? null;
     const line = [
       node.displayName,
       node.dataType,
@@ -218,15 +234,16 @@ for (const key of KEYS) {
 
       const structs = Object.keys(t.workspace).filter((n) => t.workspace[n].class === 'struct');
       if (structs.length > 0) {
-        it('offers a struct’s field names for renaming in the .mdl’s tree only', () => {
-          // The one property of a row that is the node's and not the file's: a JSON struct is
-          // the text dictionary's struct node, which renames a field, and an mxarray struct the
-          // MAT file's, which does not. Asserted so that the difference stays a known one.
+        it('offers a struct’s field names for renaming in the .slx’s tree only', () => {
+          // What takes an edit, which is the venue's and not the file's: the .slx's workspace
+          // is edited by a MAT-file's rules, which rename a struct's field, and the .mdl's,
+          // which no save writes, takes no edit. Asserted so that the difference stays a known
+          // one.
           const editable = (file: string) =>
             structs.flatMap((s) => rows(load(file), 'workspace').find((n: any) => n.name === s).children)
               .map((f: any) => f.toRow().Name.editable);
-          expect(editable(mdl).every((e: boolean) => e === true)).toBe(true);
-          expect(editable(slx).every((e: boolean) => e === false)).toBe(true);
+          expect(editable(slx).every((e: boolean) => e === true)).toBe(true);
+          expect(editable(mdl).every((e: boolean) => e === false)).toBe(true);
         });
       }
     });

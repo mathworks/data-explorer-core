@@ -144,7 +144,7 @@ describe("a container's Value", () => {
     ['fixtures/arch.sldd', ['SlddNode', 'SectionNode']],
     ['fixtures/bus_types_binary.sldd', ['SlddNode', 'SectionNode']],
     ['fixtures/strings.mat', ['MatNode']],
-    ['fixtures/model_with_refs.slx', ['ModelNode', 'ModelSectionNode']],
+    ['fixtures/model_with_refs.slx', ['ModelNode', 'ModelSectionNode', 'ModelWorkspaceNode']],
   ];
   for (const [file, classes] of opened) {
     it(`offers no editor: ${file}`, () => {

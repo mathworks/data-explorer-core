@@ -42,6 +42,7 @@ import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import ModelNode from '../src/datamodel/node/container/ModelNode.js';
+import { matOfWorkspaceStream } from '../src/datamodel/parser/ModelWorkspaceStream.js';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -415,11 +416,38 @@ describe('a nested object, named by its MATLAB path', () => {
   });
 });
 
+// `file`'s parse, with its workspace variable `name`'s object handle naming object `id` in the
+// workspace part's bytes, as a damaged file's does. In the bytes and not in the parse: a `.slx`'s
+// Model Workspace is built of its part (ModelWorkspaceNode), whose save writes them back.
+function withDamagedHandle(file: string, name: string, id: number): ReturnType<typeof parseSlx> {
+  const parsed = parseSlx(bytes(file), file);
+  const PART = 'simulink/modelWorkspace.mxarray';
+  const part = parsed.zipEntries![PART].slice();
+  const made = matOfWorkspaceStream(part);
+  if (!made.ok) throw new Error(made.why);
+  const field = made.read.fields.get(name)!;
+  let at = -1;
+  for (let i = 0; i + field.length <= part.length && at < 0; i += 8) {
+    if (field.every((b, j) => part[i + j] === b)) at = i;
+  }
+  const view = new DataView(part.buffer);
+  let patched = false;
+  // An MCOS handle is a uint32 array, 0xDD000000, its number of dims, the dims, then the ids.
+  for (let i = at; i + 24 <= at + field.length && !patched; i += 4) {
+    if (view.getUint32(i, true) === 0xdd000000 && view.getUint32(i + 4, true) === 2) {
+      view.setUint32(i + 16, id, true);
+      patched = true;
+    }
+  }
+  if (!patched) throw new Error('no handle in ' + name);
+  parsed.zipEntries![PART] = part;
+  return parsed;
+}
+
 describe('a model workspace', () => {
   it('mcosfix.slx with a workspace object whose handle is past the table', () => {
-    const parsed = parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx');
-    expect(mcosWarnings(parsed.warnings)).toEqual([]);
-    parsed.workspace.find((v) => v.name === 'Param')!.mcosHandle = { dims: [1, 1], ids: [99999] };
+    expect(mcosWarnings(parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx').warnings)).toEqual([]);
+    const parsed = withDamagedHandle('mcos/mcosfix.slx', 'Param', 99999);
     ModelNode.fromParsed(parsed, 'mcosfix.slx');
     expect(mcosWarnings(parsed.warnings).map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'Param']]);
   });
@@ -488,10 +516,11 @@ describe('C-229: a refused object of a class the data model knows is the plain o
     const pristine = shape(ModelNode.fromParsed(parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx'), 'mcosfix.slx'));
     expect(pristine).toContain('Param:ParameterNode');
 
-    const parsed = parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx');
-    const variable = parsed.workspace.find((v) => v.name === 'Param')!;
-    variable.mcosHandle = { dims: [1, 1], ids: [99999] };
+    const parsed = withDamagedHandle('mcos/mcosfix.slx', 'Param', 99999);
     const model: any = ModelNode.fromParsed(parsed, 'mcosfix.slx');
+    // The variable the workspace read of its part, whose handle is the damaged one.
+    const variable: MatVariable = rowOf(model.getSection('workspace'), 'Param')._matVar;
+    expect(variable.mcosHandle!.ids).toEqual([99999]);
     expectPlainOpaque(rowOf(model.getSection('workspace'), 'Param'), variable, 'Simulink.Parameter');
     expect(shape(model)).toEqual(pristine.map((row) => (row === 'Param:ParameterNode' ? 'Param:MatlabVariableNode' : row)));
     expect(mcosWarnings(parsed.warnings).map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'Param']]);

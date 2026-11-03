@@ -141,19 +141,24 @@ describe('addEntry', () => {
   });
 
   // The ADD-side twin of 'refuses to delete an entry out of a read-only model
-  // section'. A .slx model's ModelSectionNode implements neither getAllowedTypes
-  // nor execAddEntry, so it is found by name (skipping the class-inference loop
-  // entirely) and then refused for having no add hook — which is what keeps a
-  // read-only model read-only from this direction too.
-  it('returns null for a section of a read-only model, by name or by inference', () => {
+  // section'. A .slx model's Model Workspace is a MAT-file's editor (ModelWorkspaceNode),
+  // which adds a variable as a MAT-file does; every other section of it is a
+  // ModelSectionNode, which implements neither getAllowedTypes nor execAddEntry, so it is
+  // found by name and then refused for having no add hook.
+  it("adds a variable to a model's Model Workspace, and an entry to no other section of it", () => {
     const { s, src } = modelSession();
     const ws = sectionOf(src, 'workspace');
     const before = ws.children.length;
-    expect(s.addEntry('workspace', 'MatlabVariable')).toBeNull();
-    // And from the root, where no model section claims the class either.
-    expect(s.addEntry('sldd', 'MatlabVariable')).toBeNull();
-    expect(ws.children.length).toBe(before);
+    expect(s.addEntry('config', 'Simulink.ConfigSet')).toBeNull();
     expect(s.canUndo()).toBe(false);
+    const added = s.addEntry('workspace', '') as any;
+    expect(added?.parent).toBe(ws);
+    expect(ws.children.length).toBe(before + 1);
+    expect(src.dirty).toBe(true);
+    s.undo();
+    expect(ws.children.length).toBe(before);
+    // And by a key no section has, by the class: the one section that takes a MATLAB variable.
+    expect((s.addEntry('sldd', 'MatlabVariable') as any)?.parent).toBe(ws);
   });
 });
 

@@ -33,3 +33,24 @@ export function presentation(node: any, rootLabel: string, isRoot = true): unkno
     children: node.children.map((c: any) => ({ name: c.name, ...(presentation(c, rootLabel, false) as object) })),
   };
 }
+
+/**
+ * `shown`, a presentation, with each Parameter's Storage Class cell its text. Where its editor stands
+ * is MATLAB's data, not the node's: a model workspace's top-level Parameter holds
+ * CoderInfo.HasCoderInfo false and the same Parameter nested in a struct true (MATLAB R2027a,
+ * nested_ws.slx and complex_ws.slx), and a MAT-file's editor, which a model workspace is edited by,
+ * offers a Storage Class only of an object whose coder settings MATLAB keeps (coderSettingUnkept).
+ * Compares the text of twins whose cells stand so.
+ */
+export function coderAsText(shown: unknown): unknown {
+  const walk = (v: any): any => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (!v || typeof v !== 'object') return v;
+    const out: any = {};
+    for (const [k, x] of Object.entries(v)) {
+      out[k] = k === 'storageClass' && x && typeof x === 'object' && 'text' in (x as any) ? (x as any).text : walk(x);
+    }
+    return out;
+  };
+  return walk(shown);
+}

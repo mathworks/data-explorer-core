@@ -719,11 +719,12 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
         expect([node.canAddChild(), node.canRemoveChild(), node.valueEditable], path).toEqual([false, false, false]);
         for (const row of node.children) {
           // A .mat's object's sparse Value, which its save writes no cell of (MatNode._editRefusal), and
-          // a binary dictionary's hex Parameter, whose stream a save writes only an allow-listed
-          // property of (mcosStreamEdit), are read-only; every other row edits, a dictionary's sparse
-          // array's included, which MatWriter writes as it reads back (MatlabVariableNode._isPlainTree,
+          // so a model workspace's, which is edited by a MAT-file's rules (ModelWorkspaceNode), and a
+          // binary dictionary's hex Parameter, whose stream a save writes only an allow-listed property
+          // of (mcosStreamEdit), are read-only; every other row edits, a dictionary's sparse array's
+          // included, which MatWriter writes as it reads back (MatlabVariableNode._isPlainTree,
           // _rewritesEncoded), and a text dictionary's Parameter's sparse Value, its own stream there.
-          const inObject = (venue.name === 'mat' || venue.name === 'binary') && !(row.owningEntry instanceof MatlabVariableNode);
+          const inObject = (venue.name === 'mat' || venue.name === 'ws' || venue.name === 'binary') && !(row.owningEntry instanceof MatlabVariableNode);
           expect(row.valueEditable, `${path} ${row.displayName}`).toBe(!inObject);
         }
       }

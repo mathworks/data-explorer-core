@@ -207,6 +207,20 @@ describe('a struct holding objects, or beside them', () => {
   });
 });
 
+describe("a model workspace's struct renames its fields, as a MAT-file's does", () => {
+  // The workspace is edited by a MAT-file's rules (ModelWorkspaceNode): a save writes the struct
+  // fresh under its rows' names, its objects as the elements they were read as.
+  it("a model workspace's struct", async () => {
+    const { loadFile } = await import('./parity/loadFile.js');
+    const cfg = nodeAt((loadFile('../fixtures/mcos/nested_ws.slx') as any).getSection('workspace'), 'cfg');
+    expect(cfg.children.length).toBeGreaterThan(0);
+    expect(cfg.children.map((c: any) => c.nameEditable)).toEqual(cfg.children.map(() => true));
+    const before = cfg.children[0].name;
+    expect(cfg.children[0].setProperty('Name', 'renamed')).toBe(true);
+    expect(cfg.children.map((c: any) => c.name)).not.toContain(before);
+  });
+});
+
 describe("where a field's name is not the struct's to write, nothing changed", () => {
   const names = (n: any) => n.children.map((c: any) => c.nameEditable);
   const none = (n: any) => n.children.map(() => false);
@@ -214,14 +228,6 @@ describe("where a field's name is not the struct's to write, nothing changed", (
   // A text dictionary's struct held as a MAT stream of plain values renames its fields, as a MAT-file
   // does (test/textStreamContainers.test.ts), and so does a dictionary's struct in a MAT stream
   // holding objects, which a save writes anew around them (test/slddStreamObjects.test.ts).
-
-  it("a model workspace's struct, which is its stream", async () => {
-    const { loadFile } = await import('./parity/loadFile.js');
-    const cfg = nodeAt((loadFile('../fixtures/mcos/nested_ws.slx') as any).getSection('workspace'), 'cfg');
-    expect(cfg.children.length).toBeGreaterThan(0);
-    expect(names(cfg)).toEqual(none(cfg));
-    expect(cfg.children[0].setProperty('Name', 'renamed')).toMatchObject({ error: true });
-  });
 
   it("a cell's elements, an array's, and a struct array's, which are their positions", () => {
     const o = opened(read('parity/artifacts/mat/cases.mat'));

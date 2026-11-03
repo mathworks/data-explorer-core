@@ -2355,6 +2355,10 @@ function pasteTargetRefusal(srcId: string, source: ISourceNode | undefined, mat:
   if (!source) {
     return 'Cannot paste into "' + srcId + '": no source of that id is open. Nothing was pasted.';
   }
+  if (source instanceof ModelNode) {
+    return 'Cannot paste into "' + basenameOf(srcId) + '": a model takes a paste into its Model Workspace, '
+      + 'named by its id ("' + srcId + '/workspace"). Nothing was pasted.';
+  }
   if (!(source instanceof MatNode)) {
     return 'Cannot paste into "' + basenameOf(srcId) + '": a dictionary takes a paste into one of its sections, '
       + 'named by its id ("' + srcId + '/design"). Nothing was pasted.';

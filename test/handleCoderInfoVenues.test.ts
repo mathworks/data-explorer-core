@@ -2,11 +2,11 @@
 //
 // A CoderInfo MATLAB R2024b and earlier save (and every object made from the R2023b templates) is
 // a 'handle' opaque, whose StorageClass, Identifier and Alignment this package shows as read
-// (McosParser). Only a MAT-file's save writes an edit of one (into the opaque: MatNode). Every
-// other venue that holds such an object shows its values, and takes no edit of them: a binary
-// dictionary's value held as a MAT stream (read-only as an encoded value), and a model workspace,
-// which no save writes. Nor do the editors a MAT-file offers of a node's read-only rows
-// (BaseNode.sourceOfferedEditor) reach them.
+// (McosParser). Only a MAT-file's save writes an edit of one (into the opaque: MatNode), and a
+// model's workspace, which is edited by a MAT-file's rules (ModelWorkspaceNode), takes one as a
+// MAT-file does. A binary dictionary's value held as a MAT stream shows its values, and takes no
+// edit of them (read-only as an encoded value). Nor do the editors a MAT-file offers of a node's
+// read-only rows (BaseNode.sourceOfferedEditor) reach it.
 //
 // Both venues are built here of R2023b's own objects (mat-edits-gate/r23/mix.mat), each one's
 // element and the file's subsystem as one MAT stream: in a binary dictionary's entry, and as a
@@ -105,7 +105,7 @@ describe("a 'handle' opaque CoderInfo outside a MAT-file", () => {
     expect(seen.map((s) => s.shown)).toEqual([sc(own('p')), sc(own('sig'))]);
   });
 
-  it('a model workspace holding one shows its storage class, and takes no edit of it, as no save writes one', () => {
+  it("a model workspace holding one takes its Parameter's storage class, as a MAT-file does", () => {
     const fields: Record<string, MatVariable> = {};
     for (const name of ['p', 'sig', 'lt', 'b']) {
       const r = parsed.records.find((q) => q.name === name)!;
@@ -117,13 +117,10 @@ describe("a 'handle' opaque CoderInfo outside a MAT-file", () => {
     z['simulink/modelWorkspace.mxarray'] = streamOf(element);
     const session = createSession();
     const root: any = ingest(session, bufferOf(zipSync(z)), { filename: 'ws.slx' });
-    const seen = venue(session, root, ['p', 'sig']);
-    for (const s of seen) {
-      expect(s.editable, s.name).toEqual([]);
-      expect(s.edit, s.name).toMatchObject({ error: true, reason: expect.stringMatching(/its CoderInfo is held as MATLAB's own handle data/) });
-      expect(s.status, s.name).toBe('');
-    }
-    expect(seen.map((s) => s.shown)).not.toContain('');
+    const [p] = venue(session, root, ['p']);
+    expect(p.editable).toEqual(['storageClass']);
+    expect(p.edit).toBe(true);
+    expect(p.shown).not.toBe('');
   });
 
   it('a MAT-file holding one takes its storage class, and writes it into the opaque', () => {

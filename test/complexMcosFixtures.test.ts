@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadFile } from './parity/loadFile.js';
 import { nodeAt } from './tools/matlabPath.js';
-import { presentation } from './tools/nodePresentation.js';
+import { coderAsText, presentation } from './tools/nodePresentation.js';
 
 // One part of a complex number as the truth records it: a plain number, or MATLAB's own
 // text where JSON cannot carry the number ('Inf', '-Inf', 'NaN', an int64 past 2^53).
@@ -392,7 +392,7 @@ describe('every nested object presents exactly as its top-level twin', () => {
         const a = nodeAt(variables, nested);
         const b = nodeAt(variables, twin);
         expect(a.constructor, 'node class').toBe(b.constructor);
-        expect(presentation(a, a.displayName)).toEqual(presentation(b, b.displayName));
+        expect(coderAsText(presentation(a, a.displayName))).toEqual(coderAsText(presentation(b, b.displayName)));
       });
     }
   }

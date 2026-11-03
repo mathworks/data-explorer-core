@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
+import ModelWorkspaceNode from './ModelWorkspaceNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import PropName from '../../prop/PropName.js';
@@ -14,6 +15,9 @@ const SECTION_DEFS = [
     { key: 'references', label: 'Model References', icon: 'modelReference' },
     { key: 'dataSources', label: 'External Data', icon: 'link_database' },
 ];
+function sameNames(a, b) {
+    return a.length === b.length && a.every((n, i) => n === b[i]);
+}
 export default class ModelNode extends ContainerNode {
     constructor(name) {
         super(name, null);
@@ -26,17 +30,40 @@ export default class ModelNode extends ContainerNode {
         this.workspaceSource = 'Model File';
         this.modelArguments = [];
         this.rawContents = null;
-        this.dirty = false;
+        this._ownDirty = false;
         this.blockParamUsages = [];
         this.masks = [];
         this._zipEntries = null;
-        this._workspaceVars = null;
         SECTION_DEFS.forEach((def) => {
             this.addChild(new ModelSectionNode(def.key, this, def.label, def.icon));
         });
     }
     get tableColumnConfig() {
         return { columns: ['Name', 'Value', 'DataType', 'UsedBy'], labels: { DataType: 'Type', UsedBy: 'Usage' } };
+    }
+    /**
+     * Whether the model has unsaved changes: its own, or its Model Workspace's, which marks itself
+     * dirty as a MAT-file does (MatNode's execAddEntry, execRemoveEntry and retype, and a paste's put
+     * back). Set false (a save, a revert), both are clean.
+     */
+    get dirty() {
+        const workspace = this.getSection('workspace');
+        return this._ownDirty || (workspace instanceof ModelWorkspaceNode && workspace.dirty);
+    }
+    set dirty(value) {
+        this._ownDirty = value;
+        const workspace = this.getSection('workspace');
+        if (!value && workspace instanceof ModelWorkspaceNode) {
+            workspace.dirty = false;
+        }
+    }
+    /**
+     * Why the last addEntry into this model added nothing, as its Model Workspace says (the session's
+     * addEntryRefusal of the active source), or null.
+     */
+    addEntryRefusal() {
+        const workspace = this.getSection('workspace');
+        return workspace instanceof ModelWorkspaceNode ? workspace.addEntryRefusal() : null;
     }
     get displayName() {
         return this.name;
@@ -114,27 +141,10 @@ export default class ModelNode extends ContainerNode {
                 archiveFiles: this.rawContents ? Object.keys(this.rawContents) : [],
             };
         }
-        const entries = Object.assign({}, this._zipEntries);
-        if (this._workspaceVars) {
-            const wsSection = this.getSection('workspace');
-            for (const child of wsSection.children) {
-                const varChild = child;
-                if (varChild._var && varChild._var._modified) {
-                    const wsVar = this._workspaceVars.find((v) => v.name === child.name);
-                    if (wsVar) {
-                        wsVar.value = varChild._var.value;
-                        wsVar.dimensions = varChild._var.dimensions;
-                        // A sparse array's value is its summary; its non-zeros are the value a writer reads.
-                        wsVar.isSparse = varChild._var.isSparse;
-                        wsVar.sparse = varChild._var.sparse;
-                        wsVar.isComplex = varChild._var.isComplex;
-                        wsVar._modified = true;
-                    }
-                }
-            }
-            // serializeMxArray is called externally when saving
-        }
-        return entries;
+        // The parts as read, a copy. An edit of the Model Workspace is not folded back into the parse's
+        // variables: the workspace is a MAT-file's editor, whose save is session.serializeSource, and a
+        // parse a host shares between documents must not change under it.
+        return Object.assign({}, this._zipEntries);
     }
     static fromParsed(parsed, filename) {
         const node = new ModelNode(filename);
@@ -153,7 +163,6 @@ export default class ModelNode extends ContainerNode {
         node.modelArguments = Array.isArray(parsed.modelArguments) ? parsed.modelArguments.filter((n) => typeof n === 'string') : [];
         node.rawContents = parsed.rawContents || null;
         node._zipEntries = parsed.zipEntries || null;
-        node._workspaceVars = parsed.workspace;
         node.blockParamUsages = parsed.blockParamUsages || [];
         node.masks = parsed.masks || [];
         // Populate blocks section from blockParamUsages — ONE ROW PER BLOCK, keyed by the
@@ -190,27 +199,19 @@ export default class ModelNode extends ContainerNode {
                 blocksSection.addBlockEntry(info.name, info.type, info.usages, filename, paramSourceId, info.sid, info.systemPath);
             }
         }
-        // Populate workspace section with MCOS decoding
-        const wsSection = node.getSection('workspace');
-        const wsVars = parsed.workspace;
-        const trailingElements = wsVars._trailingElements;
-        // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
-        // Every opaque in the workspace, nested or not, comes back carrying its own decode, and
-        // what the decoder could not read of one is a warning on the model.
-        attachMcosDecoded(trailingElements?.[0], wsVars, parsed.warnings);
-        for (const entry of wsVars) {
-            if (entry.isOpaque) {
-                // `parsed.warnings` is the very array addModelSource hands to registerSource
-                // after this returns, so a degrade appended here reaches the source node. It is
-                // the same list the part readers wrote into: one list per file, whichever layer
-                // the loss was found in.
-                const mcosNode = modelOpaqueMcosVariable(entry, mcosDecodedFor(entry), wsSection, parsed.warnings);
-                if (mcosNode) {
-                    wsSection.addChild(mcosNode);
-                    continue;
-                }
-            }
-            wsSection.addWorkspaceEntry(entry);
+        // The Model Workspace of a `.slx` is a MAT-file's editor over its part, where the part converts
+        // into a MAT-file exactly (ModelWorkspaceNode.ofModel), in place of the section; every other
+        // workspace is the section built of what was read, as before, which takes no edit.
+        const workspace = ModelWorkspaceNode.ofModel(parsed, filename, parsed.warnings);
+        // Built of the part, and so of the variables the parse holds, unless a host's parse holds
+        // others than its parts do: then it is the section of the variables the host handed over.
+        if (workspace && sameNames(workspace.children.map((c) => c.name), parsed.workspace.map((v) => v.name))) {
+            const at = node.children.findIndex((c) => c.name === 'workspace');
+            node.removeChild(node.children[at]);
+            node.addChild(workspace, at);
+        }
+        else {
+            ModelNode._addWorkspaceSection(node, parsed);
         }
         // Populate config sets section
         const cfgSection = node.getSection('config');
@@ -232,6 +233,31 @@ export default class ModelNode extends ContainerNode {
             dsSection.addDataSourceEntry(path);
         }
         return node;
+    }
+    // The workspace as a section of what was read, with MCOS decoding: a `.mdl`'s, a host's parse
+    // that holds no parts, or a part that does not convert into a MAT-file exactly.
+    static _addWorkspaceSection(node, parsed) {
+        const wsSection = node.getSection('workspace');
+        const wsVars = parsed.workspace;
+        const trailingElements = wsVars._trailingElements;
+        // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
+        // Every opaque in the workspace, nested or not, comes back carrying its own decode, and
+        // what the decoder could not read of one is a warning on the model.
+        attachMcosDecoded(trailingElements?.[0], wsVars, parsed.warnings);
+        for (const entry of wsVars) {
+            if (entry.isOpaque) {
+                // `parsed.warnings` is the very array addModelSource hands to registerSource
+                // after this returns, so a degrade appended here reaches the source node. It is
+                // the same list the part readers wrote into: one list per file, whichever layer
+                // the loss was found in.
+                const mcosNode = modelOpaqueMcosVariable(entry, mcosDecodedFor(entry), wsSection, parsed.warnings);
+                if (mcosNode) {
+                    wsSection.addChild(mcosNode);
+                    continue;
+                }
+            }
+            wsSection.addWorkspaceEntry(entry);
+        }
     }
 }
 //# sourceMappingURL=ModelNode.js.map

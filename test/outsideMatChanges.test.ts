@@ -30,14 +30,20 @@ const inspector = (node: any, key: string) => {
   return node.getPropInfo(prop);
 };
 
-describe('outside a MAT-file', () => {
-  it("a model workspace's NumericType shows its Signedness, FractionLength and Slope, read-only", () => {
-    const session = createSession();
-    const root: any = ingest(session, bufferOf(read('mcos/mcosfix.slx')), { filename: 'mcosfix.slx' });
-    const nt = allNodes(root).find((n) => n.className === 'Simulink.NumericType');
+describe("a model workspace, which is edited by a MAT-file's rules", () => {
+  it("a NumericType shows its Signedness, FractionLength and Slope, and offers the editors a MAT-file's does", () => {
+    const keys = ['signedness', 'fractionLength', 'slope', 'wordLength', 'dataTypeMode'];
+    const numericOf = (file: string) =>
+      allNodes(ingest(createSession(), bufferOf(read(file)), { filename: file.slice(file.lastIndexOf('/') + 1) })).find((n) => n.className === 'Simulink.NumericType');
+    const nt = numericOf('mcos/mcosfix.slx');
+    const mat = numericOf('mcos/Numeric.mat');
     expect(['signedness', 'fractionLength', 'slope'].map((k) => inspector(nt, k).displayValue)).toEqual(['Signed', '0', '1']);
-    expect(['signedness', 'fractionLength', 'slope', 'wordLength', 'dataTypeMode'].some((k) => inspector(nt, k).editable)).toBe(false);
+    expect(keys.map((k) => inspector(nt, k).displayValue)).toEqual(keys.map((k) => inspector(mat, k).displayValue));
+    expect(keys.map((k) => inspector(nt, k).editable)).toEqual(keys.map((k) => inspector(mat, k).editable));
   });
+});
+
+describe('outside a MAT-file', () => {
 
   it("a dictionary Parameter's storage class, edited and undone, is as it was, and saved so; a LookupTable's, shown read-only, takes no edit", () => {
     const original = read('mcos/complex.sldd');
