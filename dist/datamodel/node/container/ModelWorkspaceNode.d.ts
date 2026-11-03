@@ -1,6 +1,7 @@
 import MatNode from './MatNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
-import type { PIGroupDef, PropClass } from '../BaseNode.js';
+import type BaseNode from '../BaseNode.js';
+import type { PIGroupDef, PropClass, SourceOfferedEditor, SourceRetyped, SourceSetResult } from '../BaseNode.js';
 import { type WorkspaceStreamRead } from '../../parser/ModelWorkspaceStream.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, type ModelPackage } from '../../parser/ModelPackage.js';
@@ -42,6 +43,15 @@ export default class ModelWorkspaceNode extends MatNode {
     get _namespaceLabel(): string;
     get _modelName(): string;
     _fileRefusal(): string | null;
+    _classRefusal(className: string): string | null;
+    _offeredEditor(entry: BaseNode, node: BaseNode, key: string): SourceOfferedEditor | null;
+    _editRefusal(entry: BaseNode, node: BaseNode, key: string, describe?: boolean): string | null;
+    removeEntryRefusal(node: BaseNode): string | null;
+    _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
+    _retype(entry: BaseNode, node: BaseNode, key: string, text: string): SourceRetyped | Exclude<SourceSetResult, true> | null;
+    /** Whether `name` is one of the model's arguments (ParameterArgumentNames). */
+    _isArgument(name: string): boolean;
+    _keptNameWhy(node: BaseNode, done: 'renamed' | 'deleted'): string | null;
     _partHandedAway(model: ModelPackage): boolean;
     /**
      * The Model Workspace of `parsed`, a `.slx`'s parse, as a MAT-file's editor, or null where its part

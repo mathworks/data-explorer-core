@@ -105,7 +105,7 @@ describe("a 'handle' opaque CoderInfo outside a MAT-file", () => {
     expect(seen.map((s) => s.shown)).toEqual([sc(own('p')), sc(own('sig'))]);
   });
 
-  it("a model workspace holding one takes its Parameter's storage class, as a MAT-file does", () => {
+  it("a model workspace holding one takes its Parameter's storage class, as a MAT-file does, and not its Signal's", () => {
     const fields: Record<string, MatVariable> = {};
     for (const name of ['p', 'sig', 'lt', 'b']) {
       const r = parsed.records.find((q) => q.name === name)!;
@@ -117,10 +117,13 @@ describe("a 'handle' opaque CoderInfo outside a MAT-file", () => {
     z['simulink/modelWorkspace.mxarray'] = streamOf(element);
     const session = createSession();
     const root: any = ingest(session, bufferOf(zipSync(z)), { filename: 'ws.slx' });
-    const [p] = venue(session, root, ['p']);
+    const [p, sig] = venue(session, root, ['p', 'sig']);
     expect(p.editable).toEqual(['storageClass']);
     expect(p.edit).toBe(true);
     expect(p.shown).not.toBe('');
+    // A Signal in a model workspace keeps the storage class Auto alone (ModelWorkspaceNode).
+    expect(sig.editable).not.toContain('storageClass');
+    expect(sig.edit).toMatchObject({ error: true, reason: expect.stringMatching(/a Signal in a model workspace keeps the storage class Auto alone/) });
   });
 
   it('a MAT-file holding one takes its storage class, and writes it into the opaque', () => {

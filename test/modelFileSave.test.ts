@@ -117,15 +117,16 @@ describe('an edit is written into the workspace part, and every other member is 
 
     it(`${label}: a rename, an added variable and a deleted one, the variables in MATLAB's order`, () => {
       const { s, variable, edit, save, workspace } = opened(rel);
-      expect(edit(variable('span'), 'Name', 'Zspan')).toBe(true);
+      // label and names: no block of the model uses either.
+      expect(edit(variable('label'), 'Name', 'Zlabel')).toBe(true);
       expect((s.addEntry('workspace', '', 'added') as any)?.name).toBe('added');
-      expect(s.deleteNodeById(variable('flag').id)).toBe(true);
+      expect(s.deleteNodeById(variable('names').id)).toBe(true);
       const ws = workspaceOf(save());
       const names = workspace.children.map((c) => c.name);
       expect(Object.keys(ws).sort()).toEqual([...names].sort());
-      expect(Object.keys(ws)).not.toContain('flag');
+      expect(Object.keys(ws)).not.toContain('names');
       if (part === PART) {
-        // By their characters' codes, as MATLAB's save writes them: Zspan before the lowercase.
+        // By their characters' codes, as MATLAB's save writes them: Zlabel before the lowercase.
         expect(Object.keys(ws)).toEqual([...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
       }
     });
@@ -207,11 +208,15 @@ describe("the workspace's first variable and its last", () => {
     for (const n of Object.keys(original)) expect(same(emptied[n], original[n]), n).toBe(true);
   });
 
-  it('before R2019b the part is a MAT-file, as MATLAB writes one', () => {
-    const rel = 'fixtures/workspace-facts/wsf_plainarg_R2018a.slx';
-    const { s, variable, save } = opened(rel);
-    for (const n of ['gain', 'k']) expect(s.deleteNodeById(variable(n).id)).toBe(true);
-    const after = unzipSync(save());
+  it('before R2019b the part is a MAT-file, as MATLAB writes one, and goes with its last variable', () => {
+    const rel = 'parity/artifacts/slx_layouts/slxcfgref_R2018a.slx';
+    const { s, save, name } = opened(rel);
+    s.addEntry('workspace', '', 'k');
+    const t = createSession();
+    const model: any = t.addModelSource(name, bufferOf(save()));
+    t.setActiveContext(model);
+    expect(t.deleteNodeById(model.getSection('workspace').children[0].id)).toBe(true);
+    const after = unzipSync((t.serializeSource(name) as { bytes: Uint8Array }).bytes);
     expect(after[MAT_PART]).toBeUndefined();
     expect(text(after['_rels/.rels'])).not.toContain('modelWorkspace');
     expect(text(after['[Content_Types].xml'])).not.toContain('Extension="mat"');
