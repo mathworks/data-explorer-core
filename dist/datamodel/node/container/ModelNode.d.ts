@@ -19,6 +19,8 @@ export interface ParsedSlx {
     }[];
     externalDataSources: string[];
     workspaceDataSource?: string | null;
+    workspaceSource?: string;
+    modelArguments?: string[];
     configSets: ParsedConfigSet[];
     workspace: MatVariable[];
     blockParamUsages?: BlockParamUsage[];
@@ -41,6 +43,10 @@ export default class ModelNode extends ContainerNode {
      * `.mat` among the others. See SlxParser's ParsedSlx.workspaceDataSource.
      */
     workspaceDataSource: string | null;
+    /** Where the model workspace's variables come from: 'Model File', or 'MAT-File', 'MATLAB File', 'MATLAB Code'. See SlxParser's ParsedSlx.workspaceSource. */
+    workspaceSource: string;
+    /** The model's arguments, names of its workspace variables (ParameterArgumentNames). */
+    modelArguments: string[];
     rawContents: Record<string, string> | null;
     dirty: boolean;
     blockParamUsages: BlockParamUsage[];

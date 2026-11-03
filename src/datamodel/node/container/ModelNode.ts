@@ -41,6 +41,11 @@ export interface ParsedSlx {
   // host parse from before the field existed has none, and its model then resolves as it
   // always did, with this file among the externals.
   workspaceDataSource?: string | null;
+  // Optional here and required on SlxParser's, for the reason `warnings` gives below: a host parse
+  // from before the fields existed has none, and its model then reads as one keeping its own
+  // workspace, with no arguments.
+  workspaceSource?: string;
+  modelArguments?: string[];
   configSets: ParsedConfigSet[];
   workspace: MatVariable[];
   blockParamUsages?: BlockParamUsage[];
@@ -68,6 +73,10 @@ export default class ModelNode extends ContainerNode {
    * `.mat` among the others. See SlxParser's ParsedSlx.workspaceDataSource.
    */
   workspaceDataSource: string | null;
+  /** Where the model workspace's variables come from: 'Model File', or 'MAT-File', 'MATLAB File', 'MATLAB Code'. See SlxParser's ParsedSlx.workspaceSource. */
+  workspaceSource: string;
+  /** The model's arguments, names of its workspace variables (ParameterArgumentNames). */
+  modelArguments: string[];
   rawContents: Record<string, string> | null;
   dirty: boolean;
   blockParamUsages: BlockParamUsage[];
@@ -88,6 +97,8 @@ export default class ModelNode extends ContainerNode {
     this.uuid = '';
     this.dataDictionary = null;
     this.workspaceDataSource = null;
+    this.workspaceSource = 'Model File';
+    this.modelArguments = [];
     this.rawContents = null;
     this.dirty = false;
     this.blockParamUsages = [];
@@ -227,6 +238,8 @@ export default class ModelNode extends ContainerNode {
       typeof parsed.workspaceDataSource === 'string' && parsed.workspaceDataSource !== ''
         ? parsed.workspaceDataSource
         : null;
+    node.workspaceSource = typeof parsed.workspaceSource === 'string' && parsed.workspaceSource !== '' ? parsed.workspaceSource : 'Model File';
+    node.modelArguments = Array.isArray(parsed.modelArguments) ? parsed.modelArguments.filter((n) => typeof n === 'string') : [];
     node.rawContents = parsed.rawContents || null;
     node._zipEntries = parsed.zipEntries || null;
     node._workspaceVars = parsed.workspace;

@@ -1,0 +1,239 @@
+{
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-11-02",
+  "models": [
+    {
+      "file": "wsf_model.slx",
+      "era": "",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": ""
+    },
+    {
+      "file": "wsf_model_R2025a.slx",
+      "era": "R2025a",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2025a."
+    },
+    {
+      "file": "wsf_model_R2021a.slx",
+      "era": "R2021a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_model_R2021a_saveas1.m",
+      "arguments": "k",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "The model workspace contains data that cannot be loaded in Simulink R2021a. The workspace's data source has been changed to 'wsf_model_R2021a_saveas1.m'\nExport successful: '<path>' created for use in Simulink R2021a."
+    },
+    {
+      "file": "wsf_model_R2018a.slx",
+      "era": "R2018a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_model_R2018a_saveas1.m",
+      "arguments": "k",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "The model workspace contains data that cannot be loaded in Simulink R2018a. The workspace's data source has been changed to 'wsf_model_R2018a_saveas1.m'\nExport successful: '<path>' created for use in Simulink R2018a."
+    },
+    {
+      "file": "wsf_plainarg.slx",
+      "era": "",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k,gain",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": ""
+    },
+    {
+      "file": "wsf_plainarg_R2025a.slx",
+      "era": "R2025a",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k,gain",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2025a."
+    },
+    {
+      "file": "wsf_plainarg_R2021a.slx",
+      "era": "R2021a",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k,gain",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2021a."
+    },
+    {
+      "file": "wsf_plainarg_R2018a.slx",
+      "era": "R2018a",
+      "source": "Model File",
+      "sourceFile": "",
+      "arguments": "k,gain",
+      "variables": [
+        "gain",
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2018a."
+    },
+    {
+      "file": "wsf_matfile.slx",
+      "era": "",
+      "source": "MAT-File",
+      "sourceFile": "wsf_init.mat",
+      "arguments": "",
+      "variables": [
+        "a",
+        "b"
+      ],
+      "message": ""
+    },
+    {
+      "file": "wsf_matfile_R2025a.slx",
+      "era": "R2025a",
+      "source": "MAT-File",
+      "sourceFile": "wsf_init.mat",
+      "arguments": "",
+      "variables": [
+        "a",
+        "b"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2025a."
+    },
+    {
+      "file": "wsf_matfile_R2021a.slx",
+      "era": "R2021a",
+      "source": "MAT-File",
+      "sourceFile": "wsf_init.mat",
+      "arguments": "",
+      "variables": [
+        "a",
+        "b"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2021a."
+    },
+    {
+      "file": "wsf_matfile_R2018a.slx",
+      "era": "R2018a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_matfile_R2018a_saveas1.m",
+      "arguments": "",
+      "variables": [
+        "a",
+        "b"
+      ],
+      "message": "The model workspace contains data that cannot be loaded in Simulink R2018a. The workspace's data source has been changed to 'wsf_matfile_R2018a_saveas1.m'\nExport successful: '<path>' created for use in Simulink R2018a."
+    },
+    {
+      "file": "wsf_mfile.slx",
+      "era": "",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_init.m",
+      "arguments": "",
+      "variables": [
+        "a"
+      ],
+      "message": ""
+    },
+    {
+      "file": "wsf_mfile_R2025a.slx",
+      "era": "R2025a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_init.m",
+      "arguments": "",
+      "variables": [
+        "a"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2025a."
+    },
+    {
+      "file": "wsf_mfile_R2021a.slx",
+      "era": "R2021a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_init.m",
+      "arguments": "",
+      "variables": [
+        "a"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2021a."
+    },
+    {
+      "file": "wsf_mfile_R2018a.slx",
+      "era": "R2018a",
+      "source": "MATLAB File",
+      "sourceFile": "wsf_init.m",
+      "arguments": "",
+      "variables": [
+        "a"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2018a."
+    },
+    {
+      "file": "wsf_mcode.slx",
+      "era": "",
+      "source": "MATLAB Code",
+      "sourceFile": "",
+      "arguments": "",
+      "variables": [
+        "k"
+      ],
+      "message": ""
+    },
+    {
+      "file": "wsf_mcode_R2025a.slx",
+      "era": "R2025a",
+      "source": "MATLAB Code",
+      "sourceFile": "",
+      "arguments": "",
+      "variables": [
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2025a."
+    },
+    {
+      "file": "wsf_mcode_R2021a.slx",
+      "era": "R2021a",
+      "source": "MATLAB Code",
+      "sourceFile": "",
+      "arguments": "",
+      "variables": [
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2021a."
+    },
+    {
+      "file": "wsf_mcode_R2018a.slx",
+      "era": "R2018a",
+      "source": "MATLAB Code",
+      "sourceFile": "",
+      "arguments": "",
+      "variables": [
+        "k"
+      ],
+      "message": "Export successful: '<path>' created for use in Simulink R2018a."
+    }
+  ]
+}
