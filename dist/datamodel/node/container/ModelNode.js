@@ -5,6 +5,7 @@ import ModelWorkspaceNode from './ModelWorkspaceNode.js';
 import ConfigSetNode from '../data/ConfigSetNode.js';
 import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import { ActiveMarkError, withActiveSet } from '../../parser/ActiveConfigMark.js';
+import { ConfigSetsError, withConfigSets } from '../../parser/ConfigSetsWriter.js';
 import { packageRefusal } from '../../parser/ModelPackage.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
@@ -39,6 +40,7 @@ export default class ModelNode extends ContainerNode {
         this.masks = [];
         this._zipEntries = null;
         this._activeAsRead = null;
+        this._configAsRead = [];
         SECTION_DEFS.forEach((def) => {
             this.addChild(new ModelSectionNode(def.key, this, def.label, def.icon));
         });
@@ -96,16 +98,77 @@ export default class ModelNode extends ContainerNode {
         if (refused) {
             return refused;
         }
+        // The mark moved in the package as its sets now are: a set renamed or added since is marked
+        // by the name it has.
         try {
-            withActiveSet(this._zipEntries, set.name);
+            withActiveSet(this._configEdited({ ...this._zipEntries }), set.name);
         }
         catch (e) {
-            if (e instanceof ActiveMarkError) {
+            if (e instanceof ActiveMarkError || e instanceof ConfigSetsError) {
                 return e.message;
             }
             throw e;
         }
         return null;
+    }
+    /**
+     * Why the model's configuration sets take no edit, as a clause, or null where they do: no save of
+     * the model can be written (ModelPackage.packageRefusal, a `.mdl` among them), or its package is
+     * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read).
+     */
+    configEditRefusal() {
+        if (this._configVerdict === undefined) {
+            this._configVerdict = packageRefusal(this);
+            if (this._configVerdict === null) {
+                try {
+                    withConfigSets(this._zipEntries, this._configAsRead, this._configAsRead.map((s, read) => ({ ...s, read })), {
+                        hasDictionary: !!this.dataDictionary,
+                    });
+                }
+                catch (e) {
+                    if (!(e instanceof ConfigSetsError)) {
+                        throw e;
+                    }
+                    this._configVerdict = e.message;
+                }
+            }
+        }
+        return this._configVerdict;
+    }
+    /** The sets a save writes, where they are not the sets as read (each as it now is), or null. */
+    get _configSetsToWrite() {
+        const sets = (this.getSection('config')?.children ?? []);
+        const now = sets.map((s) => ({
+            read: s._readIndex ?? null,
+            name: s.name,
+            className: s instanceof ConfigSetRefNode ? 'Simulink.ConfigSetRef' : 'Simulink.ConfigSet',
+            description: s.Description ?? '',
+            sourceName: s instanceof ConfigSetRefNode ? s.SourceName : '',
+        }));
+        const asRead = this._configAsRead;
+        const same = now.length === asRead.length &&
+            now.every((s, i) => s.read === i && s.name === asRead[i].name && s.description === asRead[i].description && s.sourceName === asRead[i].sourceName);
+        return same ? null : now;
+    }
+    /**
+     * `entries`, the package's members, with the configuration sets as they now are written into them
+     * (ConfigSetsWriter): changed in place and answered. Throws ConfigSetsError, saying why.
+     */
+    _configEdited(entries) {
+        const sets = this._configSetsToWrite;
+        if (sets === null) {
+            return entries;
+        }
+        const changes = withConfigSets(this._zipEntries, this._configAsRead, sets, { hasDictionary: !!this.dataDictionary });
+        for (const [member, bytes] of Object.entries(changes)) {
+            if (bytes === null) {
+                delete entries[member];
+            }
+            else {
+                entries[member] = bytes;
+            }
+        }
+        return entries;
     }
     /**
      * What making `set` active cannot check, where it is made active and is a reference, as a
@@ -132,8 +195,13 @@ export default class ModelNode extends ContainerNode {
     }
     /** The name of the set a save marks active, where it is not the one marked as read, or null. */
     get _activeSetToWrite() {
-        const now = this.activeConfigSet?.name ?? null;
-        return now !== null && now !== this._activeAsRead ? now : null;
+        const now = this.activeConfigSet;
+        if (!now) {
+            return null;
+        }
+        // The set marked as read, by its place among the sets as read, whatever it is called now.
+        const asRead = this._configAsRead.findIndex((s) => s.active);
+        return now._readIndex !== undefined && now._readIndex === asRead ? null : now.name;
     }
     // Whether nothing of the model takes an edit a save writes: its Model Workspace is the one part of
     // it edited, a `.slx`'s, where the model keeps it and its package can be written back
@@ -291,6 +359,13 @@ export default class ModelNode extends ContainerNode {
             cfgSection.addConfigSetEntry(cfg);
         }
         node._activeAsRead = parsed.configSets.find((c) => c.active)?.name ?? null;
+        node._configAsRead = parsed.configSets.map((c) => ({
+            name: c.name,
+            className: c.objectClass === 'Simulink.ConfigSetRef' ? 'Simulink.ConfigSetRef' : 'Simulink.ConfigSet',
+            description: c.description ?? '',
+            sourceName: c.objectClass === 'Simulink.ConfigSetRef' ? c.sourceName : '',
+            active: !!c.active,
+        }));
         // Populate model references section
         const refSection = node.getSection('references');
         const refExt = refModelExt(filename);

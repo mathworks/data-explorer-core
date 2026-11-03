@@ -8,12 +8,12 @@ import PropDescription from '../../prop/PropDescription.js';
 const CLASS_NAME = 'Simulink.ConfigSetRef';
 export default class ConfigSetRefNode extends SimulinkObjectNode {
     // The reference's whole content: the name of the config set it points AT. Stored and
-    // saved from the start; it now also has a PI row, through the schema descriptor
-    // `sourceName` (classes/configSetRef.json) rather than through a node atom — which is
-    // sound only because the row is read-only. The descriptor hydrates
-    // `serial._properties.SourceName`, so an EDIT would land on this field and leave the row
-    // showing the untouched bag; if this ever becomes editable it has to move to an atom, for
-    // the reason ValueTypeNode.getPILayout records at length.
+    // saved from the start, and edited: its PI row is the node atom PropSourceName (schemaBridge's
+    // ATOM_BY_KEY `sourceName`), which reads and writes this field, rather than the schema
+    // descriptor, which hydrates `serial._properties.SourceName` and so would show the bag an edit
+    // leaves untouched (the reason ValueTypeNode.getPILayout records at length). A dictionary
+    // saves it from here (_serializedOverrides), and a model's save writes it into the
+    // reference's part (ConfigSetsWriter).
     //
     // One fixed sourcePath is enough despite the era-varying spelling (`SourceName` in
     // R2021a+, `WSVarName` in R2018a and earlier) because the normalization happens upstream:
@@ -35,6 +35,8 @@ export default class ConfigSetRefNode extends SimulinkObjectNode {
     get ConfigName(): string { return this.name; }
     // See ConfigSetNode.active — set by the SLX parser only.
     active?: boolean;
+    // See ConfigSetNode._readIndex.
+    _readIndex?: number;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.SourceName = (props.SourceName as string) || ''; this.Description = (props.Description as string) || ''; }
     get icon(): string { return this.active ? 'check_configurationReference' : 'configurationReference'; }
     get className(): string { return CLASS_NAME; }

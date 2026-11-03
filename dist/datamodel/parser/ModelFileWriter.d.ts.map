@@ -1,1 +1,1 @@
-{"version":3,"file":"ModelFileWriter.d.ts","sourceRoot":"","sources":["../../../src/datamodel/parser/ModelFileWriter.ts"],"names":[],"mappings":"AASA,OAAO,KAAK,SAAS,MAAM,gCAAgC,CAAC;AAiC5D;;;;;;;;GAQG;AACH,wBAAgB,kBAAkB,CAAC,KAAK,EAAE,SAAS,GAAG,UAAU,CA0B/D"}
+{"version":3,"file":"ModelFileWriter.d.ts","sourceRoot":"","sources":["../../../src/datamodel/parser/ModelFileWriter.ts"],"names":[],"mappings":"AASA,OAAO,KAAK,SAAS,MAAM,gCAAgC,CAAC;AAmC5D;;;;;;;;GAQG;AACH,wBAAgB,kBAAkB,CAAC,KAAK,EAAE,SAAS,GAAG,UAAU,CA4B/D"}

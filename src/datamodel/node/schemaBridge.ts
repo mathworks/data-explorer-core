@@ -35,6 +35,7 @@ import PropMin from '../prop/PropMin.js';
 import PropMax from '../prop/PropMax.js';
 import PropUnit from '../prop/PropUnit.js';
 import PropDescription from '../prop/PropDescription.js';
+import PropSourceName from '../prop/PropSourceName.js';
 import PropBankName from '../prop/PropBankName.js';
 import PropVariantConditions from '../prop/PropVariantConditions.js';
 import PropAllChoicesCoderInfo from '../prop/PropAllChoicesCoderInfo.js';
@@ -65,6 +66,8 @@ const ATOM_BY_KEY: Record<string, PropClass> = {
     max: PropMax as unknown as PropClass,
     unit: PropUnit as unknown as PropClass,
     description: PropDescription as unknown as PropClass,
+    // A Simulink.ConfigSetRef's source, a node field (ConfigSetRefNode.SourceName), edited as text.
+    sourceName: PropSourceName as unknown as PropClass,
     // Simulink.VariantBank's own properties, read out of its saveobj envelope (VariantBankNode).
     bankName: PropBankName as unknown as PropClass,
     variantConditions: PropVariantConditions as unknown as PropClass,

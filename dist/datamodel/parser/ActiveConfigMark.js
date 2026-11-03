@@ -10,7 +10,11 @@
 // (test/parity/matlab/probe_active_config_set.m): the mark is all MATLAB reads of it, and in the JSON
 // and XML layouts MATLAB's save holds the member byte for byte as this one does. An export to R2013b
 // from R2027a also holds a configSetInfo.xml listing no set, beside the sets inline: there the block
-// diagram says it, as SlxParser reads it.
+// diagram says it, as SlxParser reads it. And in that layout the coverage settings are the model's,
+// one copy of them (blockdiagram.xml's <Verification>), which this keeps as read: a MATLAB of a later
+// release gives them to the active set as it opens the model and writes them from it as it saves,
+// so there a set made active opens with the coverage settings the model was read with, where MATLAB's
+// save gives it its own (R2023b; R2027a gives every set the same ones; probe_config_set_edits.m).
 export const JSON_INFO = 'simulink/configSetInfo.json';
 export const XML_INFO = 'simulink/configSetInfo.xml';
 export const BLOCK_DIAGRAM = 'simulink/blockdiagram.xml';
