@@ -5,10 +5,11 @@
 //
 // The save moves the one mark the package keeps of which set is active, every other member as read
 // (ActiveConfigMark, held to MATLAB's own save in test/activeConfigMark.test.ts). Refused: a set
-// active already; a Simulink.ConfigSetRef, which MATLAB makes active only once it finds the set the
-// reference points to (in the model's dictionary, or in R2013b the base workspace), which this editor
-// cannot look for (probe_active_config_set.m); a model no save of which can be written, a `.mdl`
-// among them; and a row that is no configuration set of a model.
+// active already; a model no save of which can be written, a `.mdl` among them; and a row that is no
+// configuration set of a model. A Simulink.ConfigSetRef is made active too, with a warning
+// (activeConfigSetCaution): MATLAB uses one only once it finds the set it refers to, in the model's
+// dictionary or, with none, the base workspace (probe_active_config_set.m), which this editor cannot
+// check without MATLAB.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +59,35 @@ describe('a set made active', () => {
     const mark = activeMarkMember(read)!;
     expect(Object.keys(saved)).toEqual(Object.keys(read));
     expect(Object.keys(read).filter((n) => !same(saved[n], read[n]))).toEqual([mark]);
+  });
+
+  it.each([
+    ['acs_ref.slx', 'in the data dictionary "acs_dict.sldd"'],
+    ['acs_ref_R2025a.slx', 'in the data dictionary "acs_dict.sldd"'],
+    ['acs_ref_R2021a.slx', 'in the data dictionary "acs_dict.sldd"'],
+    ['acs_ref_R2018a.slx', 'in the data dictionary "acs_dict.sldd"'],
+    // R2013b keeps no dictionary: its export dropped the link, and MATLAB looks in the base workspace.
+    ['acs_ref_R2013b.slx', 'in the base workspace'],
+  ])('%s: a reference to a set is made active too, warning that MATLAB alone can check it', (file, where) => {
+    const o = opened(ACTIVE + file);
+    const ref = o.set('RefFromDict');
+    expect(o.s.activeConfigSetRefusal(ref.id)).toBeNull();
+    expect(o.s.activeConfigSetCaution(ref.id)).toBe(
+      `"RefFromDict" refers to the configuration set "dictCfg" ${where}. Without MATLAB this editor cannot check ` +
+        'that the set is there: open the model in MATLAB to confirm.',
+    );
+    expect(o.s.setActiveConfigSet(ref.id)).toBe(true);
+    expect(o.actives()).toEqual([['Configuration', false], ['RefFromDict', true]]);
+    expect(o.config.children.map((c: Any) => c.icon)).toEqual(['settings', 'check_configurationReference']);
+    expect(activeIn(o.save())).toEqual(['RefFromDict']);
+    // Active now, it is not made active again, and there is nothing to warn of.
+    expect(o.s.activeConfigSetCaution(ref.id)).toBeNull();
+  });
+
+  it('warns of nothing for a set that is no reference, a set not made active, or a row that is none', () => {
+    const o = opened(ACTIVE + 'acs_sets.slx');
+    const asked = [o.set('Fast').id, o.set('Configuration').id, o.config.id, 'no such row'].map((id) => o.s.activeConfigSetCaution(id));
+    expect(asked).toEqual([null, null, null, null]);
   });
 
   it('one undo step: Undo makes active again the set that was, Redo the one made', () => {
@@ -120,17 +150,6 @@ describe('a set that is not made active says why, and nothing changes', () => {
   it('the active one', () => {
     const o = opened(ACTIVE + 'acs_sets.slx');
     refused(o, o.set('Configuration'), 'Cannot make "Configuration" the active configuration set: it is the active one already. Nothing was changed.');
-  });
-
-  it.each(['acs_ref.slx', 'acs_ref_R2021a.slx', 'acs_ref_R2013b.slx'])('%s: a reference to a set', (file) => {
-    const o = opened(ACTIVE + file);
-    refused(
-      o,
-      o.set('RefFromDict'),
-      'Cannot make "RefFromDict" the active configuration set: it refers to "dictCfg", and MATLAB makes a reference active only once ' +
-        'it finds the set it refers to, which this editor cannot look for. Nothing was changed.',
-    );
-    expect(o.actives()).toEqual([['Configuration', true], ['RefFromDict', false]]);
   });
 
   it('a .mdl', () => {
@@ -202,6 +221,9 @@ describe('asking changes nothing, and agrees with the change', () => {
       const again = opened(ACTIVE + file);
       expect([id, again.s.setActiveConfigSet(id)]).toEqual([id, why === null]);
     }
-    expect(answers.filter(([, why]) => why === null).length).toBe(file.startsWith('acs_sets') ? 2 : 0);
+    expect(answers.filter(([, why]) => why === null).length).toBe(file.startsWith('acs_sets') ? 2 : 1);
+    // And the warning a reference is made active with: a question, as the refusal is.
+    for (const r of rows) o.s.activeConfigSetCaution(r.id);
+    expect(same(o.save(), saved)).toBe(true);
   });
 });

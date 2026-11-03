@@ -80,6 +80,7 @@ const QUERIES: [string, Ask][] = [
   ['renameRefusal', (o, n) => o.session.renameRefusal(n.id)],
   ['valueEditRefusal', (o, n) => o.session.valueEditRefusal(n.id)],
   ['activeConfigSetRefusal', (o, n) => o.session.activeConfigSetRefusal(n.id)],
+  ['activeConfigSetCaution', (o, n) => o.session.activeConfigSetCaution(n.id)],
   ['isUnchangedEdit', (o, n) => o.session.isUnchangedEdit(n.id, 'Value', String(n.displayValue ?? ''))],
   ['addEntryRefusal', (o, n) => (n.isContainer ? o.session.addEntryRefusal(n.id) : null)],
   ['copyRefusal', (o, n) => (n.isEntry ? [o.session.copyRefusal(n.id, 'json'), o.session.copyRefusal(n.id, 'xml')] : null)],
