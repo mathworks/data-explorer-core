@@ -53,7 +53,9 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
     const node = entryOf(src, 'config', 'RefFromDict');
     s.setActive(src, node);
     const before = node.SourceName;
-    expect(s.editProperty(node.id, 'SourceName', 'Other')).not.toBe(true);
+    expect((s.editProperty(node.id, 'SourceName', 'Other') as any).reason).toBe(
+      'Cannot edit "RefFromDict": it is in the Configurations section of "slxcfgref.slx", which this editor shows but does not edit.',
+    );
     expect(node.SourceName).toBe(before);
     expectUntouched(s, src);
   });
@@ -69,6 +71,7 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
   it('offers no editor of a row outside the workspace', () => {
     const { src } = modelSession(LAYOUTS);
     for (const key of ['blocks', 'config', 'references', 'dataSources']) {
+      expect(sectionOf(src, key).children.length, key).toBeGreaterThan(0);
       for (const node of sectionOf(src, key).children) {
         expect(node.nameEditable, key + ' ' + node.name).toBe(false);
         expect(node.toRow().Name.editable, key + ' ' + node.name).toBe(false);
@@ -77,13 +80,20 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
     }
   });
 
-  it('refuses a rename of a block, a reference and an external data source', () => {
+  it('refuses a rename of a block, a reference and an external data source, saying why', () => {
     const { s, src } = modelSession(LAYOUTS);
-    for (const key of ['blocks', 'references', 'dataSources']) {
+    for (const [key, label] of [
+      ['blocks', 'Model Elements'],
+      ['references', 'Model References'],
+      ['dataSources', 'External Data'],
+    ]) {
       const node = sectionOf(src, key).children[0];
       const before = node.name;
       s.setActive(src, node);
-      expect(s.editProperty(node.id, 'Name', 'renamed'), key).not.toBe(true);
+      expect(s.editProperty(node.id, 'Name', 'renamed'), key).toBe(false);
+      expect(s.renameRefusal(node.id), key).toBe(
+        `Cannot rename "${before}": it is in the ${label} section of "slxcases.slx", which this editor shows but does not edit.`,
+      );
       expect(node.name, key).toBe(before);
     }
     expectUntouched(s, src);
