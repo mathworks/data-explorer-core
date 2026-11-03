@@ -4,16 +4,8 @@ import ContainerNode from '../ContainerNode.js';
 import { parseMat } from '../../parser/MatParser.js';
 import { matOfWorkspaceStream } from '../../parser/ModelWorkspaceStream.js';
 import { basenameOf } from '../../fileKinds.js';
-/** Where a `.slx` keeps its model workspace from R2019b: MATLAB's getByteStreamFromArray of a struct of the variables. */
-export const WORKSPACE_STREAM_PART = 'simulink/modelWorkspace.mxarray';
-/** Where a `.slx` kept it before R2019b: a whole MAT-file. */
-export const WORKSPACE_MAT_PART = 'simulink/modelworkspace.mat';
-// MATLAB's getByteStreamFromArray(struct()): a workspace with no variables, which is what a model
-// that keeps its own workspace and writes no part for it holds (measured on R2027a,
-// test/parity/matlab/probe_workspace_stream.m).
-const EMPTY_WORKSPACE = Uint8Array.from('0001494d000000000e000000380000000600000008000000020000000000000005000000080000000100000001000000010000000000000005000400010000000100000000000000'
-    .match(/../g)
-    .map((h) => parseInt(h, 16)));
+import { EMPTY_WORKSPACE, WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, handedAway, packageRefusal } from '../../parser/ModelPackage.js';
+export { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART };
 /**
  * A model's Model Workspace, as a `.slx` keeps it: a MAT-file's editor over the MAT-file the
  * workspace part converts into (ModelWorkspaceStream), under the model, so that every rule of a
@@ -72,8 +64,23 @@ export default class ModelWorkspaceNode extends MatNode {
         const model = this.parent;
         return model ? basenameOf(model.name) || model.name : this.name;
     }
+    // Of the workspace (its source), then of the model's package (a save of which the workspace's is
+    // part of), then of the MAT-file it is edited as. A package's verdict is found once, and asked
+    // again only of a part handed away since, as a MAT-file's is (MatNode._fileRefusal).
     _fileRefusal() {
-        return this._modelRefusal ?? super._fileRefusal();
+        if (this._modelRefusal) {
+            return this._modelRefusal;
+        }
+        const model = this.parent;
+        if (model && (this._packageVerdict === undefined || (this._packageVerdict === null && this._partHandedAway(model)))) {
+            const why = packageRefusal(model);
+            this._packageVerdict = why ? 'Cannot edit "' + this._modelName + '": ' + why + '.' : null;
+        }
+        return this._packageVerdict ?? super._fileRefusal();
+    }
+    _partHandedAway(model) {
+        const part = this._part ? model._zipEntries?.[this._part] : undefined;
+        return part !== undefined && handedAway(part);
     }
     /**
      * The Model Workspace of `parsed`, a `.slx`'s parse, as a MAT-file's editor, or null where its part
@@ -144,7 +151,7 @@ function sourceRefusal(model, parsed) {
         : source === 'MATLAB File'
             ? 'is made by running a MATLAB file each time the model opens'
             : source === 'MATLAB Code'
-                ? 'is made by running MATLAB code the model holds each time it opens'
+                ? 'is made by running MATLAB code kept in the model each time the model opens'
                 : 'is made from its data source, ' + source + ', each time the model opens';
     return 'Cannot edit "' + model + '": its Model Workspace ' + from + ', so an edit of it here would not be kept.';
 }

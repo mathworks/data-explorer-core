@@ -97,7 +97,7 @@ describe('where its variables come from decides whether it takes an edit', () =>
     const model: any = s.addModelSource('wsf_mcode.slx', fileBuffer('fixtures/workspace-facts/wsf_mcode.slx'));
     s.setActiveContext(model);
     expect(s.addEntry('workspace', '', 'k2')).toBeNull();
-    expect(s.addEntryRefusal()).toMatch(/its Model Workspace is made by running MATLAB code the model holds each time it opens/);
+    expect(s.addEntryRefusal()).toMatch(/its Model Workspace is made by running MATLAB code kept in the model each time the model opens/);
     expect(model.dirty).toBe(false);
   });
 });
@@ -122,9 +122,9 @@ describe('the parts each layout keeps it in', () => {
   });
 
   it('none, for a model that keeps no variables: an empty workspace that takes one', () => {
-    const file = 'fixtures/model_with_refs.slx';
+    const file = 'parity/artifacts/slx_layouts/slxcfgref.slx';
     const s = createSession();
-    const model: any = s.addModelSource('model_with_refs.slx', fileBuffer(file));
+    const model: any = s.addModelSource('slxcfgref.slx', fileBuffer(file));
     const workspace = model.getSection('workspace') as ModelWorkspaceNode;
     expect([workspace._part, workspace.children.length, workspace.readOnly]).toEqual([null, 0, false]);
     s.setActiveContext(model);
@@ -132,6 +132,16 @@ describe('the parts each layout keeps it in', () => {
     expect(model.dirty).toBe(true);
     model.dirty = false;
     expect([model.dirty, workspace.dirty]).toEqual([false, false]);
+  });
+});
+
+describe('a package MATLAB would not open as one takes no edit of its workspace', () => {
+  it('model_with_refs.slx, made by hand, which names none of its parts', () => {
+    const model = ModelNode.fromParsed(parseSlx(fileBuffer('fixtures/model_with_refs.slx'), 'model_with_refs.slx'), 'model_with_refs.slx');
+    expect(model.readOnly).toBe(true);
+    expect((model.getSection('workspace') as ModelWorkspaceNode)._fileRefusal()).toBe(
+      'Cannot edit "model_with_refs.slx": it holds no "[Content_Types].xml", which a package names its parts in.',
+    );
   });
 });
 

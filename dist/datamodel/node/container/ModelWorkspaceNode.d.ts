@@ -3,10 +3,8 @@ import type { TableColumnConfig } from '../ContainerNode.js';
 import type { PIGroupDef, PropClass } from '../BaseNode.js';
 import { type WorkspaceStreamRead } from '../../parser/ModelWorkspaceStream.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
-/** Where a `.slx` keeps its model workspace from R2019b: MATLAB's getByteStreamFromArray of a struct of the variables. */
-export declare const WORKSPACE_STREAM_PART = "simulink/modelWorkspace.mxarray";
-/** Where a `.slx` kept it before R2019b: a whole MAT-file. */
-export declare const WORKSPACE_MAT_PART = "simulink/modelworkspace.mat";
+import { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, type ModelPackage } from '../../parser/ModelPackage.js';
+export { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART };
 /** What a model is read as for its workspace: ModelNode.fromParsed's parse, as wide as that one is. */
 export interface WorkspaceOfModel {
     zipEntries: Record<string, Uint8Array> | null;
@@ -30,6 +28,7 @@ export default class ModelWorkspaceNode extends MatNode {
     _part: string | null;
     _streamRead: WorkspaceStreamRead | null;
     _modelRefusal: string | null;
+    _packageVerdict: string | null | undefined;
     constructor();
     get icon(): string;
     get displayName(): string;
@@ -43,6 +42,7 @@ export default class ModelWorkspaceNode extends MatNode {
     get _namespaceLabel(): string;
     get _modelName(): string;
     _fileRefusal(): string | null;
+    _partHandedAway(model: ModelPackage): boolean;
     /**
      * The Model Workspace of `parsed`, a `.slx`'s parse, as a MAT-file's editor, or null where its part
      * is not one this converts into a MAT-file exactly, or the parse holds no parts at all (a host's

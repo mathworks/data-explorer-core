@@ -68,8 +68,13 @@ export default class ModelNode extends ContainerNode {
     get displayName() {
         return this.name;
     }
+    // Whether nothing of the model takes an edit a save writes: its Model Workspace is the one part of
+    // it edited, a `.slx`'s, where the model keeps it and its package can be written back
+    // (ModelWorkspaceNode._fileRefusal, which asks ModelPackage.packageRefusal); every other section
+    // is shown and not edited.
     get readOnly() {
-        return true;
+        const workspace = this.getSection('workspace');
+        return !(workspace instanceof ModelWorkspaceNode) || workspace.readOnly;
     }
     // The format an out-of-process host is told this source is, since SourceDTO carries
     // this field and nothing else in the projection names the format. Three values rather

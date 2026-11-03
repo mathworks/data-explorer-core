@@ -9,20 +9,9 @@ import type { ParsedMat } from '../../parser/MatParser.js';
 import { matOfWorkspaceStream, type WorkspaceStreamRead } from '../../parser/ModelWorkspaceStream.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { basenameOf } from '../../fileKinds.js';
+import { EMPTY_WORKSPACE, WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, handedAway, packageRefusal, type ModelPackage } from '../../parser/ModelPackage.js';
 
-/** Where a `.slx` keeps its model workspace from R2019b: MATLAB's getByteStreamFromArray of a struct of the variables. */
-export const WORKSPACE_STREAM_PART = 'simulink/modelWorkspace.mxarray';
-/** Where a `.slx` kept it before R2019b: a whole MAT-file. */
-export const WORKSPACE_MAT_PART = 'simulink/modelworkspace.mat';
-
-// MATLAB's getByteStreamFromArray(struct()): a workspace with no variables, which is what a model
-// that keeps its own workspace and writes no part for it holds (measured on R2027a,
-// test/parity/matlab/probe_workspace_stream.m).
-const EMPTY_WORKSPACE = Uint8Array.from(
-  '0001494d000000000e000000380000000600000008000000020000000000000005000000080000000100000001000000010000000000000005000400010000000100000000000000'
-    .match(/../g)!
-    .map((h) => parseInt(h, 16)),
-);
+export { WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART };
 
 /** What a model is read as for its workspace: ModelNode.fromParsed's parse, as wide as that one is. */
 export interface WorkspaceOfModel {
@@ -51,6 +40,8 @@ export default class ModelWorkspaceNode extends MatNode {
   _streamRead: WorkspaceStreamRead | null = null;
   // Why no edit of it would be kept, whatever the MAT-file's rules say, as a sentence; or null.
   _modelRefusal: string | null = null;
+  // Why no save of the model's package can be written (ModelPackage.packageRefusal), found once.
+  _packageVerdict: string | null | undefined;
 
   constructor() {
     super('workspace');
@@ -101,8 +92,24 @@ export default class ModelWorkspaceNode extends MatNode {
     return model ? basenameOf(model.name) || model.name : this.name;
   }
 
+  // Of the workspace (its source), then of the model's package (a save of which the workspace's is
+  // part of), then of the MAT-file it is edited as. A package's verdict is found once, and asked
+  // again only of a part handed away since, as a MAT-file's is (MatNode._fileRefusal).
   _fileRefusal(): string | null {
-    return this._modelRefusal ?? super._fileRefusal();
+    if (this._modelRefusal) {
+      return this._modelRefusal;
+    }
+    const model = this.parent as unknown as ModelPackage | null;
+    if (model && (this._packageVerdict === undefined || (this._packageVerdict === null && this._partHandedAway(model)))) {
+      const why = packageRefusal(model);
+      this._packageVerdict = why ? 'Cannot edit "' + this._modelName + '": ' + why + '.' : null;
+    }
+    return this._packageVerdict ?? super._fileRefusal();
+  }
+
+  _partHandedAway(model: ModelPackage): boolean {
+    const part = this._part ? model._zipEntries?.[this._part] : undefined;
+    return part !== undefined && handedAway(part);
   }
 
   /**
@@ -173,7 +180,7 @@ function sourceRefusal(model: string, parsed: WorkspaceOfModel): string | null {
       : source === 'MATLAB File'
         ? 'is made by running a MATLAB file each time the model opens'
         : source === 'MATLAB Code'
-          ? 'is made by running MATLAB code the model holds each time it opens'
+          ? 'is made by running MATLAB code kept in the model each time the model opens'
           : 'is made from its data source, ' + source + ', each time the model opens';
   return 'Cannot edit "' + model + '": its Model Workspace ' + from + ', so an edit of it here would not be kept.';
 }

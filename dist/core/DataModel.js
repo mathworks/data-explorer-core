@@ -11,6 +11,7 @@ import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd, serializeEntryToXml } from '../datamodel/parser/BinarySlddSerializer.js';
 import { MatWriteError } from '../datamodel/parser/MatWriter.js';
 import { serializeMatFile } from '../datamodel/parser/MatFileWriter.js';
+import { serializeModelFile } from '../datamodel/parser/ModelFileWriter.js';
 import { catalogFunctionRenames, catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
@@ -2948,8 +2949,9 @@ export function createSession(opts = {}) {
      *
      * Null for two distinct absences, deliberately given the same answer: a srcId the
      * session does not hold (the same answer getDataSource gives the same question), and
-     * a source whose format HAS no write path. `.slx`, `.mdl` and `.prj` are read-only in
-     * this package — `.sldd` and `.mat` have writers. Null rather than a throw because a
+     * a source whose format HAS no write path. `.mdl` and `.prj` are read-only in this
+     * package — `.sldd`, `.mat` and `.slx` have writers (a `.slx` writes its Model Workspace
+     * and every other part as it was read). Null rather than a throw because a
      * consumer enumerating every open source to find the saveable ones should not need a
      * try/catch per source, and because there is nothing exceptional about a project file
      * not being writable.
@@ -2978,6 +2980,11 @@ export function createSession(opts = {}) {
         // and the node bound to each, which only a MatNode built from a parse holds.
         if (source instanceof MatNode) {
             return { kind: 'binary', sourceFormat: source.sourceFormat, bytes: serializeMatFile(source) };
+        }
+        // A `.slx` is written as its package was read, its Model Workspace's part as the workspace's save
+        // writes it (ModelFileWriter): binary, a zip. A `.mdl` has no write path, and answers null.
+        if (source instanceof ModelNode) {
+            return source.sourceFormat === 'slx' ? { kind: 'binary', sourceFormat: 'slx', bytes: serializeModelFile(source) } : null;
         }
         // An instanceof rather than a duck test on serializeJson: serializeBinarySldd
         // reaches for _zipMetadata and _dataSourceAttrs, so a lookalike that merely

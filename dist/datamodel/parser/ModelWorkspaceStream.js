@@ -102,7 +102,18 @@ export function workspaceStreamOfMat(mat, read) {
         names.push(record.name);
         fields.push(field);
     }
-    const head = names.length === read.names.length && names.every((n, i) => n === read.names[i]) ? read.head : structHead(read.head, names);
+    // As read where the names are; where a variable was added, renamed or deleted, in the order
+    // MATLAB's save writes them, by their characters' codes (measured on R2027a: A_, Alpha, Beta, a1,
+    // a10, a2, a_, alpha, b), and the struct's head written anew for them.
+    const same = names.length === read.names.length && names.every((n, i) => n === read.names[i]);
+    if (!same) {
+        const order = names.map((_, i) => i).sort((a, b) => (names[a] < names[b] ? -1 : names[a] > names[b] ? 1 : 0));
+        const sortedNames = order.map((i) => names[i]);
+        const sortedFields = order.map((i) => fields[i]);
+        names.splice(0, names.length, ...sortedNames);
+        fields.splice(0, fields.length, ...sortedFields);
+    }
+    const head = same ? read.head : structHead(read.head, names);
     const body = concat([head, ...fields]);
     return concat([read.preamble, u32le(MI_MATRIX), u32le(body.length), body, ...(subsystem ? [subsystem] : [])]);
 }

@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { unzipSync } from 'fflate';
 import { createSession, ingest, parseBinarySldd, serializeBinarySldd, SlddNode } from '../src/index.js';
 import { applyScEdits, scRenameEdits, scanScJsonText } from '../src/index.js';
 
@@ -128,16 +129,29 @@ describe('session.serializeSource', () => {
   });
 
   it('returns null for a read-only format instead of throwing', () => {
-    // .slx / .mdl / .prj have no write path at all (see docs/TODO.md, "Not gaps"). A
-    // consumer enumerating every open source must not need a try/catch per source to
-    // find that out, and must never be handed bytes that only look like a file —
+    // .mdl / .prj have no write path at all (see docs/TODO.md, "Not gaps"). A consumer
+    // enumerating every open source must not need a try/catch per source to find that
+    // out, and must never be handed bytes that only look like a file —
     // ModelNode.serialize(), for one, returns a summary object, not a model.
     const s = createSession();
-    s.addModelSource('model_with_refs.slx', bytes('model_with_refs.slx'));
+    s.addModelSource('model_with_refs.mdl', bytes('model_with_refs.mdl'));
     s.addProjectSource('MyProj.prj', PRJ_STORE);
 
-    expect(s.serializeSource('model_with_refs.slx')).toBeNull();
+    expect(s.serializeSource('model_with_refs.mdl')).toBeNull();
     expect(s.serializeSource('MyProj.prj')).toBeNull();
+  });
+
+  it('answers a .slx with its package, which unedited holds every part as it was read', () => {
+    // A `.slx` is written as its package was read, its Model Workspace's part as that
+    // workspace's save writes it (test/modelFileSave.test.ts holds the edits to that).
+    const s = createSession();
+    s.addModelSource('cases.slx', bytes('../parity/artifacts/slx/cases.slx'));
+    const out = s.serializeSource('cases.slx')!;
+    expect([out.kind, out.sourceFormat]).toEqual(['binary', 'slx']);
+    const read = unzipSync(new Uint8Array(bytes('../parity/artifacts/slx/cases.slx')));
+    const written = unzipSync((out as { bytes: Uint8Array }).bytes);
+    expect(Object.keys(written)).toEqual(Object.keys(read));
+    for (const name of Object.keys(read)) expect(Buffer.from(written[name]).equals(Buffer.from(read[name])), name).toBe(true);
   });
 
   it('answers a MAT-file with its bytes, which unedited are the file it was read from', () => {

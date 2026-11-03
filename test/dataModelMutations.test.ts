@@ -146,7 +146,13 @@ describe('addEntry', () => {
   // ModelSectionNode, which implements neither getAllowedTypes nor execAddEntry, so it is
   // found by name and then refused for having no add hook.
   it("adds a variable to a model's Model Workspace, and an entry to no other section of it", () => {
-    const { s, src } = modelSession();
+    // A package MATLAB wrote: model_with_refs.slx holds no [Content_Types].xml, so no save of its
+    // workspace could name a part it adds, and its workspace takes no edit.
+    const path = fileURLToPath(new URL('./parity/artifacts/slx_layouts/slxcfgref.slx', import.meta.url));
+    const b = readFileSync(path);
+    const s = createSession();
+    const src = s.addModelSource('slxcfgref.slx', b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer) as any;
+    s.setActiveContext(src);
     const ws = sectionOf(src, 'workspace');
     const before = ws.children.length;
     expect(s.addEntry('config', 'Simulink.ConfigSet')).toBeNull();
