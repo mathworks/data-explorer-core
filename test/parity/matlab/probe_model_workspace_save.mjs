@@ -69,7 +69,7 @@ const cases = [
   { id: 'cases_undo', file: CASES, edits: [['edit', 'scalarD', 'Value', '42'], ['undo']], m: '' },
   { id: 'r27_value', file: R27, edits: [['edit', 'tau', 'Value', '0.5']], m: 'S.tau = 0.5;' },
   { id: 'r21_value', file: R21, edits: [['edit', 'tau', 'Value', '0.5']], m: 'S.tau = 0.5;' },
-  { id: 'r21_add_rename', file: R21, edits: [['add', 'k'], ['edit', 'span', 'Name', 'Span']], m: "S.k = 0; S.Span = S.span; S = rmfield(S, 'span');" },
+  { id: 'r21_add_rename', file: R21, edits: [['add', 'k'], ['edit', 'label', 'Name', 'Label']], m: "S.k = 0; S.Label = S.label; S = rmfield(S, 'label');" },
   { id: 'r18_value', file: R18, edits: [['edit', 'tau', 'Value', '0.5']], m: 'S.tau = 0.5;' },
   { id: 'r18_add_delete', file: R18, edits: [['add', 'k'], ['delete', 'flag']], m: "S.k = 0; S = rmfield(S, 'flag');" },
   { id: 'first_r27', file: 'parity/artifacts/slx_layouts/slxcfgref.slx', edits: [['add', 'k']], m: 'S.k = 0;' },
@@ -83,6 +83,9 @@ const cases = [
   { id: 'typed_double_over_int8', file: TYPED, edits: [['edit', 'pInt8', 'Value', '5']], m: 'S.pInt8.Value = 5;' },
   { id: 'typed_int8', file: TYPED, edits: [['edit', 'pInt8', 'Value', 'int8(5)']], m: 'S.pInt8.Value = int8(5);' },
   { id: 'nested_field_rename', file: NESTED, edits: [['edit', 'cfg.k', 'Name', 'kk']], m: "S.cfg.kk = S.cfg.k; S.cfg = rmfield(S.cfg, 'k');" },
+  // A Parameter's storage class a model workspace keeps (ModelWorkspaceNode offers every one but
+  // Custom), of one whose coder settings MATLAB keeps: nested in a struct, HasCoderInfo true.
+  { id: 'nested_storage_exported', file: NESTED, edits: [['edit', 'cfg.k', 'storageClass', 'ExportedGlobal']], m: "S.cfg.k.CoderInfo.StorageClass = 'ExportedGlobal';" },
   { id: 'sparse_plain', file: SPARSE, edits: [['edit', 'dRow', 'Value', '[1 2 3]']], m: 'S.dRow = [1 2 3];' },
 ];
 
