@@ -1,0 +1,17 @@
+{
+  "ConfigSetInfo":[
+    {
+      "ConfigSetName":"Configuration",
+      "PartName":"\/simulink\/configSet0.json"
+    },
+    {
+      "ConfigSetName":"Fast",
+      "PartName":"\/simulink\/configSet1.json"
+    },
+    {
+      "Active":true,
+      "ConfigSetName":"Slow",
+      "PartName":"\/simulink\/configSet2.json"
+    }
+  ]
+}
