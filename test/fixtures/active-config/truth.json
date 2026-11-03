@@ -1,0 +1,197 @@
+[
+  {
+    "file": "acs_ref.slx",
+    "release": "R2027a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "RefFromDict",
+        "class": "Simulink.ConfigSetRef",
+        "stopTime": "7"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_ref_R2013b.slx",
+    "release": "R2013b",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "RefFromDict",
+        "class": "Simulink.ConfigSetRef",
+        "stopTime": "7"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_ref_R2018a.slx",
+    "release": "R2018a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "RefFromDict",
+        "class": "Simulink.ConfigSetRef",
+        "stopTime": "7"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_ref_R2021a.slx",
+    "release": "R2021a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "RefFromDict",
+        "class": "Simulink.ConfigSetRef",
+        "stopTime": "7"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_ref_R2025a.slx",
+    "release": "R2025a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "RefFromDict",
+        "class": "Simulink.ConfigSetRef",
+        "stopTime": "7"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_sets.slx",
+    "release": "R2027a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "Fast",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "2"
+      },
+      {
+        "name": "Slow",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "5"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_sets_R2013b.slx",
+    "release": "R2013b",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "Fast",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "2"
+      },
+      {
+        "name": "Slow",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "5"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_sets_R2018a.slx",
+    "release": "R2018a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "Fast",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "2"
+      },
+      {
+        "name": "Slow",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "5"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_sets_R2021a.slx",
+    "release": "R2021a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "Fast",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "2"
+      },
+      {
+        "name": "Slow",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "5"
+      }
+    ],
+    "active": "Configuration"
+  },
+  {
+    "file": "acs_sets_R2025a.slx",
+    "release": "R2025a",
+    "sets": [
+      {
+        "name": "Configuration",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "10"
+      },
+      {
+        "name": "Fast",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "2"
+      },
+      {
+        "name": "Slow",
+        "class": "Simulink.ConfigSet",
+        "stopTime": "5"
+      }
+    ],
+    "active": "Configuration"
+  }
+]
