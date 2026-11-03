@@ -35,7 +35,7 @@
 // see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m, and
 // test/parity/mdlText.parity.test.ts and test/parity/matlab/gen_mdl_text.m.
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
-import { configSetIdentity, isExpressionMaskType, isParamReference, normalizeBlockName, parseModelParts, valueReferencesData, } from './SlxParser.js';
+import { MODEL_FILE, argumentNames, configSetIdentity, isExpressionMaskType, isParamReference, normalizeBlockName, parseModelParts, valueReferencesData, } from './SlxParser.js';
 import { parseMxArray } from './MxArrayParser.js';
 import { decodeMatStream } from './MatParser.js';
 import { uudecode } from './CdataCodec.js';
@@ -688,6 +688,9 @@ function parseClassicMdl(bytes, filename) {
         modelReferences: classicModelReferences(model, modelName),
         externalDataSources,
         workspaceDataSource,
+        workspaceSource: prop(model, 'WSDataSource') || MODEL_FILE,
+        // On the model, or as R2011b and R2017b write it, under its GraphicalInterface.
+        modelArguments: argumentNames(prop(model, 'ParameterArgumentNames') ?? prop(childNamed(model, 'GraphicalInterface'), 'ParameterArgumentNames')),
         configSets: classicConfigSets(model),
         workspace: classicWorkspace(root, model, warnings),
         ...classicBlockParamUsages(model),

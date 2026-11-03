@@ -23,6 +23,8 @@ export default class ModelNode extends ContainerNode {
         this.uuid = '';
         this.dataDictionary = null;
         this.workspaceDataSource = null;
+        this.workspaceSource = 'Model File';
+        this.modelArguments = [];
         this.rawContents = null;
         this.dirty = false;
         this.blockParamUsages = [];
@@ -147,6 +149,8 @@ export default class ModelNode extends ContainerNode {
             typeof parsed.workspaceDataSource === 'string' && parsed.workspaceDataSource !== ''
                 ? parsed.workspaceDataSource
                 : null;
+        node.workspaceSource = typeof parsed.workspaceSource === 'string' && parsed.workspaceSource !== '' ? parsed.workspaceSource : 'Model File';
+        node.modelArguments = Array.isArray(parsed.modelArguments) ? parsed.modelArguments.filter((n) => typeof n === 'string') : [];
         node.rawContents = parsed.rawContents || null;
         node._zipEntries = parsed.zipEntries || null;
         node._workspaceVars = parsed.workspace;

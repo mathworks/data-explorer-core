@@ -38,6 +38,8 @@
 
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import {
+  MODEL_FILE,
+  argumentNames,
   configSetIdentity,
   isExpressionMaskType,
   isParamReference,
@@ -803,6 +805,9 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
     modelReferences: classicModelReferences(model, modelName),
     externalDataSources,
     workspaceDataSource,
+    workspaceSource: prop(model, 'WSDataSource') || MODEL_FILE,
+    // On the model, or as R2011b and R2017b write it, under its GraphicalInterface.
+    modelArguments: argumentNames(prop(model, 'ParameterArgumentNames') ?? prop(childNamed(model, 'GraphicalInterface'), 'ParameterArgumentNames')),
     configSets: classicConfigSets(model),
     workspace: classicWorkspace(root, model, warnings),
     ...classicBlockParamUsages(model),
