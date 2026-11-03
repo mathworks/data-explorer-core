@@ -101,7 +101,7 @@ export function serializeMatFile(matNode, check = {}) {
     return matNode._inLiveScope(() => serializeMatFileNow(matNode, check));
 }
 function serializeMatFileNow(matNode, check) {
-    const file = matNode.name;
+    const file = matNode._saveLabel;
     const unsavable = unsavableRefusal(matNode);
     if (unsavable) {
         throw unsavable;
@@ -130,7 +130,7 @@ function serializeMatFileNow(matNode, check) {
  * takes no edit of a file no save can write (MatNode._editRefusal).
  */
 export function unsavableRefusal(matNode) {
-    const file = matNode.name;
+    const file = matNode._saveLabel;
     const { records, headerBytes } = matNode;
     if (!records || !headerBytes) {
         return new MatWriteError('Cannot save "' + file + '": it was opened without the records a save writes back, so a save would lose every one '
@@ -263,7 +263,7 @@ function planOf(matNode, records, subsystem) {
         // The subsystem is planned as its own bytes, always (above): one not found is a plan this
         // writer did not make, and the edit is refused rather than dropped.
         if (at < 0) {
-            throw new MatWriteError('Cannot save "' + matNode.name + "\": the file's objects are not among the records it writes, so an edit of one could not be written. Nothing was written.");
+            throw new MatWriteError('Cannot save "' + matNode._saveLabel + "\": the file's objects are not among the records it writes, so an edit of one could not be written. Nothing was written.");
         }
         // Named, where a refusal names it, for the first variable whose object's edit it writes.
         const record = objects.record;
@@ -311,7 +311,7 @@ export const PAST_SUBSYSTEM = "it is stored after the file's objects, where MATL
  * read from. So the editor asks it of every edit (MatNode._editRefusal).
  */
 export function structureRefusal(matNode, records, subsystem) {
-    const file = matNode.name;
+    const file = matNode._saveLabel;
     const offset = matNode.subsystemOffset;
     if (offset !== 0 && !subsystem) {
         return new MatWriteError('Cannot save "' + file + '": its header places the file\'s objects at byte ' + offset + ', where '

@@ -49,8 +49,9 @@ export function encodedHolderOf(node) {
  * 'Value' for a child added or removed.
  *
  * A source answers for itself, through the first container above the node, which an entry is a
- * child of: a MAT-file, whose save writes only some edits (MatNode._editRefusal). A dictionary's
- * section and a model's do not answer, and take every edit their nodes take. Asked by every
+ * child of: a MAT-file, whose save writes only some edits (MatNode._editRefusal), and a model's
+ * section, which refuses every edit but in its Model Workspace (ModelSectionNode._editRefusal). A
+ * dictionary's section does not answer, and takes every edit its nodes take. Asked by every
  * editability getter below, by the structural gates (DataNode._encodedReadOnly), by the setters
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
@@ -611,6 +612,12 @@ export default class BaseNode {
         // and so is a dictionary value's stream of objects the node is in (mcosStream).
         if (typeof source._nodeEdited === 'function') {
             source._nodeEdited(this);
+        }
+        // And a source below the root, which a model's Model Workspace is (a MatNode under the model):
+        // the first container above the node's entry, the one sourceEditRefusal asks.
+        const inner = sourceOf(this).source;
+        if (inner && inner !== source && typeof inner._nodeEdited === 'function') {
+            inner._nodeEdited(this);
         }
         mcosStreamGateAbove(this)?._nodeEdited(this);
         // Every mutation reaches here, so this is where a rename — the edit that actually moves

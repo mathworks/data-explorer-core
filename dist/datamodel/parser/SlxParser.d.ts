@@ -80,6 +80,21 @@ export interface ParsedSlx {
      * read this for that (UsageIndex.resolveName, DataModel's resolutionOrder).
      */
     workspaceDataSource: string | null;
+    /**
+     * Where the model workspace's variables come from (WSDataSource): 'Model File' where the model
+     * keeps them, which MATLAB records by writing no data source at all, or 'MAT-File',
+     * 'MATLAB File' or 'MATLAB Code', spelled so in every layout (measured on R2027a and its exports
+     * to R2025a, R2021a and R2018a: test/parity/matlab/gen_workspace_facts.m). Only a workspace the
+     * model keeps is held in the model's own workspace part: one of another source is made anew from
+     * it as the model loads, and a variable a save wrote into the part would be lost.
+     */
+    workspaceSource: string;
+    /**
+     * The model's arguments (ParameterArgumentNames), names of its workspace variables, in the
+     * model's order: a comma-separated list under the model's ModelReferenceSettings, in
+     * blockDiagram.json or blockdiagram.xml, in every layout.
+     */
+    modelArguments: string[];
     configSets: ParsedConfigSet[];
     workspace: MatVariable[] & {
         _trailingElements: Uint8Array[];
@@ -130,6 +145,13 @@ export declare function isParamReference(blockType: string, propName: string, va
  * answer — the type is spelled the same in both formats, so the set can be shared whole.
  */
 export declare function isExpressionMaskType(type: string): boolean;
+/** The data source of a workspace the model keeps itself, which MATLAB writes no WSDataSource for. */
+export declare const MODEL_FILE = "Model File";
+/**
+ * The model arguments a ParameterArgumentNames value names: a comma-separated list, as MATLAB
+ * writes it (`k,gain`), its names trimmed and empty ones dropped; none for no value.
+ */
+export declare function argumentNames(value: unknown): string[];
 export declare function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx;
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.

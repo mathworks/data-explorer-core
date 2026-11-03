@@ -2257,16 +2257,16 @@ function pasteEntries(containerId: string, payloads: readonly PastePayload[], op
   if (section) {
     return pasteIntoSection(section, payloads, opts?.removeFirst ?? []);
   }
-  const refused = pasteTargetRefusal(srcId, source);
-  if (refused) {
-    return { error: true, reason: refused };
+  const mat = matTargetOf(containerId, source);
+  const refused = pasteTargetRefusal(srcId, source, mat);
+  if (refused || !mat) {
+    return { error: true, reason: refused! };
   }
-  const mat = source as unknown as MatNode;
   if (!Array.isArray(payloads)) {
     return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": what was handed over is not a list of entries. Nothing was pasted.' };
   }
   if ((opts?.removeFirst?.length ?? 0) > 0) {
-    return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": a MAT-file takes no entries out before a paste, as a move within it is no move. Nothing was pasted.' };
+    return { error: true, reason: 'Cannot paste into "' + mat._namespaceLabel + '": ' + withArticle(mat._noun) + ' takes no entries out before a paste, as a move within it is no move. Nothing was pasted.' };
   }
   if (payloads.length === 0) {
     return { nodes: [] };
@@ -2276,7 +2276,10 @@ function pasteEntries(containerId: string, payloads: readonly PastePayload[], op
     return made;
   }
   const nodes = made.nodes as unknown as INode[];
-  const scope = mat as unknown as ISourceNode;
+  // Announced under the MatNode, as a dictionary's paste is under its section, and filed under the
+  // document it is in: itself, or the model a Model Workspace is under.
+  const scope = mat as unknown as IContainerNode;
+  const owner = editableOwnerOf(mat as unknown as INode)!;
   const added = () => {
     for (const node of nodes) {
       indexSubtree(node);
@@ -2285,7 +2288,7 @@ function pasteEntries(containerId: string, payloads: readonly PastePayload[], op
       publishIndexed('node/added', { node, sectionKey: scope.name });
     }
   };
-  UndoManager.pushExecuted(scope.name, {
+  UndoManager.pushExecuted(owner.name, {
     execute() {
       made.redo();
       added();
@@ -2301,7 +2304,7 @@ function pasteEntries(containerId: string, payloads: readonly PastePayload[], op
       }
       releaseSubtreeSelection(held.flatMap((h) => h.nodes));
       for (const node of nodes) {
-        publishIndexed('node/deleted', { node, section: scope as unknown as IContainerNode });
+        publishIndexed('node/deleted', { node, section: scope });
       }
     },
   });
@@ -2325,13 +2328,30 @@ function pasteRefusal(containerId: string, payload: PastePayload, opts?: { deep?
   if (section) {
     return sectionPasteRefusal(section, payload, opts?.deep === true);
   }
-  const refused = pasteTargetRefusal(srcId, source);
-  return refused ?? (source as unknown as MatNode).pasteRefusal(payload, opts?.deep === true);
+  const mat = matTargetOf(containerId, source);
+  const refused = pasteTargetRefusal(srcId, source, mat);
+  return refused ?? mat!.pasteRefusal(payload, opts?.deep === true);
+}
+
+// The MatNode `containerId` names: a MAT-file by its srcId, or a MatNode under another node by its
+// node id (a model's Model Workspace); or null.
+function matTargetOf(containerId: string, source: ISourceNode | undefined): MatNode | null {
+  if (source) {
+    return source instanceof MatNode ? source : null;
+  }
+  const node = resolveId(containerId);
+  return node instanceof MatNode ? node : null;
 }
 
 // Why `source`, the source `srcId` names, takes no paste through the session: none is open under
-// it, or it is a dictionary, which takes one into a section of it.
-function pasteTargetRefusal(srcId: string, source: ISourceNode | undefined): string | null {
+// it, or it is a dictionary, which takes one into a section of it; or `mat`, the MatNode it names,
+// is in no file this session edits.
+function pasteTargetRefusal(srcId: string, source: ISourceNode | undefined, mat: MatNode | null): string | null {
+  if (mat) {
+    return editableOwnerOf(mat as unknown as INode)
+      ? null
+      : 'Cannot paste into "' + mat._namespaceLabel + '": ' + notEditedWhy(mat as unknown as INode) + '. Nothing was pasted.';
+  }
   if (!source) {
     return 'Cannot paste into "' + srcId + '": no source of that id is open. Nothing was pasted.';
   }
@@ -2510,7 +2530,8 @@ function copyRefusal(nodeId: string, target?: 'json' | 'xml'): string | null {
   };
   let payload: { name: string; metadata: unknown; value: unknown };
   let lossy: string | null;
-  const ofMatFile = ownerSourceOf(node) instanceof MatNode;
+  // The variable of a MatNode, a MAT-file or one under another node (a model's Model Workspace).
+  const ofMatFile = node.parent instanceof MatNode;
   try {
     payload = (node as unknown as { serialize: () => { name: string; metadata: unknown; value: unknown } }).serialize();
     // A copy that reads back as another value than the entry holds would paste as one
@@ -2926,11 +2947,14 @@ function deleteWhy(node: INode): string | null {
     return notEditedWhy(node);
   }
   if (node.isEntry) {
+    // The section's own refusal first, where it has one: a model's says which of its sections the
+    // entry is in (ModelSectionNode.removeEntryRefusal).
     const section = node.parent as IContainerNode | null;
-    if (!section || !section.execRemoveEntry) {
-      return notEditedWhy(node);
+    const refused = section?.removeEntryRefusal ? section.removeEntryRefusal(node) : null;
+    if (refused || !section || !section.execRemoveEntry) {
+      return refused ?? notEditedWhy(node);
     }
-    return section.removeEntryRefusal ? section.removeEntryRefusal(node) : null;
+    return null;
   }
   const parent = node.parent;
   if (!parent) {

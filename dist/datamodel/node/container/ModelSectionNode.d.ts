@@ -10,6 +10,10 @@ export default class ModelSectionNode extends ContainerNode {
     get icon(): string;
     get displayName(): string;
     get tableColumnConfig(): TableColumnConfig;
+    _editRefusal(_entry: BaseNode, _node: BaseNode, _key: string, describe?: boolean): string | null;
+    /** Why an entry of this section is not deleted, as a clause (the session's deleteRefusal). */
+    removeEntryRefusal(_node: BaseNode): string | null;
+    _notEditedWhy(): string;
     addWorkspaceEntry(entry: MatVariable): BaseNode;
     addConfigSetEntry(cfg: ParsedConfigSet): BaseNode;
     addReferenceEntry(ref: {

@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
-import { unzipEntries } from './Inflate.js';
+import { unzipEntries, zipMemberStamps } from './Inflate.js';
+import { recordPackageStamps } from './EntrySource.js';
 import { readModelXml } from './XmlReader.js';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
@@ -840,6 +841,15 @@ function extractModelReferences(graphicalInterface, warnings) {
     return out;
 }
 const WORKSPACE_PART = 'simulink/modelWorkspace.mxarray';
+/** The data source of a workspace the model keeps itself, which MATLAB writes no WSDataSource for. */
+export const MODEL_FILE = 'Model File';
+/**
+ * The model arguments a ParameterArgumentNames value names: a comma-separated list, as MATLAB
+ * writes it (`k,gain`), its names trimmed and empty ones dropped; none for no value.
+ */
+export function argumentNames(value) {
+    return typeof value === 'string' ? value.split(',').map((n) => n.trim()).filter((n) => n !== '') : [];
+}
 const WORKSPACE_LOST = "this model's workspace variables were not read";
 // Whether a part's bytes are JSON text: the first byte that is not white space opens an
 // object. Nothing else is checked, since the JSON reader that follows reports the rest.
@@ -947,7 +957,19 @@ function jsonClassAndSize(json) {
 }
 export function parseSlx(buffer, filename) {
     const unreadable = [];
-    const parsed = parseModelParts(unzipEntries(new Uint8Array(buffer), undefined, unreadable), filename);
+    const bytes = new Uint8Array(buffer);
+    const entries = unzipEntries(bytes, undefined, unreadable);
+    const parsed = parseModelParts(entries, filename);
+    // Every member of the package, in its directory's order, with the time, date and method it
+    // records for it: what a save puts the package back together by, beside the parts, as a binary
+    // dictionary's are (EntrySource.recordPackageStamps), and not in the parse, which is the model's
+    // and the same whatever the parts were framed in. A member the directory names that the parts do
+    // not hold (one that could not be read, or one named `__proto__`) is how a save knows it could
+    // not write the package back whole.
+    const stamps = zipMemberStamps(bytes);
+    if (stamps) {
+        recordPackageStamps(entries, stamps);
+    }
     // A member the package holds and that could not be inflated (one that runs past the size
     // its directory entry declares) is not handed to `parseModelParts` at all, so to that
     // reader it is absent — which it reads silently, as it should for a part a release never
@@ -1002,6 +1024,8 @@ export function parseModelParts(entries, filename) {
     let dataDictionary = null;
     let uuid = '';
     let workspaceMatFile = null;
+    let workspaceSource = MODEL_FILE;
+    let modelArguments = [];
     if (entries['simulink/blockDiagram.json']) {
         // Branching on the part being PRESENT rather than on the read succeeding, so that
         // an unreadable modern part is reported as itself and does not fall through to the
@@ -1017,6 +1041,10 @@ export function parseModelParts(entries, filename) {
         if (ws && ws.WSDataSource === 'MAT-File' && typeof ws.WSSourceFileName === 'string') {
             workspaceMatFile = ws.WSSourceFileName;
         }
+        if (ws && typeof ws.WSDataSource === 'string' && ws.WSDataSource !== '') {
+            workspaceSource = ws.WSDataSource;
+        }
+        modelArguments = argumentNames(diagram.ModelReferenceSettings?.ParameterArgumentNames);
     }
     else if (legacy) {
         // The same three facts, as `<P Name="...">` children of `<Model>`. `ModelUUID`
@@ -1029,6 +1057,10 @@ export function parseModelParts(entries, filename) {
         if (wsProps.WSDataSource === 'MAT-File' && wsProps.WSSourceFileName) {
             workspaceMatFile = wsProps.WSSourceFileName;
         }
+        if (wsProps.WSDataSource) {
+            workspaceSource = wsProps.WSDataSource;
+        }
+        modelArguments = argumentNames(directProps(legacy.ModelReferenceSettings).ParameterArgumentNames);
     }
     // Config sets. Three layouts: a JSON index (R2026b+), an XML index (R2015a-R2026a)
     // — both of which point at one `configSetN` part each — and, before R2015a, no
@@ -1177,6 +1209,8 @@ export function parseModelParts(entries, filename) {
         modelReferences,
         externalDataSources,
         workspaceDataSource: workspaceMatFile,
+        workspaceSource,
+        modelArguments,
         configSets,
         workspace,
         blockParamUsages,

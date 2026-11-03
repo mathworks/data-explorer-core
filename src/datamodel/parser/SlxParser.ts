@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { unzipEntries, type UnreadableMember } from './Inflate.js';
+import { unzipEntries, zipMemberStamps, type UnreadableMember } from './Inflate.js';
+import { recordPackageStamps } from './EntrySource.js';
 import { readModelXml } from './XmlReader.js';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
@@ -91,6 +92,21 @@ export interface ParsedSlx {
    * read this for that (UsageIndex.resolveName, DataModel's resolutionOrder).
    */
   workspaceDataSource: string | null;
+  /**
+   * Where the model workspace's variables come from (WSDataSource): 'Model File' where the model
+   * keeps them, which MATLAB records by writing no data source at all, or 'MAT-File',
+   * 'MATLAB File' or 'MATLAB Code', spelled so in every layout (measured on R2027a and its exports
+   * to R2025a, R2021a and R2018a: test/parity/matlab/gen_workspace_facts.m). Only a workspace the
+   * model keeps is held in the model's own workspace part: one of another source is made anew from
+   * it as the model loads, and a variable a save wrote into the part would be lost.
+   */
+  workspaceSource: string;
+  /**
+   * The model's arguments (ParameterArgumentNames), names of its workspace variables, in the
+   * model's order: a comma-separated list under the model's ModelReferenceSettings, in
+   * blockDiagram.json or blockdiagram.xml, in every layout.
+   */
+  modelArguments: string[];
   configSets: ParsedConfigSet[];
   workspace: MatVariable[] & { _trailingElements: Uint8Array[] };
   blockParamUsages: BlockParamUsage[];
@@ -979,6 +995,17 @@ function extractModelReferences(
 }
 
 const WORKSPACE_PART = 'simulink/modelWorkspace.mxarray';
+
+/** The data source of a workspace the model keeps itself, which MATLAB writes no WSDataSource for. */
+export const MODEL_FILE = 'Model File';
+
+/**
+ * The model arguments a ParameterArgumentNames value names: a comma-separated list, as MATLAB
+ * writes it (`k,gain`), its names trimmed and empty ones dropped; none for no value.
+ */
+export function argumentNames(value: unknown): string[] {
+  return typeof value === 'string' ? value.split(',').map((n) => n.trim()).filter((n) => n !== '') : [];
+}
 const WORKSPACE_LOST = "this model's workspace variables were not read";
 
 type Workspace = MatVariable[] & { _trailingElements: Uint8Array[] };
@@ -1090,7 +1117,19 @@ function jsonClassAndSize(json: unknown): { className: string; dimensions: numbe
 
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
   const unreadable: UnreadableMember[] = [];
-  const parsed = parseModelParts(unzipEntries(new Uint8Array(buffer), undefined, unreadable), filename);
+  const bytes = new Uint8Array(buffer);
+  const entries = unzipEntries(bytes, undefined, unreadable);
+  const parsed = parseModelParts(entries, filename);
+  // Every member of the package, in its directory's order, with the time, date and method it
+  // records for it: what a save puts the package back together by, beside the parts, as a binary
+  // dictionary's are (EntrySource.recordPackageStamps), and not in the parse, which is the model's
+  // and the same whatever the parts were framed in. A member the directory names that the parts do
+  // not hold (one that could not be read, or one named `__proto__`) is how a save knows it could
+  // not write the package back whole.
+  const stamps = zipMemberStamps(bytes);
+  if (stamps) {
+    recordPackageStamps(entries, stamps);
+  }
   // A member the package holds and that could not be inflated (one that runs past the size
   // its directory entry declares) is not handed to `parseModelParts` at all, so to that
   // reader it is absent — which it reads silently, as it should for a part a release never
@@ -1158,6 +1197,8 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   let dataDictionary: string | null = null;
   let uuid = '';
   let workspaceMatFile: string | null = null;
+  let workspaceSource = MODEL_FILE;
+  let modelArguments: string[] = [];
   if (entries['simulink/blockDiagram.json']) {
     // Branching on the part being PRESENT rather than on the read succeeding, so that
     // an unreadable modern part is reported as itself and does not fall through to the
@@ -1178,6 +1219,10 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     if (ws && ws.WSDataSource === 'MAT-File' && typeof ws.WSSourceFileName === 'string') {
       workspaceMatFile = ws.WSSourceFileName;
     }
+    if (ws && typeof ws.WSDataSource === 'string' && ws.WSDataSource !== '') {
+      workspaceSource = ws.WSDataSource;
+    }
+    modelArguments = argumentNames((diagram.ModelReferenceSettings as Record<string, unknown> | undefined)?.ParameterArgumentNames);
   } else if (legacy) {
     // The same three facts, as `<P Name="...">` children of `<Model>`. `ModelUUID`
     // arrived in R2020a, so it stays '' for anything older — the file does not
@@ -1189,6 +1234,10 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     if (wsProps.WSDataSource === 'MAT-File' && wsProps.WSSourceFileName) {
       workspaceMatFile = wsProps.WSSourceFileName;
     }
+    if (wsProps.WSDataSource) {
+      workspaceSource = wsProps.WSDataSource;
+    }
+    modelArguments = argumentNames(directProps(legacy.ModelReferenceSettings).ParameterArgumentNames);
   }
 
   // Config sets. Three layouts: a JSON index (R2026b+), an XML index (R2015a-R2026a)
@@ -1356,6 +1405,8 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     modelReferences,
     externalDataSources,
     workspaceDataSource: workspaceMatFile,
+    workspaceSource,
+    modelArguments,
     configSets,
     workspace,
     blockParamUsages,

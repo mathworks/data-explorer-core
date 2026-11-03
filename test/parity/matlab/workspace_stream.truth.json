@@ -1,0 +1,56 @@
+{
+  "version": "27.1.0.3422810 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-11-02",
+  "strides": [
+    {
+      "longest": 1,
+      "stride": 3
+    },
+    {
+      "longest": 2,
+      "stride": 3
+    },
+    {
+      "longest": 3,
+      "stride": 4
+    },
+    {
+      "longest": 4,
+      "stride": 5
+    },
+    {
+      "longest": 5,
+      "stride": 6
+    },
+    {
+      "longest": 6,
+      "stride": 7
+    },
+    {
+      "longest": 8,
+      "stride": 9
+    },
+    {
+      "longest": 9,
+      "stride": 10
+    },
+    {
+      "longest": 16,
+      "stride": 17
+    },
+    {
+      "longest": 31,
+      "stride": 32
+    },
+    {
+      "longest": 32,
+      "stride": 33
+    },
+    {
+      "longest": 63,
+      "stride": 64
+    }
+  ],
+  "emptyStruct": "0001494d000000000e000000380000000600000008000000020000000000000005000000080000000100000001000000010000000000000005000400010000000100000000000000"
+}
