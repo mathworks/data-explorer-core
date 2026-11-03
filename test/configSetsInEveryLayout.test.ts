@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import { createSession, parseSlx } from '../src/index.js';
 import { asArray } from './parity/matlab/loadTruth.js';
 
@@ -66,6 +66,17 @@ describe("a model's configuration sets, in every layout, are the ones MATLAB ope
       expect(new TextDecoder().decode(entries['simulink/blockdiagram.xml'])).toMatch(/<Object Reference="true" PropName="ActiveConfigurationSet" ObjectID="10">/);
     },
   );
+
+  it('an index that cannot be read still says so, and is not taken for one that lists no set', () => {
+    // The warning says no set was read, so none is: the sets inline are not read past it.
+    const entries = unzipSync(new Uint8Array(bytesOf('acs_sets_R2013b.slx')));
+    entries['simulink/configSetInfo.xml'] = new TextEncoder().encode('not a part');
+    const parsed = parseSlx(zipSync(entries).buffer as ArrayBuffer, 'acs_sets_R2013b.slx');
+    expect(parsed.configSets).toEqual([]);
+    expect(parsed.warnings.map((w) => w.message)).toEqual([
+      'The model part "simulink/configSetInfo.xml" holds nothing readable, so no configuration sets were read.',
+    ]);
+  });
 
   it.each(['acs_sets_R2013b.slx', 'acs_ref_R2013b.slx'])("%s opens with its sets in the model's Configurations section", (file) => {
     const s = createSession();
