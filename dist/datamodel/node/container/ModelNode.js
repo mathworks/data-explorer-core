@@ -2,6 +2,10 @@
 import ContainerNode from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
 import ModelWorkspaceNode from './ModelWorkspaceNode.js';
+import ConfigSetNode from '../data/ConfigSetNode.js';
+import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
+import { ActiveMarkError, withActiveSet } from '../../parser/ActiveConfigMark.js';
+import { packageRefusal } from '../../parser/ModelPackage.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import PropName from '../../prop/PropName.js';
@@ -34,6 +38,7 @@ export default class ModelNode extends ContainerNode {
         this.blockParamUsages = [];
         this.masks = [];
         this._zipEntries = null;
+        this._activeAsRead = null;
         SECTION_DEFS.forEach((def) => {
             this.addChild(new ModelSectionNode(def.key, this, def.label, def.icon));
         });
@@ -67,6 +72,59 @@ export default class ModelNode extends ContainerNode {
     }
     get displayName() {
         return this.name;
+    }
+    /** The configuration set active now, or null where none is (a `.mdl`, which marks none). */
+    get activeConfigSet() {
+        const sets = (this.getSection('config')?.children ?? []);
+        return sets.find((c) => c.active) ?? null;
+    }
+    /**
+     * Why `set` is not made the model's active configuration set, as a clause, or null where it is:
+     * it is no set of this model, it is the active one already, it is a reference (MATLAB makes one
+     * active only once it finds the set it refers to, in the model's dictionary or, in the R2013b
+     * layout, the base workspace, which this editor cannot look for: probe_active_config_set.m), no
+     * save of the model can be written (ModelPackage.packageRefusal), or the mark its package keeps of
+     * the active set cannot be moved (ActiveConfigMark).
+     */
+    activeSetRefusal(set) {
+        const config = this.getSection('config');
+        if (!(set instanceof ConfigSetNode || set instanceof ConfigSetRefNode) || set.parent !== config) {
+            return 'it is not a configuration set of a model';
+        }
+        if (set.active) {
+            return 'it is the active one already';
+        }
+        if (set instanceof ConfigSetRefNode) {
+            return 'it refers to "' + set.SourceName + '", and MATLAB makes a reference active only once it finds the set it refers to, which this editor cannot look for';
+        }
+        const refused = packageRefusal(this);
+        if (refused) {
+            return refused;
+        }
+        try {
+            withActiveSet(this._zipEntries, set.name);
+        }
+        catch (e) {
+            if (e instanceof ActiveMarkError) {
+                return e.message;
+            }
+            throw e;
+        }
+        return null;
+    }
+    /** Make `set` the active configuration set, and answer the one that was, which no longer is. */
+    _makeActive(set) {
+        const was = this.activeConfigSet;
+        if (was) {
+            was.active = false;
+        }
+        set.active = true;
+        return was;
+    }
+    /** The name of the set a save marks active, where it is not the one marked as read, or null. */
+    get _activeSetToWrite() {
+        const now = this.activeConfigSet?.name ?? null;
+        return now !== null && now !== this._activeAsRead ? now : null;
     }
     // Whether nothing of the model takes an edit a save writes: its Model Workspace is the one part of
     // it edited, a `.slx`'s, where the model keeps it and its package can be written back
@@ -223,6 +281,7 @@ export default class ModelNode extends ContainerNode {
         for (const cfg of parsed.configSets) {
             cfgSection.addConfigSetEntry(cfg);
         }
+        node._activeAsRead = parsed.configSets.find((c) => c.active)?.name ?? null;
         // Populate model references section
         const refSection = node.getSection('references');
         const refExt = refModelExt(filename);

@@ -2720,10 +2720,15 @@ export function createSession(opts = {}) {
     // open, or the id names two, which nothing can tell apart. `verb` is the operation's, 'add to';
     // `nothing`, where given, what was not done, 'added'.
     function unresolvedRefusal(nodeId, verb, nothing) {
-        const node = nodeIndex.get(nodeId);
-        const named = node ? rowNameOf(node) : nodeId;
-        const why = node ? 'another row of the file has the same name, and nothing tells which one is meant' : 'no row of that id is open';
+        const { named, why } = unresolvedWhy(nodeId);
         return 'Cannot ' + verb + ' "' + named + '": ' + why + '.' + (nothing ? ' Nothing was ' + nothing + '.' : '');
+    }
+    // The row an id that resolves to no node names, and why it resolves to none.
+    function unresolvedWhy(nodeId) {
+        const node = nodeIndex.get(nodeId);
+        return node
+            ? { named: rowNameOf(node), why: 'another row of the file has the same name, and nothing tells which one is meant' }
+            : { named: nodeId, why: 'no row of that id is open' };
     }
     // Why `node` is in no file this session edits (editableOwnerOf): a model's, a project's.
     function notEditedWhy(node) {
@@ -2811,6 +2816,65 @@ export function createSession(opts = {}) {
             first ??= said(node, why);
         }
         return first;
+    }
+    // ---- The active configuration set ---------------------------------------------------------------
+    /**
+     * Why setActiveConfigSet(nodeId) makes no set active, naming the row: `Cannot make "<row>" the
+     * active configuration set: <why>. Nothing was changed.` Or null where it makes it active
+     * (ModelNode.activeSetRefusal says which sets a model takes).
+     */
+    function activeConfigSetRefusal(nodeId) {
+        const said = (named, why) => 'Cannot make "' + named + '" the active configuration set: ' + why + '. Nothing was changed.';
+        const node = resolveId(nodeId);
+        if (!node) {
+            const { named, why } = unresolvedWhy(nodeId);
+            return said(named, why);
+        }
+        const model = ownerSourceOf(node);
+        const why = model instanceof ModelNode ? model.activeSetRefusal(node) : 'it is not a configuration set of a model';
+        return why === null ? null : said(rowNameOf(node), why);
+    }
+    /**
+     * Make the configuration set `nodeId` the active one of its model, as one undo step, filed under the
+     * model; false where activeConfigSetRefusal says why not. Each set it changes is told as edited, the
+     * one made active and then the one that was. The model's save moves the one mark its package keeps
+     * of which set is active (ModelFileWriter).
+     */
+    function setActiveConfigSet(nodeId) {
+        if (activeConfigSetRefusal(nodeId) !== null) {
+            return false;
+        }
+        const set = resolveId(nodeId);
+        const model = ownerSourceOf(set);
+        const told = (source, made, unmade) => {
+            for (const n of [made, unmade]) {
+                if (n) {
+                    publish('node/edited', { source, nodeId: n.id, kind: 'property' });
+                    publishEdited(n, false);
+                }
+            }
+        };
+        const was = model._makeActive(set);
+        model.dirty = true;
+        UndoManager.pushExecuted(model.name, {
+            execute() {
+                model._makeActive(set);
+                model.dirty = true;
+                told('undo', set, was);
+            },
+            undo() {
+                if (was) {
+                    model._makeActive(was);
+                }
+                else {
+                    set.active = false;
+                }
+                model.dirty = true;
+                told('undo', was, set);
+            },
+        });
+        told('pi', set, was);
+        return true;
     }
     // Why the name of `node` takes no edit at all, as a clause, or null where it takes one.
     function renameWhy(node) {
@@ -3089,6 +3153,9 @@ export function createSession(opts = {}) {
         // and why a row's name, or its Value, takes no edit at all.
         addChildRefusal,
         deleteRefusal,
+        // One of a model's configuration sets made the active one, and why one is not.
+        setActiveConfigSet,
+        activeConfigSetRefusal,
         renameRefusal,
         valueEditRefusal,
         // The text an editor of a Value shown as a summary for its size is seeded with (a row's

@@ -1,15 +1,17 @@
 % Copyright 2026 The MathWorks, Inc.
 %
-% Can a model's active configuration set be changed by moving the one mark its package keeps of
-% it, and nothing else? Measured in every layout, against MATLAB's own save of the same change.
+% Does MATLAB open a model whose active configuration set the session changed as it opens its own
+% save of the same change? The session's save moves the one mark the package keeps of which set is
+% active, and nothing else. Measured in every layout.
 %
 %   1. Copies the models of test/fixtures/active-config (gen_active_config.m): acs_sets, with
 %      three sets of StopTime 10 (Configuration, active), 2 (Fast) and 5 (Slow), and acs_ref,
 %      with Configuration (10, active) and RefFromDict, a Simulink.ConfigSetRef to dictCfg (7)
 %      in acs_dict.sldd; each in R2027a and exported to R2025a, R2021a, R2018a and R2013b.
 %   2. Runs probe_active_config_set.mjs, which writes a copy of each model per set that is not
-%      active, with that set made active by moving the mark alone (see there), and one copy with
-%      no change (`none`).
+%      active, made active through the session and saved (setActiveConfigSet, serializeSource: see
+%      there), and one copy with no change (`none`); or, where the session refuses the change, its
+%      reason.
 %   3. For each copy, MATLAB makes the same change itself: opens the model, setActiveConfigSet,
 %      and saves it in the copy's layout (save_system, with ExportToVersion for an older one).
 %      Then opens both, with acs_dict.sldd on the path and, for acs_ref, without it too, and
@@ -23,11 +25,13 @@
 %      the copy does, and which members it changes beside it, against its save of the model as
 %      it opened (`changed`).
 %
-% A change MATLAB itself will not make is `MATLAB-REFUSES`, with what it said: a writer must
-% refuse it too. Measured on R2027a (2026-11-03): MATLAB makes a Simulink.ConfigSetRef active
-% only when it finds what the reference points to, the dictionary on the path (DictionaryNotFound
-% without it), or in the R2013b layout, which keeps no dictionary, a base workspace variable
-% (ConfigSetRef_SourceNameNotInBaseWorkspace).
+% A change the session refuses is set beside MATLAB's: `BOTH-REFUSE` where MATLAB will not make it
+% either, `CORE-REFUSES` where it does (the session is stricter than MATLAB there, which is not a
+% failure); a change the session makes and MATLAB will not is a FAIL. Measured on R2027a
+% (2026-11-03): MATLAB makes a Simulink.ConfigSetRef active only when it finds what the reference
+% points to, the dictionary on the path (DictionaryNotFound without it), or in the R2013b layout,
+% which keeps no dictionary, a base workspace variable (ConfigSetRef_SourceNameNotInBaseWorkspace),
+% and the session, which can look for neither, makes none active.
 %
 % Run, after `npm run build`:
 %   env PROBE_OUT=/tmp/acs PROBE_NODE=$(node -p process.execPath) mw -using Bmain matlab \
@@ -40,8 +44,7 @@
 % `RESULT <id> FAIL <why>` per case, then `REF <model> <where> <what MATLAB did>` for each
 % reference made active by MATLAB with its dictionary on the path, without it, and (R2013b) with
 % the set it points to in the base workspace, and `PROBE_ACTIVE_CONFIG_SET DONE pass=N fail=M
-% matlab-refuses=K`, and
-% writes results.json beside the cases. fail=0 is the only acceptable result. The cases it opens
+% both-refuse=K core-refuses=L`, and writes results.json beside the cases. fail=0 is the only acceptable result. The cases it opens
 % without the dictionary judge only the file: MATLAB's save, made with it, opened without it.
 here = fileparts(mfilename('fullpath'));
 root = getenv('PROBE_OUT');
@@ -78,7 +81,7 @@ only = getenv('PROBE_ONLY');
 keep = @(mdl) isempty(only) || ~isempty(regexp(mdl, only, 'once'));
 manifest = manifest(cellfun(@(c) keep(c.model), manifest));
 results = {};
-pass = 0; fail = 0; refused = 0;
+pass = 0; fail = 0; bothRefuse = 0; coreRefuses = 0;
 for k = 1:numel(manifest)
     c = manifest{k};
     era = regexp(c.model, 'R\d{4}[ab]$', 'match', 'once');
@@ -94,6 +97,21 @@ for k = 1:numel(manifest)
     end
     bdclose('all');
     Simulink.data.dictionary.closeAll('-discard');
+    if ~isempty(c.refused)
+        r = struct('id', c.id, 'model', c.model, 'era', era, 'from', c.from, 'to', c.to, 'refused', c.refused, 'matlabRefuses', matlabRefuses);
+        results{end+1} = r; %#ok<SAGROW>
+        if ~isempty(c.js)
+            fail = fail + 1;
+            fprintf('RESULT %s FAIL Node: %s\n', c.id, c.js);
+        elseif isempty(matlabRefuses)
+            coreRefuses = coreRefuses + 1;
+            fprintf('RESULT %s CORE-REFUSES, where MATLAB makes it: %s\n', c.id, c.refused);
+        else
+            bothRefuse = bothRefuse + 1;
+            fprintf('RESULT %s BOTH-REFUSE core=[%s] matlab=[%s]\n', c.id, c.refused, matlabRefuses);
+        end
+        continue
+    end
     variants = {'dict'};
     if startsWith(c.model, 'acs_ref'), variants = {'dict', 'nodict'}; end
     for v = variants
@@ -101,14 +119,8 @@ for k = 1:numel(manifest)
         r = struct('id', id, 'model', c.model, 'era', era, 'from', c.from, 'to', c.to, 'dictionary', strcmp(v{1}, 'dict'), ...
             'opens', '', 'matlabOpens', '', 'active', '', 'sets', '', 'dirty', '', 'lastTime', NaN, ...
             'simError', '', 'matlabSimError', '', 'member', member, 'changed', changed, 'why', '');
-        if ~isempty(matlabRefuses)
-            refused = refused + 1;
-            r.why = ['MATLAB refuses: ' matlabRefuses];
-            results{end+1} = r; %#ok<SAGROW>
-            fprintf('RESULT %s MATLAB-REFUSES %s\n', id, matlabRefuses);
-            continue
-        end
         try
+            if ~isempty(matlabRefuses), error('the session makes a change MATLAB refuses: %s', matlabRefuses); end
             if ~isempty(c.js), error('Node: %s', c.js); end
             if r.dictionary, addpath(dictdir); else, rmpath(dictdir); end
             mine = opened(ours, c.model);
@@ -175,7 +187,7 @@ if contains(path, dictdir), rmpath(dictdir); end
 fid = fopen(fullfile(outdir, 'results.json'), 'w');
 fprintf(fid, '%s', jsonencode(results, 'PrettyPrint', true));
 fclose(fid);
-fprintf('PROBE_ACTIVE_CONFIG_SET DONE pass=%d fail=%d matlab-refuses=%d\n', pass, fail, refused);
+fprintf('PROBE_ACTIVE_CONFIG_SET DONE pass=%d fail=%d both-refuse=%d core-refuses=%d\n', pass, fail, bothRefuse, coreRefuses);
 
 % What the model at `file` says as it opens, its name and links left out, and what it is then.
 function info = opened(file, mdl)
@@ -213,8 +225,11 @@ function [member, changed] = native(c, era, gen, outdir)
     bdclose('all');
     A = members(fullfile(asIs, c.file), fullfile(asIs, 'x'));
     B = members(fullfile(edited, c.file), fullfile(edited, 'x'));
-    ours = members(fullfile(outdir, 'cases', c.id, c.file), fullfile(base, 'ours'));
-    if ~isKey(B, c.member)
+    oursFile = fullfile(outdir, 'cases', c.id, c.file);
+    if isfile(oursFile), ours = members(oursFile, fullfile(base, 'ours')); else, ours = containers.Map(); end
+    if ~isKey(ours, c.member)
+        member = 'no save';
+    elseif ~isKey(B, c.member)
         member = 'absent';
     elseif isequal(B(c.member), ours(c.member))
         member = 'same';
