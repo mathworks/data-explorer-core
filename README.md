@@ -399,6 +399,21 @@ also refuses a numeric, logical or char empty of another size than 0x0, which MA
 format reads back as a 0x0 one: `Cannot edit "d": d would be a 0x3 double, which a text
 dictionary holds only as a 0x0 one.`
 
+### A model
+
+A `.slx` is saved as its package was read, every member's bytes, place, time stamp and
+compression as they were, with its Model Workspace's member written anew where the workspace
+was edited: `serializeSource` answers `{ kind: 'binary', sourceFormat: 'slx', bytes }`, in every
+layout from R2013b on. The Model Workspace is edited as a MAT-file is (above), less what a model
+workspace does not keep: a `Simulink.Bus`, `ConnectionBus`, `ServiceBus`, `AliasType` or
+`EnumTypeDefinition` is not added or pasted (Simulink does not use one from a model workspace); a
+`Simulink.Signal`'s storage class stays `Auto`, which MATLAB sets it to as it opens the model; a
+variable a block of the model uses by name, and a model argument, is not renamed or deleted; an
+argument takes only a value an argument can hold. A workspace the model does not keep (its data
+source a MAT-file, a MATLAB file or MATLAB code, which make it anew each time the model opens),
+and a package that does not name its parts, take no edit and say why, as a MAT-file a save could
+not keep does (`readOnly`). A model's other sections take no edit, and a `.mdl` none at all.
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a
