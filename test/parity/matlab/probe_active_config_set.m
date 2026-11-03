@@ -14,8 +14,9 @@
 %      reason.
 %   3. For each copy, MATLAB makes the same change itself: opens the model, setActiveConfigSet,
 %      and saves it in the copy's layout (save_system, with ExportToVersion for an older one).
-%      Then opens both, with acs_dict.sldd on the path and, for acs_ref, without it too, and
-%      holds the copy to MATLAB's save:
+%      Then opens both, with the set acs_ref's reference points to found where MATLAB looks for it
+%      (acs_dict.sldd on the path; in R2013b's layout, which keeps no dictionary, a base workspace
+%      variable) and, for acs_ref, not found too, and holds the copy to MATLAB's save:
 %        - it opens printing and warning what MATLAB's save does, its name and links left out;
 %        - the set it makes active is active, its sets are in their order, and it opens unchanged
 %          (Dirty off);
@@ -27,11 +28,12 @@
 %
 % A change the session refuses is set beside MATLAB's: `BOTH-REFUSE` where MATLAB will not make it
 % either, `CORE-REFUSES` where it does (the session is stricter than MATLAB there, which is not a
-% failure); a change the session makes and MATLAB will not is a FAIL. Measured on R2027a
-% (2026-11-03): MATLAB makes a Simulink.ConfigSetRef active only when it finds what the reference
-% points to, the dictionary on the path (DictionaryNotFound without it), or in the R2013b layout,
-% which keeps no dictionary, a base workspace variable (ConfigSetRef_SourceNameNotInBaseWorkspace),
-% and the session, which can look for neither, makes none active.
+% failure); a change the session makes and MATLAB will not, with the reference's set found, is a
+% FAIL. Measured on R2027a (2026-11-03): MATLAB makes a Simulink.ConfigSetRef active only when it
+% finds what the reference points to, the dictionary on the path (DictionaryNotFound without it),
+% or in the R2013b layout, which keeps no dictionary, a base workspace variable
+% (ConfigSetRef_SourceNameNotInBaseWorkspace). The session, which can look for neither, makes one
+% active with a warning (activeConfigSetCaution), which the case holds (`caution`).
 %
 % Run, after `npm run build`:
 %   env PROBE_OUT=/tmp/acs PROBE_NODE=$(node -p process.execPath) mw -using Bmain matlab \
@@ -44,8 +46,9 @@
 % `RESULT <id> FAIL <why>` per case, then `REF <model> <where> <what MATLAB did>` for each
 % reference made active by MATLAB with its dictionary on the path, without it, and (R2013b) with
 % the set it points to in the base workspace, and `PROBE_ACTIVE_CONFIG_SET DONE pass=N fail=M
-% both-refuse=K core-refuses=L`, and writes results.json beside the cases. fail=0 is the only acceptable result. The cases it opens
-% without the dictionary judge only the file: MATLAB's save, made with it, opened without it.
+% both-refuse=K core-refuses=L`, and writes results.json beside the cases. fail=0 is the only
+% acceptable result. The cases it opens with the reference's set not found judge only the file:
+% MATLAB's save, made with it found, opened without it.
 here = fileparts(mfilename('fullpath'));
 root = getenv('PROBE_OUT');
 if isempty(root) || root(1) ~= '/', error('PROBE_OUT must be an absolute path.'); end
@@ -90,7 +93,7 @@ for k = 1:numel(manifest)
     member = ''; changed = ''; matlabRefuses = '';
     try
         if ~isempty(c.js), error('Node: %s', c.js); end
-        addpath(dictdir);
+        found(dictdir, true, era);
         [member, changed] = native(c, era, gen, outdir);
     catch err
         matlabRefuses = [err.identifier ': ' regexprep(err.message, '<a [^>]*>|</a>|\s+', ' ')];
@@ -112,17 +115,19 @@ for k = 1:numel(manifest)
         end
         continue
     end
-    variants = {'dict'};
-    if startsWith(c.model, 'acs_ref'), variants = {'dict', 'nodict'}; end
+    % A reference's set found where MATLAB looks for it, and not.
+    variants = {'found'};
+    if startsWith(c.model, 'acs_ref'), variants = {'found', 'unfound'}; end
     for v = variants
         id = [c.id '__' v{1}];
-        r = struct('id', id, 'model', c.model, 'era', era, 'from', c.from, 'to', c.to, 'dictionary', strcmp(v{1}, 'dict'), ...
+        r = struct('id', id, 'model', c.model, 'era', era, 'from', c.from, 'to', c.to, 'found', strcmp(v{1}, 'found'), ...
+            'caution', c.caution, ...
             'opens', '', 'matlabOpens', '', 'active', '', 'sets', '', 'dirty', '', 'lastTime', NaN, ...
             'simError', '', 'matlabSimError', '', 'member', member, 'changed', changed, 'why', '');
         try
             if ~isempty(matlabRefuses), error('the session makes a change MATLAB refuses: %s', matlabRefuses); end
             if ~isempty(c.js), error('Node: %s', c.js); end
-            if r.dictionary, addpath(dictdir); else, rmpath(dictdir); end
+            found(dictdir, r.found, era);
             mine = opened(ours, c.model);
             bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
             matlab = opened(theirs, c.model);
@@ -162,15 +167,10 @@ for f = dir(fullfile(gen, 'acs_ref*.slx'))'
     if ~keep(mdl), continue; end
     for where = {'dictionary', 'none', 'base workspace'}
         if strcmp(where{1}, 'base workspace') && ~endsWith(mdl, 'R2013b'), continue; end
-        bdclose('all'); Simulink.data.dictionary.closeAll('-discard'); evalin('base', 'clear dictCfg');
-        if strcmp(where{1}, 'dictionary'), addpath(dictdir); elseif contains(path, dictdir), rmpath(dictdir); end
-        if strcmp(where{1}, 'base workspace')
-            % The set the dictionary holds, made anew: an older release does not read the dictionary.
-            dictCfg = Simulink.ConfigSet;
-            set_param(dictCfg, 'Name', 'dictCfg', 'StopTime', '7', 'SolverType', 'Fixed-step', 'Solver', 'FixedStepDiscrete', ...
-                'FixedStep', '1', 'SaveTime', 'on', 'ReturnWorkspaceOutputs', 'on');
-            assignin('base', 'dictCfg', dictCfg);
-        end
+        bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
+        found(dictdir, false, '');
+        if strcmp(where{1}, 'dictionary'), addpath(dictdir); end
+        if strcmp(where{1}, 'base workspace'), found(dictdir, true, 'R2013b'); rmpath(dictdir); end
         evalc('load_system(fullfile(gen, f.name))');
         try
             setActiveConfigSet(mdl, 'RefFromDict');
@@ -188,6 +188,24 @@ fid = fopen(fullfile(outdir, 'results.json'), 'w');
 fprintf(fid, '%s', jsonencode(results, 'PrettyPrint', true));
 fclose(fid);
 fprintf('PROBE_ACTIVE_CONFIG_SET DONE pass=%d fail=%d both-refuse=%d core-refuses=%d\n', pass, fail, bothRefuse, coreRefuses);
+
+% Where MATLAB looks for the set acs_ref's reference points to (dictCfg), what it finds there, or
+% not (`on` false): the model's dictionary, on the path; in R2013b's layout (`era`), which keeps no
+% dictionary, the base workspace, where the set is made anew (an older release does not read the
+% dictionary). Only there: beside a dictionary that holds it, a second dictCfg is a conflict.
+function found(dictdir, on, era)
+    evalin('base', 'clear dictCfg');
+    if ~on
+        if contains(path, dictdir), rmpath(dictdir); end
+        return
+    end
+    addpath(dictdir);
+    if ~strcmp(era, 'R2013b'), return; end
+    dictCfg = Simulink.ConfigSet;
+    set_param(dictCfg, 'Name', 'dictCfg', 'StopTime', '7', 'SolverType', 'Fixed-step', 'Solver', 'FixedStepDiscrete', ...
+        'FixedStep', '1', 'SaveTime', 'on', 'ReturnWorkspaceOutputs', 'on');
+    assignin('base', 'dictCfg', dictCfg);
+end
 
 % What the model at `file` says as it opens, its name and links left out, and what it is then.
 function info = opened(file, mdl)

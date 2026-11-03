@@ -13,7 +13,8 @@
 //
 // Also one save per model with no change at all (`none`), which must open as the model MATLAB
 // wrote does. A change the session refuses is written as no save: the case holds the session's
-// reason (`refused`), for the MATLAB half to set beside what MATLAB does with the same change.
+// reason (`refused`), for the MATLAB half to set beside what MATLAB does with the same change. A
+// change made with a warning (a reference made active: activeConfigSetCaution) holds it (`caution`).
 //
 // Reads the BUILT package (npm run build first). Writes OUT/cases/<id>/<model>.slx and
 // OUT/manifest.json; anything it finds wrong is the case's `js` (anything but '' fails it): the save
@@ -47,13 +48,13 @@ for (const file of readdirSync(GEN).filter((f) => f.endsWith('.slx')).sort()) {
   const first = opened(file, bytes);
   const sets = first.config.map((c) => c.name);
   const from = first.config.find((c) => c.active)?.name ?? '';
-  const write = (id, to, out, js, refused = '') => {
+  const write = (id, to, out, js, refused = '', caution = '') => {
     if (out) {
       const dir = path.join(OUT, 'cases', id);
       mkdirSync(dir, { recursive: true });
       writeFileSync(path.join(dir, file), out);
     }
-    manifest.push({ id, model, file, member, sets, from, to, js, refused });
+    manifest.push({ id, model, file, member, sets, from, to, js, refused, caution });
   };
   write(`${model}__none`, from, first.s.serializeSource(file).bytes, '');
   for (const to of sets.filter((s) => s !== from)) {
@@ -64,6 +65,7 @@ for (const file of readdirSync(GEN).filter((f) => f.endsWith('.slx')).sort()) {
       write(`${model}__${to}`, to, null, s.setActiveConfigSet(set.id) ? 'the session makes the change it refuses' : '', refused);
       continue;
     }
+    const caution = s.activeConfigSetCaution(set.id) ?? '';
     let js = '';
     let out = null;
     try {
@@ -81,12 +83,13 @@ for (const file of readdirSync(GEN).filter((f) => f.endsWith('.slx')).sort()) {
     } catch (err) {
       js += String(err?.message ?? err);
     }
-    write(`${model}__${to}`, to, out, js.trim());
+    write(`${model}__${to}`, to, out, js.trim(), '', caution);
   }
 }
 
 writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 console.log(
   `PROBE_ACTIVE_CONFIG_SET_JS ${manifest.length} cases, ${manifest.filter((c) => c.refused).length} refused by the session, ` +
+    `${manifest.filter((c) => c.caution).length} made with a warning, ` +
     `${manifest.filter((c) => c.js).length} with a Node-side failure`,
 );

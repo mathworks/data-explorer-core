@@ -3044,6 +3044,17 @@ function activeConfigSetRefusal(nodeId: string): string | null {
 }
 
 /**
+ * What making the configuration set `nodeId` active cannot check, as a sentence, where it is made
+ * active and is a reference (ModelNode.activeSetCaution); null for any other row. A host says it as
+ * a warning as the set is made active: it is made active all the same.
+ */
+function activeConfigSetCaution(nodeId: string): string | null {
+  const node = resolveId(nodeId);
+  const model = node ? ownerSourceOf(node) : null;
+  return model instanceof ModelNode ? model.activeSetCaution(node) : null;
+}
+
+/**
  * Make the configuration set `nodeId` the active one of its model, as one undo step, filed under the
  * model; false where activeConfigSetRefusal says why not. Each set it changes is told as edited, the
  * one made active and then the one that was. The model's save moves the one mark its package keeps
@@ -3382,6 +3393,7 @@ function getActiveSourceNode(): ISourceNode | null {
     // One of a model's configuration sets made the active one, and why one is not.
     setActiveConfigSet,
     activeConfigSetRefusal,
+    activeConfigSetCaution,
     renameRefusal,
     valueEditRefusal,
     // The text an editor of a Value shown as a summary for its size is seeded with (a row's

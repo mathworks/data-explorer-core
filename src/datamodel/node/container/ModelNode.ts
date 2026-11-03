@@ -165,11 +165,9 @@ export default class ModelNode extends ContainerNode {
 
   /**
    * Why `set` is not made the model's active configuration set, as a clause, or null where it is:
-   * it is no set of this model, it is the active one already, it is a reference (MATLAB makes one
-   * active only once it finds the set it refers to, in the model's dictionary or, in the R2013b
-   * layout, the base workspace, which this editor cannot look for: probe_active_config_set.m), no
-   * save of the model can be written (ModelPackage.packageRefusal), or the mark its package keeps of
-   * the active set cannot be moved (ActiveConfigMark).
+   * it is no set of this model, it is the active one already, no save of the model can be written
+   * (ModelPackage.packageRefusal), or the mark its package keeps of the active set cannot be moved
+   * (ActiveConfigMark). A reference is made active as a set is, with a warning (activeSetCaution).
    */
   activeSetRefusal(set: unknown): string | null {
     const config = this.getSection('config');
@@ -178,9 +176,6 @@ export default class ModelNode extends ContainerNode {
     }
     if (set.active) {
       return 'it is the active one already';
-    }
-    if (set instanceof ConfigSetRefNode) {
-      return 'it refers to "' + set.SourceName + '", and MATLAB makes a reference active only once it finds the set it refers to, which this editor cannot look for';
     }
     const refused = packageRefusal(this);
     if (refused) {
@@ -195,6 +190,21 @@ export default class ModelNode extends ContainerNode {
       throw e;
     }
     return null;
+  }
+
+  /**
+   * What making `set` active cannot check, where it is made active and is a reference, as a
+   * sentence, or null: MATLAB uses a reference only once it finds the set it refers to, in the
+   * model's data dictionary or, with none, the base workspace (probe_active_config_set.m), which
+   * this editor cannot look in without MATLAB.
+   */
+  activeSetCaution(set: unknown): string | null {
+    if (!(set instanceof ConfigSetRefNode) || this.activeSetRefusal(set) !== null) {
+      return null;
+    }
+    const where = this.dataDictionary ? 'in the data dictionary "' + this.dataDictionary + '"' : 'in the base workspace';
+    return '"' + set.name + '" refers to the configuration set "' + set.SourceName + '" ' + where +
+      '. Without MATLAB this editor cannot check that the set is there: open the model in MATLAB to confirm.';
   }
 
   /** Make `set` the active configuration set, and answer the one that was, which no longer is. */

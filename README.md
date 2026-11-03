@@ -418,9 +418,11 @@ not keep does (`readOnly`). A model's other sections take no edit, and a `.mdl` 
 one undo step; its save moves the one mark the package keeps of which set is active, every other
 member as read, which MATLAB opens as its own save of the same change. It is taken whatever the
 Model Workspace takes. `session.activeConfigSetRefusal(nodeId)` says why a set is not made active,
-naming it, or `null` where it is: it is active already; it is a `Simulink.ConfigSetRef`, which
-MATLAB makes active only once it finds the set it refers to (in the model's dictionary, or the
-base workspace), which this package cannot look for; no save of the model can be written.
+naming it, or `null` where it is: it is active already; no save of the model can be written. A
+`Simulink.ConfigSetRef` is made active too, and `session.activeConfigSetCaution(nodeId)` says, for a
+host to warn with, what that cannot check: MATLAB uses a reference only once it finds the set it
+refers to, in the model's data dictionary or, with none, the base workspace, which this package
+cannot look in.
 
 ## Usage across a folder
 

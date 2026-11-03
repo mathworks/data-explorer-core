@@ -81,13 +81,18 @@ export default class ModelNode extends ContainerNode {
     get activeConfigSet(): ConfigSetNode | ConfigSetRefNode | null;
     /**
      * Why `set` is not made the model's active configuration set, as a clause, or null where it is:
-     * it is no set of this model, it is the active one already, it is a reference (MATLAB makes one
-     * active only once it finds the set it refers to, in the model's dictionary or, in the R2013b
-     * layout, the base workspace, which this editor cannot look for: probe_active_config_set.m), no
-     * save of the model can be written (ModelPackage.packageRefusal), or the mark its package keeps of
-     * the active set cannot be moved (ActiveConfigMark).
+     * it is no set of this model, it is the active one already, no save of the model can be written
+     * (ModelPackage.packageRefusal), or the mark its package keeps of the active set cannot be moved
+     * (ActiveConfigMark). A reference is made active as a set is, with a warning (activeSetCaution).
      */
     activeSetRefusal(set: unknown): string | null;
+    /**
+     * What making `set` active cannot check, where it is made active and is a reference, as a
+     * sentence, or null: MATLAB uses a reference only once it finds the set it refers to, in the
+     * model's data dictionary or, with none, the base workspace (probe_active_config_set.m), which
+     * this editor cannot look in without MATLAB.
+     */
+    activeSetCaution(set: unknown): string | null;
     /** Make `set` the active configuration set, and answer the one that was, which no longer is. */
     _makeActive(set: ConfigSetNode | ConfigSetRefNode): ConfigSetNode | ConfigSetRefNode | null;
     /** The name of the set a save marks active, where it is not the one marked as read, or null. */
