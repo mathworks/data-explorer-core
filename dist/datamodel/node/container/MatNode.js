@@ -4,7 +4,7 @@ import MatlabVariableNode from '../data/MatlabVariableNode.js';
 import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
-import { refusalClause } from '../BaseNode.js';
+import { refusalClause, withArticle } from '../BaseNode.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 import { functionHandleOf } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
@@ -830,7 +830,7 @@ export default class MatNode extends ContainerNode {
             return null;
         }
         const is = unwritable.path === value.matlabPath ? ' would be ' : ' would hold ';
-        return cannotEdit(entry.name, (node.matlabPath || entry.name) + is + unwritable.what + ', which this package cannot write into a MAT-file');
+        return cannotEdit(entry.name, (node.matlabPath || entry.name) + is + unwritable.what + ', which this package cannot write into ' + withArticle(this._noun));
     }
     /**
      * Why `node`, a variable of this file, cannot be renamed, or null where it can: its record is not
@@ -899,6 +899,17 @@ export default class MatNode extends ContainerNode {
     get _namespaceLabel() {
         return basenameOf(this.name) || this.name;
     }
+    /**
+     * What a save of this is said to be of, in the refusal of one (MatFileWriter): this file. A MatNode
+     * that is not a file of its own (a model's Model Workspace) names the file it is saved in.
+     */
+    get _saveLabel() {
+        return this.name;
+    }
+    /** What this is called where a refusal says what it takes: a MAT-file, or a model workspace. */
+    get _noun() {
+        return 'MAT-file';
+    }
     // The format an out-of-process host is told this source is, since SourceDTO carries
     // this field and nothing else in the projection names the format. One value, unlike
     // ModelNode's three: a MAT-file has on-disk levels (4, 5, 7, 7.3) but only one of them
@@ -960,7 +971,7 @@ export default class MatNode extends ContainerNode {
         if (!MAT_CREATABLE_CLASSES.includes(className)) {
             return NOT_OFFERED.has(className)
                 ? "its node shows nothing yet of the Table and Breakpoints its object holds, nor offers an editor of them, so none is created"
-                : 'a MAT-file takes a new variable of a plain value, a struct, or one of ' + MAT_CREATABLE_CLASSES.join(', ');
+                : withArticle(this._noun) + ' takes a new variable of a plain value, a struct, or one of ' + MAT_CREATABLE_CLASSES.join(', ');
         }
         const whole = this._creationRefusal();
         if (whole || !this._subsystemRecord()) {
@@ -1397,8 +1408,8 @@ export default class MatNode extends ContainerNode {
     }
     /** Why execRemoveEntry refuses `node`, as a clause, or null where it deletes it. */
     removeEntryRefusal(node) {
-        if (!this.children.includes(node)) {
-            return '"' + this.name + '" holds no such variable';
+        if (node.parent !== this) {
+            return '"' + this._namespaceLabel + '" holds no such variable';
         }
         const file = this._fileRefusal();
         return file && refusalClause(file);
@@ -1704,7 +1715,14 @@ export default class MatNode extends ContainerNode {
     // decoded. A parse with no records, or whose records do not cover its variables one for
     // one, binds none and keeps none (`records` null).
     static fromParsed(parsed, filename, options = {}) {
-        const node = new MatNode(filename);
+        return MatNode._populate(new MatNode(filename), parsed, options);
+    }
+    /**
+     * `node`, an empty MatNode or one of a subclass of it, built of `parsed` as fromParsed builds a
+     * file's: its variables, the records a save splices and every check of them. For a MatNode that
+     * is not a file of its own: a model's Model Workspace, which a model holds under it.
+     */
+    static _populate(node, parsed, options = {}) {
         node.header = parsed.header;
         const records = heldRecords(parsed);
         // A .mat file keeps the MCOS blob in an anonymous trailing element. Every opaque in
