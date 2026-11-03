@@ -1258,7 +1258,13 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     configSets = extractConfigSets(entries, info ? jsonConfigSetInfo(info.ConfigSetInfo, warnings) : [], warnings);
   } else if (entries['simulink/configSetInfo.xml']) {
     const info = readPart(entries, 'simulink/configSetInfo.xml', 'no configuration sets were read', warnings);
-    configSets = extractConfigSets(entries, legacyConfigSetInfo(info), warnings);
+    const listed = legacyConfigSetInfo(info);
+    // An index that lists no set leaves them to the block diagram: an export to R2013b from
+    // R2027a writes this part with its XML declaration alone, and keeps the sets inline, as
+    // R2013b does (test/configSetsInEveryLayout.test.ts).
+    configSets = info !== null && listed.length === 0 && legacy
+      ? inlineConfigSets(legacy)
+      : extractConfigSets(entries, listed, warnings);
   } else if (legacy) {
     configSets = inlineConfigSets(legacy);
   }
