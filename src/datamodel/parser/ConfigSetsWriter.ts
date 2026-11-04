@@ -53,6 +53,8 @@ const text = (bytes: Uint8Array, member: string): string => {
   }
 };
 const bytes = (s: string) => new TextEncoder().encode(s);
+/** `s` as a regular expression matching it and nothing else. */
+const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
 /**
  * The members of `entries` the sets as asked change: each with its new bytes, or null for one taken
@@ -392,7 +394,7 @@ function withRelationships(src: string, added: readonly string[], removed: reado
   let out = src;
   for (const part of removed) {
     const target = part.slice('/simulink/'.length);
-    const line = new RegExp(`^ *<Relationship [^>]*Target="${target.replace(/\./g, '\\.')}"[^>]*/>\\n`, 'm');
+    const line = new RegExp(`^ *<Relationship [^>]*Target="${literal(target)}"[^>]*/>\\n`, 'm');
     out = out.replace(line, '');
   }
   if (!out.includes('</Relationships>')) throw new ConfigSetsError(`"${member}" is not laid out as MATLAB writes it`);
@@ -407,7 +409,7 @@ function withRelationships(src: string, added: readonly string[], removed: reado
 function withOverrides(src: string, added: readonly string[], removed: readonly string[], contentType: string): string {
   let out = src;
   for (const part of removed) {
-    out = out.replace(new RegExp(`^ *<Override [^>]*PartName="${part.replace(/[./]/g, (c) => '\\' + c)}"[^>]*/>\\n`, 'm'), '');
+    out = out.replace(new RegExp(`^ *<Override [^>]*PartName="${literal(part)}"[^>]*/>\\n`, 'm'), '');
   }
   for (const part of added) {
     const line = `  <Override ContentType="${contentType}" PartName="${part}"/>\n`;

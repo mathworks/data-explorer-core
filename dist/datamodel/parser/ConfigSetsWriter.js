@@ -14,6 +14,8 @@ const text = (bytes, member) => {
     }
 };
 const bytes = (s) => new TextEncoder().encode(s);
+/** `s` as a regular expression matching it and nothing else. */
+const literal = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 /**
  * The members of `entries` the sets as asked change: each with its new bytes, or null for one taken
  * out. `asRead` is the package's sets as read, in order; `sets` the sets it is to hold, in order, as
@@ -343,7 +345,7 @@ function withRelationships(src, added, removed, member) {
     let out = src;
     for (const part of removed) {
         const target = part.slice('/simulink/'.length);
-        const line = new RegExp(`^ *<Relationship [^>]*Target="${target.replace(/\./g, '\\.')}"[^>]*/>\\n`, 'm');
+        const line = new RegExp(`^ *<Relationship [^>]*Target="${literal(target)}"[^>]*/>\\n`, 'm');
         out = out.replace(line, '');
     }
     if (!out.includes('</Relationships>'))
@@ -358,7 +360,7 @@ function withRelationships(src, added, removed, member) {
 function withOverrides(src, added, removed, contentType) {
     let out = src;
     for (const part of removed) {
-        out = out.replace(new RegExp(`^ *<Override [^>]*PartName="${part.replace(/[./]/g, (c) => '\\' + c)}"[^>]*/>\\n`, 'm'), '');
+        out = out.replace(new RegExp(`^ *<Override [^>]*PartName="${literal(part)}"[^>]*/>\\n`, 'm'), '');
     }
     for (const part of added) {
         const line = `  <Override ContentType="${contentType}" PartName="${part}"/>\n`;
