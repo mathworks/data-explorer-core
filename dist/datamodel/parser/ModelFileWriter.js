@@ -72,7 +72,7 @@ export function serializeModelFile(model) {
         throw e;
     }
     const zipped = zipSync(asRead(entries, packageStampsOf(model._zipEntries)), { level: 6 });
-    readsBack(zipped, label, workspace, active, sets);
+    readsBack(zipped, label, workspace, active, sets, Object.prototype.hasOwnProperty.call(entries, 'simulink/configSetInfo.json'));
     return zipped;
 }
 // The model's Model Workspace where it is a MAT-file's editor (ModelWorkspaceNode), told by what it
@@ -176,8 +176,13 @@ function withoutLine(xml, element) {
     return blankBefore && blankAfter ? xml.slice(0, start) + xml.slice(end < 0 ? xml.length : end + 1) : xml.slice(0, m.index) + xml.slice(m.index + m[0].length);
 }
 // The package written, read back: it holds the workspace's variables, by name, as saved, and the set
-// made active (`active`, where one was) is the one active.
-function readsBack(zipped, label, workspace, active, sets) {
+// made active (`active`, where one was) is the one active. A set's name and Description are held to
+// what was written as the XML layouts are read here, trimmed (`json` false: SlxParser's reader of a
+// model's XML parts trims a text), where MATLAB reads every space and line break of them as written,
+// as it writes them (a name `Fast `, a Description ending in a line break; measured, R2027a, in the
+// R2025a, R2021a and R2013b layouts).
+function readsBack(zipped, label, workspace, active, sets, json) {
+    const read = (text) => (json ? text : text.trim());
     let back;
     try {
         back = parseSlx(zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength), label);
@@ -187,12 +192,12 @@ function readsBack(zipped, label, workspace, active, sets) {
     }
     if (active !== null) {
         const got = back.configSets.filter((c) => c.active).map((c) => c.name);
-        if (got.length !== 1 || got[0] !== active) {
+        if (got.length !== 1 || got[0] !== read(active)) {
             throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back with "' + active + '" the active configuration set. Nothing was written.');
         }
     }
     if (sets !== null) {
-        const spell = (s) => [s.name, s.className, s.description, s.sourceName].join('\u0000');
+        const spell = (s) => [read(s.name), s.className, read(s.description), read(s.sourceName)].join('\u0000');
         const got = back.configSets.map((c) => spell({ name: c.name, className: c.objectClass || 'Simulink.ConfigSet', description: c.description ?? '', sourceName: c.sourceName }));
         if (got.join('\u0001') !== sets.map(spell).join('\u0001')) {
             throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back with its configuration sets as edited. Nothing was written.');

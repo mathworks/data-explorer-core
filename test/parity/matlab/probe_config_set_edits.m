@@ -77,11 +77,12 @@ edits = struct( ...
     'add', @(m) attachConfigSet(m, named(Simulink.ConfigSet, 'Configuration1')), ...
     'delete', @(m) detachConfigSet(m, 'Slow'), ...
     'combo', @combo, ...
+    'spaced', @spaced, ...
     'bareref', @(m) attachConfigSet(m, refTo('Reference', '')), ...
     'addref', @(m) attachConfigSet(m, refTo('Reference', 'dictCfg')), ...
     'source', @(m) setSource(getConfigSet(m, 'RefFromDict'), 'dictCfg2'));
 added = struct('add', {{'Configuration1'}}, 'combo', {{'Newest'}});
-renamed = struct('rename', {{'Fast run-2', 'Fast'}});  % a kept set's name after the edit, then as read
+renamed = struct('rename', {{'Fast run-2', 'Fast'}}, 'spaced', {{' Fast run ', 'Fast'}});  % a kept set's name after the edit, then as read
 % An edit MATLAB's export to an older layout refuses ("No configuration set specified by
 % configuration reference"), and the set it adds, as `opened` lists it.
 bare = struct('bareref', 'Reference:Simulink.ConfigSetRef:::0');
@@ -175,6 +176,11 @@ function combo(m)
     setActiveConfigSet(m, 'Newest');
     detachConfigSet(m, 'Configuration');
     set_param(getConfigSet(m, 'Fast'), 'Description', 'Quick runs');
+end
+
+function spaced(m)
+    set_param(getConfigSet(m, 'Fast'), 'Name', ' Fast run ');
+    set_param(getConfigSet(m, ' Fast run '), 'Description', sprintf('  two\nlines\n'));
 end
 
 function cs = named(cs, name)

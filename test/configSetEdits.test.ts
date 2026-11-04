@@ -109,6 +109,19 @@ describe("a model's configuration set, edited as a dictionary's is", () => {
     ]);
   });
 
+  it.each(LAYOUTS)('%s: a name and a Description with spaces and line breaks around them, kept as MATLAB keeps them', (file) => {
+    // MATLAB takes both, and writes and reads every space and line break of them in every layout
+    // (probe_config_set_edits.m, `spaced`); SlxParser's XML reader trims them as it reads a set back.
+    const o = opened(file);
+    expect(o.edit('Fast', 'Name', ' Fast run ')).toBe(true);
+    expect(o.edit(' Fast run ', 'Description', '  two\nlines\n')).toBe(true);
+    const saved = (o.s.serializeSource(file) as { bytes: Uint8Array }).bytes;
+    const texts = Object.values(unzipSync(saved)).map((b) => new TextDecoder().decode(b));
+    const written = file === 'acs_sets.slx' ? '"Description":"  two\\nlines\\n"' : '>  two\nlines\n</P>';
+    expect(texts.filter((t) => t.includes(written))).toHaveLength(1);
+    expect(o.read(parseSlx(buf(saved), file)).map((r) => r[0].trim())).toEqual(['Configuration', 'Fast run', 'Slow']);
+  });
+
   it('a set renamed and saved twice: the second save holds the first edit and the second', () => {
     const o = opened('acs_sets_R2021a.slx');
     o.edit('Fast', 'Name', 'Faster');
@@ -152,6 +165,16 @@ describe('an edit of a set that MATLAB would not make is refused, saying why', (
     );
     expect(o.s.addEntry('config', 'Simulink.Parameter')).toBeNull();
     expect(o.s.addEntryRefusal(o.config.id, 'Simulink.ConfigSet')).toBeNull();
+  });
+
+  it("a package an Add or a Delete could not be written into takes no edit of its sets", () => {
+    const entries = unzipSync(new Uint8Array(readFileSync(DIR + 'acs_sets_R2021a.slx')));
+    const rels = new TextDecoder().decode(entries['simulink/_rels/configSetInfo.xml.rels']);
+    entries['simulink/_rels/configSetInfo.xml.rels'] = new TextEncoder().encode(rels.replace(/ *<Relationship [^>]*configSet2\.xml[^>]*\/>\n/, ''));
+    const s: Any = createSession();
+    const model: Any = s.addModelSource('acs_sets_R2021a.slx', buf(zipSync(entries)));
+    expect(model.configEditRefusal()).toBe('"simulink/_rels/configSetInfo.xml.rels" is not laid out as MATLAB writes it');
+    expect(s.addEntryRefusal(model.getSection('config').id, 'Simulink.ConfigSet')).toMatch(/is not laid out as MATLAB writes it/);
   });
 
   it("a package not laid out as MATLAB writes it: its sets are shown, and none takes an edit", () => {

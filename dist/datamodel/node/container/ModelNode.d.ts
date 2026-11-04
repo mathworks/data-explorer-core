@@ -95,7 +95,8 @@ export default class ModelNode extends ContainerNode {
     /**
      * Why the model's configuration sets take no edit, as a clause, or null where they do: no save of
      * the model can be written (ModelPackage.packageRefusal, a `.mdl` among them), or its package is
-     * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read).
+     * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read, of one more added
+     * and of the last one deleted: the edits that touch the most of the package).
      */
     configEditRefusal(): string | null;
     /** The sets a save writes, where they are not the sets as read (each as it now is), or null. */

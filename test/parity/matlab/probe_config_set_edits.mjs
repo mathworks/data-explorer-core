@@ -11,6 +11,7 @@
 //   add       a Simulink.ConfigSet added (Configuration1)
 //   delete    Slow deleted
 //   combo     a set added and renamed Newest, made active, Configuration deleted, Fast described
+//   spaced    Fast renamed ' Fast run ', and described with spaces and line breaks around its text
 //   bareref   a Simulink.ConfigSetRef added (Reference), pointed at nothing yet, as an Add makes it
 //   addref    a Simulink.ConfigSetRef added (Reference), pointed at dictCfg (acs_ref)
 //   source    RefFromDict pointed at dictCfg2 (acs_ref)
@@ -42,11 +43,12 @@ const EDITS = {
       o.edit('Fast', 'Description', 'Quick runs') === true
     );
   },
+  spaced: (o) => o.edit('Fast', 'Name', ' Fast run ') === true && o.edit(' Fast run ', 'Description', '  two\nlines\n'),
   bareref: (o) => o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name === 'Reference',
   addref: (o) => o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name === 'Reference' && o.edit('Reference', 'SourceName', 'dictCfg') === true,
   source: (o) => o.edit('RefFromDict', 'SourceName', 'dictCfg2'),
 };
-const SETS_EDITS = ['rename', 'describe', 'add', 'delete', 'combo', 'bareref'];
+const SETS_EDITS = ['rename', 'describe', 'add', 'delete', 'combo', 'spaced', 'bareref'];
 const REF_EDITS = ['addref', 'source'];
 
 const GEN = path.join(OUT, 'gen');

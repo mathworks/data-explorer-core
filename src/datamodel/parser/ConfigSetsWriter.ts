@@ -395,6 +395,8 @@ function withRelationships(src: string, added: readonly string[], removed: reado
   for (const part of removed) {
     const target = part.slice('/simulink/'.length);
     const line = new RegExp(`^ *<Relationship [^>]*Target="${literal(target)}"[^>]*/>\\n`, 'm');
+    // A part the relationships do not relate as MATLAB writes it is no part of theirs to take out.
+    if (!line.test(out)) throw new ConfigSetsError(`"${member}" is not laid out as MATLAB writes it`);
     out = out.replace(line, '');
   }
   if (!out.includes('</Relationships>')) throw new ConfigSetsError(`"${member}" is not laid out as MATLAB writes it`);
@@ -409,7 +411,9 @@ function withRelationships(src: string, added: readonly string[], removed: reado
 function withOverrides(src: string, added: readonly string[], removed: readonly string[], contentType: string): string {
   let out = src;
   for (const part of removed) {
-    out = out.replace(new RegExp(`^ *<Override [^>]*PartName="${literal(part)}"[^>]*/>\\n`, 'm'), '');
+    const line = new RegExp(`^ *<Override [^>]*PartName="${literal(part)}"[^>]*/>\\n`, 'm');
+    if (!line.test(out)) throw new ConfigSetsError('"[Content_Types].xml" is not laid out as MATLAB writes it');
+    out = out.replace(line, '');
   }
   for (const part of added) {
     const line = `  <Override ContentType="${contentType}" PartName="${part}"/>\n`;

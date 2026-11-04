@@ -203,16 +203,22 @@ export default class ModelNode extends ContainerNode {
   /**
    * Why the model's configuration sets take no edit, as a clause, or null where they do: no save of
    * the model can be written (ModelPackage.packageRefusal, a `.mdl` among them), or its package is
-   * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read).
+   * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read, of one more added
+   * and of the last one deleted: the edits that touch the most of the package).
    */
   configEditRefusal(): string | null {
     if (this._configVerdict === undefined) {
       this._configVerdict = packageRefusal(this);
       if (this._configVerdict === null) {
+        const asRead = this._configAsRead;
+        const kept: SetToWrite[] = asRead.map((s, read) => ({ ...s, read }));
+        let name = 'Configuration';
+        for (let i = 1; asRead.some((s) => s.name === name); i++) name = 'Configuration' + i;
+        const added: SetToWrite = { read: null, name, className: 'Simulink.ConfigSet', description: '', sourceName: '' };
         try {
-          withConfigSets(this._zipEntries!, this._configAsRead, this._configAsRead.map((s, read) => ({ ...s, read })), {
-            hasDictionary: !!this.dataDictionary,
-          });
+          for (const sets of [kept, [...kept, added], ...(kept.length > 1 ? [kept.slice(0, -1)] : [])]) {
+            withConfigSets(this._zipEntries!, asRead, sets, { hasDictionary: !!this.dataDictionary });
+          }
         } catch (e) {
           if (!(e instanceof ConfigSetsError)) {
             throw e;

@@ -212,6 +212,19 @@ describe('a package not laid out as MATLAB writes it is refused, saying why', ()
     );
   });
 
+  it('a deleted set its relationships or the content types do not list', () => {
+    for (const [member, why] of [
+      ['simulink/_rels/configSetInfo.xml.rels', '"simulink/_rels/configSetInfo.xml.rels" is not laid out as MATLAB writes it'],
+      ['[Content_Types].xml', '"[Content_Types].xml" is not laid out as MATLAB writes it'],
+    ]) {
+      const none = save('acs_sets_R2021a', 'none');
+      const entries = unzipSync(none);
+      entries[member] = new TextEncoder().encode(text(entries[member])!.replace(/^ *<(Relationship|Override) [^>]*configSet2\.xml"[^>]*\/>\n/m, ''));
+      const asRead = asReadOf(none, 'acs_sets_R2021a.slx');
+      expect(() => withConfigSets(entries, asRead, EDITS.delete(kept(asRead)), { hasDictionary: false })).toThrow(new ConfigSetsError(why));
+    }
+  });
+
   it('no change asked, no member changed', () => {
     for (const model of ['acs_sets', 'acs_sets_R2021a', 'acs_sets_R2013b']) {
       const none = save(model, 'none');
