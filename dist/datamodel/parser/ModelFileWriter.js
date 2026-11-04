@@ -8,6 +8,7 @@ import { matOfWorkspaceStream, workspaceStreamOfMat } from './ModelWorkspaceStre
 import { parseSlx } from './SlxParser.js';
 import { CONTENT_TYPES, EMPTY_WORKSPACE, ROOT_RELS, WORKSPACE_MAT_PART, WORKSPACE_STREAM_PART, packageRefusal } from './ModelPackage.js';
 import { ActiveMarkError, withActiveSet } from './ActiveConfigMark.js';
+import { ConfigSetsError } from './ConfigSetsWriter.js';
 import { basenameOf } from '../fileKinds.js';
 // A save of a `.slx`: the package as it was read, every member's bytes as read, in the order its
 // directory listed them, with the time stamp and compression each had there (ZipAsRead), and the
@@ -26,9 +27,10 @@ import { basenameOf } from '../fileKinds.js';
 // probe_model_dictionary_sync.m). What MATLAB opens of every save is probe_model_workspace_save's
 // gate to say.
 //
-// And where another configuration set was made active, the one member that marks it, with the mark
-// moved (ActiveConfigMark), which MATLAB opens as its own save of the same change
-// (probe_active_config_set.m).
+// And the model's configuration sets as edited: renamed, described, added, deleted
+// (ConfigSetsWriter); then, where another set was made active, the one member that marks it, with
+// the mark moved (ActiveConfigMark). MATLAB opens each as its own save of the same change
+// (probe_active_config_set.m, probe_config_set_edits.m).
 const RELATIONSHIP_TYPE = 'http://schemas.mathworks.com/simulinkModel/2010/relationships/modelWorkspaceData';
 const PART_TYPES = {
     [WORKSPACE_STREAM_PART]: { extension: 'mxarray', contentType: 'application/vnd.mathworks.matlab.mxarray+binary' },
@@ -54,21 +56,23 @@ export function serializeModelFile(model) {
     if (workspace && workspace._modelRefusal === null) {
         writeWorkspace(entries, workspace, model);
     }
+    const sets = model._configSetsToWrite;
     const active = model._activeSetToWrite;
-    if (active !== null) {
-        try {
-            const marked = withActiveSet(model._zipEntries, active);
+    try {
+        model._configEdited(entries);
+        if (active !== null) {
+            const marked = withActiveSet(entries, active);
             entries[marked.member] = marked.bytes;
         }
-        catch (e) {
-            if (e instanceof ActiveMarkError) {
-                throw new MatWriteError('Cannot save "' + label + '": ' + e.message + '. Nothing was written.');
-            }
-            throw e;
+    }
+    catch (e) {
+        if (e instanceof ActiveMarkError || e instanceof ConfigSetsError) {
+            throw new MatWriteError('Cannot save "' + label + '": ' + e.message + '. Nothing was written.');
         }
+        throw e;
     }
     const zipped = zipSync(asRead(entries, packageStampsOf(model._zipEntries)), { level: 6 });
-    readsBack(zipped, label, workspace, active);
+    readsBack(zipped, label, workspace, active, sets, Object.prototype.hasOwnProperty.call(entries, 'simulink/configSetInfo.json'));
     return zipped;
 }
 // The model's Model Workspace where it is a MAT-file's editor (ModelWorkspaceNode), told by what it
@@ -172,8 +176,13 @@ function withoutLine(xml, element) {
     return blankBefore && blankAfter ? xml.slice(0, start) + xml.slice(end < 0 ? xml.length : end + 1) : xml.slice(0, m.index) + xml.slice(m.index + m[0].length);
 }
 // The package written, read back: it holds the workspace's variables, by name, as saved, and the set
-// made active (`active`, where one was) is the one active.
-function readsBack(zipped, label, workspace, active) {
+// made active (`active`, where one was) is the one active. A set's name and Description are held to
+// what was written as the XML layouts are read here, trimmed (`json` false: SlxParser's reader of a
+// model's XML parts trims a text), where MATLAB reads every space and line break of them as written,
+// as it writes them (a name `Fast `, a Description ending in a line break; measured, R2027a, in the
+// R2025a, R2021a and R2013b layouts).
+function readsBack(zipped, label, workspace, active, sets, json) {
+    const read = (text) => (json ? text : text.trim());
     let back;
     try {
         back = parseSlx(zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength), label);
@@ -183,8 +192,15 @@ function readsBack(zipped, label, workspace, active) {
     }
     if (active !== null) {
         const got = back.configSets.filter((c) => c.active).map((c) => c.name);
-        if (got.length !== 1 || got[0] !== active) {
+        if (got.length !== 1 || got[0] !== read(active)) {
             throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back with "' + active + '" the active configuration set. Nothing was written.');
+        }
+    }
+    if (sets !== null) {
+        const spell = (s) => [read(s.name), s.className, read(s.description), read(s.sourceName)].join('\u0000');
+        const got = back.configSets.map((c) => spell({ name: c.name, className: c.objectClass || 'Simulink.ConfigSet', description: c.description ?? '', sourceName: c.sourceName }));
+        if (got.join('\u0001') !== sets.map(spell).join('\u0001')) {
+            throw new MatWriteError('Cannot save "' + label + '": what would be written does not read back with its configuration sets as edited. Nothing was written.');
         }
     }
     if (!workspace || workspace._modelRefusal !== null) {

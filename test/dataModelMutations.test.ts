@@ -145,7 +145,7 @@ describe('addEntry', () => {
   // which adds a variable as a MAT-file does; every other section of it is a
   // ModelSectionNode, which implements neither getAllowedTypes nor execAddEntry, so it is
   // found by name and then refused for having no add hook.
-  it("adds a variable to a model's Model Workspace, and an entry to no other section of it", () => {
+  it("adds a variable to a model's Model Workspace, a configuration set to its Configurations, and an entry to no other section of it", () => {
     // A package MATLAB wrote: model_with_refs.slx holds no [Content_Types].xml, so no save of its
     // workspace could name a part it adds, and its workspace takes no edit.
     const path = fileURLToPath(new URL('./parity/artifacts/slx_layouts/slxcfgref.slx', import.meta.url));
@@ -155,8 +155,13 @@ describe('addEntry', () => {
     s.setActiveContext(src);
     const ws = sectionOf(src, 'workspace');
     const before = ws.children.length;
-    expect(s.addEntry('config', 'Simulink.ConfigSet')).toBeNull();
+    expect(s.addEntry('blocks', 'Simulink.Parameter')).toBeNull();
+    expect(s.addEntry('references', 'Simulink.ConfigSet')).toBeNull();
     expect(s.canUndo()).toBe(false);
+    const set = s.addEntry('config', 'Simulink.ConfigSet') as any;
+    expect([set?.parent, set?.name]).toEqual([sectionOf(src, 'config'), 'Configuration1']);
+    s.undo();
+    expect(sectionOf(src, 'config').children).not.toContain(set);
     const added = s.addEntry('workspace', '') as any;
     expect(added?.parent).toBe(ws);
     expect(ws.children.length).toBe(before + 1);

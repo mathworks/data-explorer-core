@@ -4,6 +4,7 @@ import ModelSectionNode from './ModelSectionNode.js';
 import ModelWorkspaceNode from './ModelWorkspaceNode.js';
 import ConfigSetNode from '../data/ConfigSetNode.js';
 import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
+import { type SetState, type SetToWrite } from '../../parser/ConfigSetsWriter.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
@@ -62,6 +63,11 @@ export default class ModelNode extends ContainerNode {
     _zipEntries: Record<string, Uint8Array> | null;
     /** The configuration set the package marked active as it was read, by name, or null. */
     _activeAsRead: string | null;
+    /** The configuration sets as read, in the package's order: what a save of the sets edits. */
+    _configAsRead: (SetState & {
+        active: boolean;
+    })[];
+    _configVerdict?: string | null;
     constructor(name: string);
     get tableColumnConfig(): TableColumnConfig;
     /**
@@ -86,6 +92,20 @@ export default class ModelNode extends ContainerNode {
      * (ActiveConfigMark). A reference is made active as a set is, with a warning (activeSetCaution).
      */
     activeSetRefusal(set: unknown): string | null;
+    /**
+     * Why the model's configuration sets take no edit, as a clause, or null where they do: no save of
+     * the model can be written (ModelPackage.packageRefusal, a `.mdl` among them), or its package is
+     * not laid out as MATLAB writes it (ConfigSetsWriter, asked of the sets as read, of one more added
+     * and of the last one deleted: the edits that touch the most of the package).
+     */
+    configEditRefusal(): string | null;
+    /** The sets a save writes, where they are not the sets as read (each as it now is), or null. */
+    get _configSetsToWrite(): SetToWrite[] | null;
+    /**
+     * `entries`, the package's members, with the configuration sets as they now are written into them
+     * (ConfigSetsWriter): changed in place and answered. Throws ConfigSetsError, saying why.
+     */
+    _configEdited(entries: Record<string, Uint8Array>): Record<string, Uint8Array>;
     /**
      * What making `set` active cannot check, where it is made active and is a reference, as a
      * sentence, or null: MATLAB uses a reference only once it finds the set it refers to, in the

@@ -738,7 +738,10 @@ export default class DataNode extends BaseNode {
       if (!this.nameEditable) {
         return this._nameNotEditedRefusal(stringValue);
       }
-      const error = validateMatlabName(stringValue);
+      // A name by its parent's rule where the parent has one (a model's Configurations section takes
+      // a configuration set's: ModelSectionNode._childNameError), and a MATLAB name's otherwise.
+      const rule = (this.parent as unknown as { _childNameError?: (text: string) => string | null } | null)?._childNameError;
+      const error = typeof rule === 'function' ? rule.call(this.parent, stringValue) : validateMatlabName(stringValue);
       if (error) {
         return { error: true, reason: error, invalidValue: stringValue, validValue: this.name };
       }

@@ -201,10 +201,10 @@ describe('a set that is not made active says why, and nothing changes', () => {
     );
   });
 
-  it("a set's other edits are refused as before", () => {
+  it("a set's own settings are MATLAB's to edit", () => {
     const o = opened(ACTIVE + 'acs_sets.slx');
     o.s.setActive(o.model, o.set('Fast'));
-    expect(o.s.editProperty(o.set('Fast').id, 'Name', 'Faster')).toMatchObject({ error: true });
+    expect(o.s.editProperty(o.set('Fast').id, 'StopTime', '5')).toMatchObject({ error: true });
     expect(o.model.dirty).toBe(false);
   });
 });

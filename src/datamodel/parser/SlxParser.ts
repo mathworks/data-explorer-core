@@ -68,6 +68,12 @@ export interface ParsedConfigSet {
   data: unknown;
   objectClass: string;
   sourceName: string;
+  /**
+   * The set's own Description, '' for none: a property of the set's root object in every layout
+   * (a `.slx` writes it only where it is set, but in R2015a-R2021a's full XML, where it is always
+   * there and empty). Absent from a parse a host built without it.
+   */
+  description?: string;
 }
 
 export interface ParsedSlx {
@@ -240,6 +246,21 @@ export function configSetIdentity(data: unknown): { objectClass: string; sourceN
   return { objectClass: obj['@_ClassName'], sourceName: props.SourceName ?? props.WSVarName ?? '' };
 }
 
+/**
+ * The set's own Description in `data`, as configSetIdentity finds the set's root object in each
+ * layout: a property of it, '' where it has none.
+ */
+export function configSetDescription(data: unknown): string {
+  if (!data || typeof data !== 'object') return '';
+  const rec = data as Record<string, unknown>;
+  if (typeof rec._object_class === 'string') {
+    const d = ((rec._properties || {}) as Record<string, unknown>).Description;
+    return typeof d === 'string' ? d : '';
+  }
+  const obj = typeof rec['@_ClassName'] === 'string' ? rec : (findAll(rec, 'Object')[0] as Record<string, unknown> | undefined);
+  return obj ? directProps(obj).Description ?? '' : '';
+}
+
 // The entries a JSON index part lists (`ConfigSetInfo` in configSetInfo.json,
 // `ModelReferences` in graphicalInterface.json) as a list, or null when the value cannot
 // be read as one. MATLAB always writes an array: all 68 configSetInfo.json parts in this
@@ -342,6 +363,7 @@ function extractConfigSets(
       active: !!info.Active,
       data: data,
       ...configSetIdentity(data),
+      description: configSetDescription(data),
     });
   }
   return configs;
@@ -523,7 +545,7 @@ function inlineConfigSets(model: Record<string, unknown>): ParsedConfigSet[] {
     const name = directProps(rec).Name;
     if (!name) continue;
     const id = String(rec['@_ObjectID'] ?? '');
-    out.push({ name, active: !!id && id === activeId, data: rec, ...configSetIdentity(rec) });
+    out.push({ name, active: !!id && id === activeId, data: rec, ...configSetIdentity(rec), description: configSetDescription(rec) });
   }
   return out;
 }

@@ -102,6 +102,21 @@ export function configSetIdentity(data) {
     // from a release this corpus does not sample is the case that would otherwise lose it.
     return { objectClass: obj['@_ClassName'], sourceName: props.SourceName ?? props.WSVarName ?? '' };
 }
+/**
+ * The set's own Description in `data`, as configSetIdentity finds the set's root object in each
+ * layout: a property of it, '' where it has none.
+ */
+export function configSetDescription(data) {
+    if (!data || typeof data !== 'object')
+        return '';
+    const rec = data;
+    if (typeof rec._object_class === 'string') {
+        const d = (rec._properties || {}).Description;
+        return typeof d === 'string' ? d : '';
+    }
+    const obj = typeof rec['@_ClassName'] === 'string' ? rec : findAll(rec, 'Object')[0];
+    return obj ? directProps(obj).Description ?? '' : '';
+}
 // The entries a JSON index part lists (`ConfigSetInfo` in configSetInfo.json,
 // `ModelReferences` in graphicalInterface.json) as a list, or null when the value cannot
 // be read as one. MATLAB always writes an array: all 68 configSetInfo.json parts in this
@@ -195,6 +210,7 @@ function extractConfigSets(entries, configSetInfo, warnings) {
             active: !!info.Active,
             data: data,
             ...configSetIdentity(data),
+            description: configSetDescription(data),
         });
     }
     return configs;
@@ -370,7 +386,7 @@ function inlineConfigSets(model) {
         if (!name)
             continue;
         const id = String(rec['@_ObjectID'] ?? '');
-        out.push({ name, active: !!id && id === activeId, data: rec, ...configSetIdentity(rec) });
+        out.push({ name, active: !!id && id === activeId, data: rec, ...configSetIdentity(rec), description: configSetDescription(rec) });
     }
     return out;
 }

@@ -1,10 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
-// A model's elements, configuration sets, references and external data are shown and not edited:
-// an edit of a row in any of those sections is refused, with the reason, and leaves the model as it
-// was read — not dirty, and no undo step. Until this, a model's sections answered no edit rule
+// A model's elements, references and external data are shown and not edited: an edit of a row in
+// any of those sections is refused, with the reason, and leaves the model as it was read — not
+// dirty, and no undo step. Until this, a model's sections answered no edit rule
 // (BaseNode.sourceEditRefusal asks the first container above an entry, and a ModelSectionNode had
-// none), so a config set's rename was taken, marked the model dirty and recorded an undo step,
-// though no save writes it. The Model Workspace answers by its own rules, and is not tested here.
+// none), so a block's rename was taken, marked the model dirty and recorded an undo step, though no
+// save writes it. A `.slx`'s configuration sets take edits (test/configSetEdits.test.ts) and a
+// `.mdl`'s refuse them, here; the Model Workspace answers by its own rules, and is not tested here.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ function modelSession(path: string) {
 
 const CASES = './parity/artifacts/slx/cases.slx';
 const LAYOUTS = './parity/artifacts/slx_layouts/slxcases.slx';
-const CFGREF = './parity/artifacts/slx_layouts/slxcfgref.slx';
+const MDL = './parity/artifacts/mdl/mdlcases.mdl';
 const sectionOf = (src: any, key: string) => src.children.find((c: any) => c.name === key);
 const entryOf = (src: any, key: string, name: string) => sectionOf(src, key).children.find((c: any) => c.name === name);
 
@@ -32,45 +33,39 @@ function expectUntouched(s: any, src: any): void {
 }
 
 describe("a model refuses every edit of a row outside its Model Workspace", () => {
-  it("refuses a config set's rename and Description, saying why, and changes nothing", () => {
-    const { s, src } = modelSession(LAYOUTS);
+  it("refuses a .mdl's config set's rename, Description, delete and a new one, saying why, and changes nothing", () => {
+    const { s, src } = modelSession(MDL);
     const node = entryOf(src, 'config', 'Fast');
     s.setActive(src, node);
     const renamed = s.editProperty(node.id, 'Name', 'Faster') as any;
     expect(renamed).toMatchObject({ error: true });
-    expect(renamed.reason).toBe(
-      'Cannot rename "Fast": it is in the Configurations section of "slxcases.slx", which this editor shows but does not edit.',
-    );
-    expect(s.renameRefusal(node.id)).toMatch(/Configurations section of "slxcases\.slx"/);
+    expect(renamed.reason).toBe('Cannot rename "Fast": a .mdl model is not written by this editor.');
+    expect(s.renameRefusal(node.id)).toBe('Cannot rename "Fast": a .mdl model is not written by this editor.');
     expect(s.editProperty(node.id, 'Description', 'quick')).toMatchObject({ error: true });
+    expect(s.deleteRefusal(node.id)).toBe('Cannot delete "Fast": a .mdl model is not written by this editor. Nothing was deleted.');
+    expect(s.addEntryRefusal(sectionOf(src, 'config').id, 'Simulink.ConfigSet')).toBe(
+      'Cannot add a Simulink.ConfigSet to "Configurations": a .mdl model is not written by this editor.',
+    );
     expect(node.name).toBe('Fast');
     expect(node.Description).toBe('');
     expectUntouched(s, src);
   });
 
-  it("refuses a config set reference's source", () => {
-    const { s, src } = modelSession(CFGREF);
-    const node = entryOf(src, 'config', 'RefFromDict');
-    s.setActive(src, node);
-    const before = node.SourceName;
-    expect((s.editProperty(node.id, 'SourceName', 'Other') as any).reason).toBe(
-      'Cannot edit "RefFromDict": it is in the Configurations section of "slxcfgref.slx", which this editor shows but does not edit.',
-    );
-    expect(node.SourceName).toBe(before);
-    expectUntouched(s, src);
-  });
-
-  it("refuses a host's own setter call, as the session's", () => {
-    const { s, src } = modelSession(LAYOUTS);
+  it("refuses a host's own setter call on a .mdl's config set, as the session's", () => {
+    const { s, src } = modelSession(MDL);
     const node = entryOf(src, 'config', 'Fast');
     expect(node.setProperty('Name', 'Faster')).toMatchObject({ error: true });
     expect(node.name).toBe('Fast');
     expectUntouched(s, src);
   });
 
-  it('offers no editor of a row outside the workspace', () => {
+  it('offers no editor of a row outside the workspace and the configuration sets', () => {
     const { src } = modelSession(LAYOUTS);
-    for (const key of ['blocks', 'config', 'references', 'dataSources']) {
+    expect(sectionOf(src, 'config').children.map((n: any) => [n.name, n.toRow().Name.editable])).toEqual([
+      ['Configuration', true],
+      ['Fast', true],
+    ]);
+    for (const key of ['blocks', 'references', 'dataSources']) {
       expect(sectionOf(src, key).children.length, key).toBeGreaterThan(0);
       for (const node of sectionOf(src, key).children) {
         expect(node.nameEditable, key + ' ' + node.name).toBe(false);
@@ -103,7 +98,6 @@ describe("a model refuses every edit of a row outside its Model Workspace", () =
     const { s, src } = modelSession(LAYOUTS);
     for (const [key, label] of [
       ['blocks', 'Model Elements'],
-      ['config', 'Configurations'],
       ['references', 'Model References'],
       ['dataSources', 'External Data'],
     ]) {

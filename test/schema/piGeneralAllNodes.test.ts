@@ -86,7 +86,7 @@ describe('common "General" identity group — schema-driven classes', () => {
     });
     expect(firstGroup(ConfigSetRefNode.createDefault('n', null))).toEqual({
       name: 'General',
-      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'sourceName', 'Description'],
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'SourceName', 'Description'],
     });
   });
 

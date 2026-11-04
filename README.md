@@ -412,7 +412,19 @@ variable a block of the model uses by name, and a model argument, is not renamed
 argument takes only a value an argument can hold. A workspace the model does not keep (its data
 source a MAT-file, a MATLAB file or MATLAB code, which make it anew each time the model opens),
 and a package that does not name its parts, take no edit and say why, as a MAT-file a save could
-not keep does (`readOnly`). A model's other sections take no edit, and a `.mdl` none at all.
+not keep does (`readOnly`). A model's other sections take no edit but its configuration sets
+(below), and a `.mdl` none at all.
+
+A `.slx`'s configuration sets are edited as a dictionary's are: `editProperty` renames a set and
+sets its Description, and points a `Simulink.ConfigSetRef` at another set (`SourceName`);
+`addEntry('config', 'Simulink.ConfigSet' | 'Simulink.ConfigSetRef')` adds one (`Configuration1`,
+`Reference`), which MATLAB opens as a fresh set of its own release; `deleteNodeById` deletes one;
+each is one undo step. A set's own settings are MATLAB's to edit. A name MATLAB does not give a set
+(empty; other than letters, digits, `_`, `-` and spaces; another set's) is refused in MATLAB's words,
+and so is a delete of the active set, which MATLAB's `detachConfigSet` refuses too: make another
+active first. The save writes only what the edits change, in every layout from R2013b on, and
+MATLAB opens it as its own save of the same edits; a package whose sets are not laid out as MATLAB
+writes them takes no edit of them and says why (`renameRefusal`, `addEntryRefusal`).
 
 `session.setActiveConfigSet(nodeId)` makes one of a `.slx`'s configuration sets the active one, as
 one undo step; its save moves the one mark the package keeps of which set is active, every other

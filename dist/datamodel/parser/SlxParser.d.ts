@@ -56,6 +56,12 @@ export interface ParsedConfigSet {
     data: unknown;
     objectClass: string;
     sourceName: string;
+    /**
+     * The set's own Description, '' for none: a property of the set's root object in every layout
+     * (a `.slx` writes it only where it is set, but in R2015a-R2021a's full XML, where it is always
+     * there and empty). Absent from a parse a host built without it.
+     */
+    description?: string;
 }
 export interface ParsedSlx {
     name: string;
@@ -114,6 +120,11 @@ export declare function configSetIdentity(data: unknown): {
     objectClass: string;
     sourceName: string;
 };
+/**
+ * The set's own Description in `data`, as configSetIdentity finds the set's root object in each
+ * layout: a property of it, '' where it has none.
+ */
+export declare function configSetDescription(data: unknown): string;
 export declare function normalizeBlockName(name: string): string;
 /**
  * Could this VALUE, whatever holds it, refer to named data?
