@@ -88,6 +88,13 @@ describe("a model's configuration set, edited as a dictionary's is", () => {
     },
   );
 
+  it.each(LAYOUTS)('%s: a reference added and pointed at nothing yet, as an Add makes it, reads back so', (file) => {
+    const o = opened(file);
+    expect(o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name).toBe('Reference');
+    expect(o.saved().warnings).toEqual([]);
+    expect(o.read().at(-1)).toEqual(['Reference', 'Simulink.ConfigSetRef', '', '', false]);
+  });
+
   it.each(LAYOUTS)('%s: a set added, renamed, made active and saved: the mark is on it', (file) => {
     const o = opened(file);
     const added = o.s.addEntry('config', 'Simulink.ConfigSet');

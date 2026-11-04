@@ -28,6 +28,10 @@
 %          the model, and writes from the active set as it saves: a set the session makes active
 %          there has the coverage settings the model was read with (R2023b shows it; R2027a gives
 %          every set the same ones), where MATLAB's save gives it the set's own.
+%        - a reference added and pointed at nothing yet (bareref, as an Add makes it), which MATLAB's
+%          export to an older layout refuses to write, is held to the model as read with the
+%          reference added (a `NOTE` line says so): it opens saying what the model as read does,
+%          unchanged, and simulates as the model as read does.
 %
 % Run, after `npm run build`:
 %   env PROBE_OUT=/tmp/cse PROBE_NODE=$(node -p process.execPath) mw -using Bmain matlab \
@@ -73,10 +77,14 @@ edits = struct( ...
     'add', @(m) attachConfigSet(m, named(Simulink.ConfigSet, 'Configuration1')), ...
     'delete', @(m) detachConfigSet(m, 'Slow'), ...
     'combo', @combo, ...
+    'bareref', @(m) attachConfigSet(m, refTo('Reference', '')), ...
     'addref', @(m) attachConfigSet(m, refTo('Reference', 'dictCfg')), ...
     'source', @(m) setSource(getConfigSet(m, 'RefFromDict'), 'dictCfg2'));
 added = struct('add', {{'Configuration1'}}, 'combo', {{'Newest'}});
 renamed = struct('rename', {{'Fast run-2', 'Fast'}});  % a kept set's name after the edit, then as read
+% An edit MATLAB's export to an older layout refuses ("No configuration set specified by
+% configuration reference"), and the set it adds, as `opened` lists it.
+bare = struct('bareref', 'Reference:Simulink.ConfigSetRef:::0');
 
 node = getenv('PROBE_NODE');
 if isempty(node), node = 'node'; end
@@ -104,13 +112,26 @@ for k = 1:numel(manifest)
         edits.(c.edit)(c.model);
         theirs = fullfile(outdir, 'native', c.id, c.file);
         mkdir(fileparts(theirs));
-        if isempty(era), evalc('save_system(c.model, theirs)'); else, evalc('save_system(c.model, theirs, ''ExportToVersion'', era)'); end
+        refused = '';
+        try
+            if isempty(era), evalc('save_system(c.model, theirs)'); else, evalc('save_system(c.model, theirs, ''ExportToVersion'', era)'); end
+        catch err
+            if ~isfield(bare, c.edit), rethrow(err); end
+            refused = err.message;
+        end
         bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
         found(dictdir, era, sets, solver);
         mine = opened(fullfile(outdir, 'cases', c.id, c.file), c.model);
         bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
         found(dictdir, era, sets, solver);
-        matlab = opened(theirs, c.model);
+        if isempty(refused)
+            matlab = opened(theirs, c.model);
+        else
+            % MATLAB's export refuses the edit: held to the model as read, with the set it adds.
+            fprintf('NOTE %s MATLAB''s export refuses it (%s): held to the model as read\n', c.id, refused);
+            matlab = read;
+            matlab.sets = [read.sets ' | ' bare.(c.edit)];
+        end
         if ~strcmp(mine.msg, matlab.msg), why{end+1} = sprintf('opens with [%s], where MATLAB''s save opens with [%s]', mine.msg, matlab.msg); end
         if ~isequal(mine.sets, matlab.sets), why{end+1} = sprintf('its sets are [%s], where MATLAB''s are [%s]', mine.sets, matlab.sets); end
         if ~strcmp(mine.dirty, 'off'), why{end+1} = 'it opens changed (Dirty)'; end
