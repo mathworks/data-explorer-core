@@ -3,7 +3,8 @@
 % Does MATLAB open a model whose configuration sets the session edited as it opens its own save of
 % the same edits? The gate of ConfigSetsWriter, in every layout.
 %
-%   1. Copies the models of test/fixtures/active-config (gen_active_config.m), and acs_dict.sldd,
+%   1. Copies the models of test/fixtures/active-config (gen_active_config.m), and one and two of
+%      test/fixtures/config-set-edits (a model of one set, and of two), and acs_dict.sldd,
 %      to which it adds a second set, dictCfg2 (StopTime 3), for a reference to be pointed at.
 %   2. Runs probe_config_set_edits.mjs, which makes each edit through the session and saves it.
 %   3. For each case, MATLAB makes the same edit itself (the same edits, by its own API) and saves
@@ -54,6 +55,10 @@ warning('off', 'backtrace');
 bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
 fixtures = fullfile(here, '..', '..', 'fixtures', 'active-config');
 copyfile(fullfile(fixtures, '*.slx'), gen);
+% And a model of one set, which MATLAB's index lists inline, and one of two (MATLAB's own saves).
+edited = fullfile(here, '..', '..', 'fixtures', 'config-set-edits');
+copyfile(fullfile(edited, 'one__none.slx'), fullfile(gen, 'one.slx'));
+copyfile(fullfile(edited, 'two__none.slx'), fullfile(gen, 'two.slx'));
 copyfile(fullfile(fixtures, 'acs_dict.sldd'), dictdir);
 only = getenv('PROBE_ONLY');
 keep = @(mdl) isempty(only) || ~isempty(regexp(mdl, only, 'once'));
@@ -78,11 +83,14 @@ edits = struct( ...
     'delete', @(m) detachConfigSet(m, 'Slow'), ...
     'combo', @combo, ...
     'spaced', @spaced, ...
+    'add1', @(m) attachConfigSet(m, named(Simulink.ConfigSet, 'Configuration1')), ...
+    'rename1', @(m) set_param(getConfigSet(m, 'Configuration'), 'Name', 'Main'), ...
+    'describe1', @(m) set_param(getConfigSet(m, 'Configuration'), 'Description', 'The one set'), ...
     'bareref', @(m) attachConfigSet(m, refTo('Reference', '')), ...
     'addref', @(m) attachConfigSet(m, refTo('Reference', 'dictCfg')), ...
     'source', @(m) setSource(getConfigSet(m, 'RefFromDict'), 'dictCfg2'));
-added = struct('add', {{'Configuration1'}}, 'combo', {{'Newest'}});
-renamed = struct('rename', {{'Fast run-2', 'Fast'}}, 'spaced', {{' Fast run ', 'Fast'}});  % a kept set's name after the edit, then as read
+added = struct('add', {{'Configuration1'}}, 'combo', {{'Newest'}}, 'add1', {{'Configuration1'}});
+renamed = struct('rename', {{'Fast run-2', 'Fast'}}, 'spaced', {{' Fast run ', 'Fast'}}, 'rename1', {{'Main', 'Configuration'}});  % a kept set's name after the edit, then as read
 % An edit MATLAB's export to an older layout refuses ("No configuration set specified by
 % configuration reference"), and the set it adds, as `opened` lists it.
 bare = struct('bareref', 'Reference:Simulink.ConfigSetRef:::0');
