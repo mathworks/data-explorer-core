@@ -14,3 +14,7 @@ result to them. Written on R2027a (2026-11-03) from the models of `test/fixtures
 - `esc*.slx`: `acs_sets.slx` with Slow renamed `Slow set-2` and Fast's Description set to
   `line1 <a&b> "q" 's'` and a second line, `line2`, saved in R2027a and exported to R2025a, R2021a,
   R2018a and R2013b: how each layout writes a name and a Description.
+- `one__none.slx`, `one__add.slx`, `two__none.slx`, `two__delete.slx`: by the same script, in R2027a
+  alone. `one` is a model of one set as `new_system` makes it, which MATLAB's JSON index lists inline
+  (`"ConfigSetInfo":[{ ... }]`), and with `Added` attached; `two` holds Configuration and Slow, one
+  entry a line, and Slow detached: the index going from one set to two and back.
