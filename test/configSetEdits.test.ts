@@ -131,6 +131,24 @@ describe("a model's configuration set, edited as a dictionary's is", () => {
   });
 });
 
+describe('a model of one set, as most are', () => {
+  const DIR2 = fileURLToPath(new URL('./fixtures/config-set-edits/', import.meta.url));
+  it('takes every edit of its set, and a set added, saved as MATLAB lists two', () => {
+    const bytes = new Uint8Array(readFileSync(DIR2 + 'one__none.slx'));
+    const s: Any = createSession();
+    const model: Any = s.addModelSource('one.slx', buf(bytes));
+    s.setActiveContext(model);
+    expect(model.configEditRefusal()).toBeNull();
+    expect(s.addEntryRefusal(model.getSection('config').id, 'Simulink.ConfigSet')).toBeNull();
+    expect(s.addEntry('config', 'Simulink.ConfigSet')?.name).toBe('Configuration1');
+    const saved = parseSlx(buf((s.serializeSource('one.slx') as { bytes: Uint8Array }).bytes), 'one.slx');
+    expect(saved.configSets.map((c) => [c.name, c.active])).toEqual([
+      ['Configuration', true],
+      ['Configuration1', false],
+    ]);
+  });
+});
+
 describe('an edit of a set that MATLAB would not make is refused, saying why', () => {
   it.each([
     ['R&D', 'Cannot rename "Fast": Invalid character in name for configuration object. Valid characters are {(a-z), (A-Z), (0-9), _, -} and a space.'],

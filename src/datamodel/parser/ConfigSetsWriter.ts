@@ -168,10 +168,13 @@ function readXmlIndex(source: string): Listed[] {
 // The JSON MATLAB writes, string by string: `/` as `\/`, as its part names show.
 const jsonString = (s: string) => JSON.stringify(s).replace(/\//g, '\\/');
 
+// MATLAB lists one set inline, `"ConfigSetInfo":[{` ... `}]`, and two or more one entry a line
+// (measured, R2027a: a model of one set, with one attached, and with it detached again).
 function jsonIndex(sets: readonly Listed[]): string {
-  const entry = (s: Listed) =>
-    '    {\n' + (s.active ? '      "Active":true,\n' : '') + `      "ConfigSetName":${jsonString(s.name)},\n      "PartName":${jsonString(s.part)}\n    }`;
-  return '{\n  "ConfigSetInfo":[\n' + sets.map(entry).join(',\n') + '\n  ]\n}';
+  const fields = (s: Listed) =>
+    (s.active ? '      "Active":true,\n' : '') + `      "ConfigSetName":${jsonString(s.name)},\n      "PartName":${jsonString(s.part)}\n`;
+  if (sets.length === 1) return '{\n  "ConfigSetInfo":[{\n' + fields(sets[0]) + '    }]\n}';
+  return '{\n  "ConfigSetInfo":[\n' + sets.map((s) => '    {\n' + fields(s) + '    }').join(',\n') + '\n  ]\n}';
 }
 
 function xmlIndex(sets: readonly Listed[]): string {

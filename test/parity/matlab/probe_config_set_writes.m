@@ -16,6 +16,9 @@
 %   delete    Slow detached
 %   copy      a copy of Fast named FastCopy, attached
 %
+% And `one` (one set, new_system's) and `two` (Configuration and Slow), in R2027a alone: `one` with
+% Added attached, `two` with Slow detached, where MATLAB's index goes from one set to two and back.
+%
 % Run: env PROBE_OUT=/tmp/csw mw -using Bmain matlab -nodesktop \
 %        -batch "run('$PWD/test/parity/matlab/probe_config_set_writes.m')"
 % Writes PROBE_OUT/<stamp>/native/<model>__<edit>/<model>.slx and, per save, the set's parameters
@@ -84,6 +87,22 @@ end
 bdclose('all'); Simulink.data.dictionary.closeAll('-discard'); evalin('base', 'clear dictCfg');
 % A fresh set's parameters, as MATLAB makes one: what an added set must read back as.
 writeJson(fullfile(outdir, 'fresh.json'), paramsOf(Simulink.ConfigSet));
+% A model of one set, which MATLAB's index lists inline ("ConfigSetInfo":[{ ... }]), and one of two,
+% listed one entry a line: `one` as new_system makes it, and with Added attached; `two`, Configuration
+% and Slow, and with Slow detached. Saved in R2027a alone: the JSON index is the one that differs.
+for id = {'one__none', 'one__add', 'two__none', 'two__delete'}, mkdir(fullfile(outdir, 'native', id{1})); end
+new_system('one');
+save_system('one', fullfile(outdir, 'native', 'one__none', 'one.slx'));
+attachConfigSet('one', named(Simulink.ConfigSet, 'Added'));
+save_system('one', fullfile(outdir, 'native', 'one__add', 'one.slx'));
+bdclose('all');
+new_system('two');
+attachConfigSet('two', named(Simulink.ConfigSet, 'Slow'));
+save_system('two', fullfile(outdir, 'native', 'two__none', 'two.slx'));
+detachConfigSet('two', 'Slow');
+save_system('two', fullfile(outdir, 'native', 'two__delete', 'two.slx'));
+bdclose('all');
+fprintf('WROTE one none\nWROTE one add\nWROTE two none\nWROTE two delete\n');
 fprintf('PROBE_CONFIG_SET_WRITES DONE\n');
 
 function cs = named(cs, name)

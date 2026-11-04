@@ -13,6 +13,8 @@
 //   combo     a set added and renamed Newest, made active, Configuration deleted, Fast described
 //   spaced    Fast renamed ' Fast run ', and described with spaces and line breaks around its text
 //   bareref   a Simulink.ConfigSetRef added (Reference), pointed at nothing yet, as an Add makes it
+//   add1, rename1 (Configuration renamed Main), describe1: on `one`, a model of one set, which
+//             MATLAB's index lists inline; and `delete` on `two` (Configuration and Slow), down to one
 //   addref    a Simulink.ConfigSetRef added (Reference), pointed at dictCfg (acs_ref)
 //   source    RefFromDict pointed at dictCfg2 (acs_ref)
 //
@@ -44,19 +46,23 @@ const EDITS = {
     );
   },
   spaced: (o) => o.edit('Fast', 'Name', ' Fast run ') === true && o.edit(' Fast run ', 'Description', '  two\nlines\n'),
+  add1: (o) => o.s.addEntry('config', 'Simulink.ConfigSet')?.name === 'Configuration1',
+  rename1: (o) => o.edit('Configuration', 'Name', 'Main'),
+  describe1: (o) => o.edit('Configuration', 'Description', 'The one set'),
   bareref: (o) => o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name === 'Reference',
   addref: (o) => o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name === 'Reference' && o.edit('Reference', 'SourceName', 'dictCfg') === true,
   source: (o) => o.edit('RefFromDict', 'SourceName', 'dictCfg2'),
 };
 const SETS_EDITS = ['rename', 'describe', 'add', 'delete', 'combo', 'spaced', 'bareref'];
 const REF_EDITS = ['addref', 'source'];
+const EDITS_OF = (model) => (model.startsWith('acs_ref') ? REF_EDITS : model === 'one' ? ['add1', 'rename1', 'describe1'] : model === 'two' ? ['delete'] : SETS_EDITS);
 
 const GEN = path.join(OUT, 'gen');
 const manifest = [];
 for (const file of readdirSync(GEN).filter((f) => f.endsWith('.slx')).sort()) {
   const model = file.slice(0, -4);
   const bytes = new Uint8Array(readFileSync(path.join(GEN, file)));
-  for (const edit of model.startsWith('acs_ref') ? REF_EDITS : SETS_EDITS) {
+  for (const edit of EDITS_OF(model)) {
     const s = createSession();
     const root = s.addModelSource(file, bufferOf(bytes));
     s.setActiveContext(root);

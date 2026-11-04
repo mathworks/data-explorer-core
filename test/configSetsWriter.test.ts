@@ -124,6 +124,20 @@ describe("an edit of a model's configuration sets is MATLAB's own save of it", (
     });
   }
 
+  // A model of one set, as most are: MATLAB lists it inline ("ConfigSetInfo":[{ ... }]), and one
+  // entry a line once there are two, and back.
+  it('one: a set added to a model of one is the index, relationships and content types MATLAB writes', () => {
+    const e = edited('one', 'add');
+    expect(Object.keys(e.changes).sort()).toEqual([INDEX.json, RELS.json, TYPES, part('json', 1)].sort());
+    for (const m of [INDEX.json, RELS.json, TYPES]) expect([m, text(e.out[m])]).toEqual([m, text(e.matlab[m])]);
+  });
+
+  it('two: a set deleted down to one is the index, relationships and content types MATLAB writes', () => {
+    const e = edited('two', 'delete');
+    expect(e.changes[part('json', 1)]).toBeNull();
+    for (const m of [INDEX.json, RELS.json, TYPES]) expect([m, text(e.out[m])]).toEqual([m, text(e.matlab[m])]);
+  });
+
   it.each(['rename', 'describe'])('acs_sets_R2013b: %s is the block diagram MATLAB saves', (edit) => {
     const e = edited('acs_sets_R2013b', edit);
     expect(Object.keys(e.changes)).toEqual(['simulink/blockdiagram.xml']);
@@ -226,7 +240,7 @@ describe('a package not laid out as MATLAB writes it is refused, saying why', ()
   });
 
   it('no change asked, no member changed', () => {
-    for (const model of ['acs_sets', 'acs_sets_R2021a', 'acs_sets_R2013b']) {
+    for (const model of ['acs_sets', 'acs_sets_R2021a', 'acs_sets_R2013b', 'one', 'two']) {
       const none = save(model, 'none');
       const asRead = asReadOf(none, `${model}.slx`);
       expect([model, withConfigSets(unzipSync(none), asRead, kept(asRead), { hasDictionary: false })]).toEqual([model, {}]);
