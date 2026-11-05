@@ -99,6 +99,8 @@ export default class ModelNode extends ContainerNode {
      * and of the last one deleted: the edits that touch the most of the package).
      */
     configEditRefusal(): string | null;
+    /** Whether the model's sets are in R2026b+'s layout, a part of JSON each, which a set's settings travel in. */
+    get _configSetsInJson(): boolean;
     /** The sets a save writes, where they are not the sets as read (each as it now is), or null. */
     get _configSetsToWrite(): SetToWrite[] | null;
     /**

@@ -37,6 +37,8 @@ export default class ConfigSetRefNode extends SimulinkObjectNode {
     active?: boolean;
     // See ConfigSetNode._readIndex.
     _readIndex?: number;
+    // A set pasted into a model (ModelSectionNode.execPasteEntries), whose settings its part is written with.
+    _pasted?: boolean;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.SourceName = (props.SourceName as string) || ''; this.Description = (props.Description as string) || ''; }
     get icon(): string { return this.active ? 'check_configurationReference' : 'configurationReference'; }
     get className(): string { return CLASS_NAME; }

@@ -1,0 +1,238 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "Fast",
+						"metadata": {
+							"uuid": "befd7d11-ce0a-42dc-bd46-87aca1073120",
+							"namespace": "a3b2532e-8e6e-47f5-94fb-b15daf666a84",
+							"lastmod": "20261105T005653.568166",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ConfigSet",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Components": {
+											"_array_class": "Simulink.ConfigComponent",
+											"_dimensions": [
+												9,
+												1
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_object_class": "Simulink.SolverCC",
+													"_properties": {
+														"FixedStep": "1",
+														"SolverName": "FixedStepDiscrete",
+														"StopTime": "2",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "3",
+													"_object_class": "Simulink.DataIOCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "4",
+													"_object_class": "Simulink.OptimizationCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "5",
+													"_object_class": "Simulink.DebuggingCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "6",
+													"_object_class": "Simulink.HardwareCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "7",
+													"_object_class": "Simulink.ModelReferenceCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "8",
+													"_object_class": "Simulink.SFSimCC",
+													"_properties": {
+														"CustomCodeFunctionArrayLayout": [],
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "9",
+													"_object_class": "Simulink.RTWCC",
+													"_properties": {
+														"BuildConfiguration": "Faster Builds",
+														"Components": {
+															"_array_class": "Simulink.ConfigComponent",
+															"_dimensions": [
+																2,
+																1
+															],
+															"_elements": [
+																{
+																	"_id": "10",
+																	"_object_class": "Simulink.CodeAppCC",
+																	"_properties": {
+																		"Version": "27.0.0"
+																	}
+																},
+																{
+																	"_id": "11",
+																	"_object_class": "Simulink.GRTTargetCC",
+																	"_properties": {
+																		"CPPClassGenCompliant": "on",
+																		"CombineOutputUpdateFcns": "on",
+																		"CompOptLevelCompliant": "on",
+																		"ConcurrentExecutionCompliant": "on",
+																		"ERTCustomFileBanners": "off",
+																		"GRTInterface": "off",
+																		"GenerateAllocFcn": "off",
+																		"GenerateSampleERTMain": "off",
+																		"MATLABClassNameForMDSCustomization": "Simulink.SoftwareTarget.GRTCustomization",
+																		"MatFileLogging": "on",
+																		"ModelReferenceCompliant": "on",
+																		"ModelStepFunctionPrototypeControlCompliant": "off",
+																		"MultiwordLength": 2048,
+																		"ParMdlRefBuildCompliant": "on",
+																		"SupportContinuousTime": "on",
+																		"SupportNonFinite": "on",
+																		"SupportNonInlinedSFcns": "on",
+																		"UseToolchainInfoCompliant": "on",
+																		"Version": "27.0.0"
+																	}
+																}
+															]
+														},
+														"Description": "Generic Real-Time Target",
+														"SystemTargetFile": "grt.tlc",
+														"Toolchain": "Automatically locate an installed toolchain",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "12",
+													"_object_class": "SlCovCC.ConfigComp",
+													"_properties": {
+														"CovEnable": "off",
+														"CovIncludeTopModel": "on",
+														"CovModelRefEnable": "off",
+														"CovScope": "EntireSystem",
+														"Description": "Simulink Coverage Configuration Component",
+														"Version": "27.0.0"
+													}
+												}
+											]
+										},
+										"ConfigPrmDlgPosition": [
+											0,
+											0,
+											0,
+											0
+										],
+										"CurrentDlgPage": "",
+										"Description": "d1\nd2",
+										"ExtraOptions": "",
+										"Name": "Fast",
+										"Version": "27.0.0"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "R",
+						"metadata": {
+							"uuid": "5029cdf2-e82a-450d-9b3d-b922e6535e97",
+							"namespace": "a3b2532e-8e6e-47f5-94fb-b15daf666a84",
+							"lastmod": "20261105T005653.591127",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ConfigSetRef",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"ConfigPrmDlgPosition": [
+											0,
+											0,
+											0,
+											0
+										],
+										"CurrentDlgPage": "",
+										"Description": "refdesc",
+										"Name": "R",
+										"ParameterOverrideValues": {
+											"_array_type": "Cell",
+											"_dimensions": [
+												0,
+												1
+											],
+											"_elements": []
+										},
+										"ParameterOverrides": {
+											"_array_type": "Cell",
+											"_dimensions": [
+												0,
+												0
+											],
+											"_elements": []
+										},
+										"SourceLocation": "Base Workspace",
+										"SourceName": "dictCfg",
+										"UserParameterOverrides": {
+											"_array_type": "Cell",
+											"_dimensions": [
+												0,
+												0
+											],
+											"_elements": []
+										},
+										"Version": "27.0.0"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

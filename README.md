@@ -426,6 +426,15 @@ active first. The save writes only what the edits change, in every layout from R
 MATLAB opens it as its own save of the same edits; a package whose sets are not laid out as MATLAB
 writes them takes no edit of them and says why (`renameRefusal`, `addEntryRefusal`).
 
+A set is copied and pasted as a dictionary's is. In R2026b's layout and later a set's part holds the
+same settings as a text dictionary's entry of it, so a copy (`serialize`, `copyRefusal`) carries every
+one, and `pasteEntries(<model>/config, payloads)` pastes sets out of a dictionary, text or binary, or
+out of a model, each named as MATLAB names a duplicate (`Fast1`), its part MATLAB's own save of it,
+as one undo step; a model's set pasted into a dictionary is held there whole. A set of an older
+layout is neither copied nor pasted into, saying why (`copyRefusal`, `pasteRefusal`): its settings are
+written another way, which this does not convert. A reference, whose settings are its source and its
+Description, travels in every layout.
+
 `session.setActiveConfigSet(nodeId)` makes one of a `.slx`'s configuration sets the active one, as
 one undo step; its save moves the one mark the package keeps of which set is active, every other
 member as read, which MATLAB opens as its own save of the same change. It is taken whatever the

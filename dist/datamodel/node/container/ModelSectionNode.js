@@ -9,9 +9,17 @@ import DataSourceNode from '../data/DataSourceNode.js';
 import { UNWORDED, withArticle } from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { basenameOf, isModelFile } from '../../fileKinds.js';
-import { newEntryName, validateMatlabName } from '../../matlabName.js';
+import { newEntryName, uniqueName, validateMatlabName } from '../../matlabName.js';
+import { oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 /** The classes a model's Configurations section holds, and is added: as a dictionary's (SectionNode). */
 const CONFIG_CLASSES = ['Simulink.ConfigSet', 'Simulink.ConfigSetRef'];
+// The `_properties` of a set's R2026b+ part (`{"_object_class":..., "_properties":{...}}`), or null
+// for a part of another layout.
+function jsonPartProperties(data) {
+    const rec = data;
+    const props = rec && typeof rec === 'object' && typeof rec._object_class === 'string' ? rec._properties : null;
+    return props && typeof props === 'object' && !Array.isArray(props) ? props : null;
+}
 export default class ModelSectionNode extends ContainerNode {
     constructor(name, parent, label, iconId) {
         super(name, parent);
@@ -83,6 +91,118 @@ export default class ModelSectionNode extends ContainerNode {
                 this._markSourceDirty();
             },
         };
+    }
+    /**
+     * Why a copy of `entry` is refused, as a clause, or null (the session's copyRefusal asks it): a
+     * configuration set of a model whose sets are not in R2026b+'s layout, whose settings the node
+     * does not hold (addConfigSetEntry). A reference copies in every layout: its settings are its
+     * source and its Description.
+     */
+    entryCopyRefusal(entry) {
+        if (this.name !== 'config' || !(entry instanceof ConfigSetNode) || this._setsInJson()) {
+            return null;
+        }
+        return "a configuration set's settings are copied out of a model saved in R2026b or later, and " + this._earlierLayout() + ': copy it in MATLAB';
+    }
+    // Whether the model's sets are in R2026b+'s layout (ModelNode._configSetsInJson).
+    _setsInJson() {
+        return !!this.parent?._configSetsInJson;
+    }
+    // The model, saved in an earlier layout than R2026b's, as a refusal names it.
+    _earlierLayout() {
+        return '"' + basenameOf(this.parent?.name ?? '') + "\" is saved in an earlier release's layout";
+    }
+    /**
+     * Why `payload`, an entry copied out of a dictionary or a model (DataNode.serialize), is not pasted
+     * into this section, in the words pasteEntries answers, or null where it is (the session's
+     * pasteRefusal): a model's configuration sets take a set or a reference, as a dictionary holds
+     * one, a set's settings into R2026b+'s layout alone.
+     */
+    pasteRefusal(payload) {
+        const plan = this._pastePlan([payload]);
+        return 'why' in plan ? plan.why : null;
+    }
+    /**
+     * Paste `payloads` as new sets, all of them or none, each named as it was or, where the name is
+     * taken, with a counter, as MATLAB names a duplicate (attachConfigSet's allowRename: Fast1), each
+     * with every setting it carries, which its part is written with (ConfigSetsWriter). The session
+     * files the undo (pasteEntries).
+     */
+    execPasteEntries(payloads) {
+        const plan = this._pastePlan(payloads);
+        if ('why' in plan) {
+            return { error: true, reason: plan.why };
+        }
+        const nodes = plan.made.map(({ name, className, rawVal }) => {
+            const node = className === 'Simulink.ConfigSetRef' ? ConfigSetRefNode.parse(rawVal, name, this) : ConfigSetNode.parse(rawVal, name, this);
+            node.active = false;
+            node._pasted = true;
+            return node;
+        });
+        const add = () => {
+            for (const node of nodes)
+                this.addChild(node);
+            this._markSourceDirty();
+        };
+        const remove = () => {
+            for (const node of nodes)
+                this.removeChild(node);
+            this._markSourceDirty();
+        };
+        add();
+        return { nodes, undo: remove, redo: add };
+    }
+    _pastePlan(payloads) {
+        const into = (name) => 'Cannot paste ' + (name ? '"' + name + '" ' : '') + 'into "' + this.label + '": ';
+        const nothing = '. Nothing was pasted.';
+        if (this.name !== 'config') {
+            return { why: into() + this._notEditedWhy() + nothing };
+        }
+        const refused = this._configRefusal();
+        if (refused) {
+            return { why: into() + refused + nothing };
+        }
+        const isRecord = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+        if (!Array.isArray(payloads) || !payloads.every(isRecord)) {
+            return { why: into() + 'what was handed over is not a list of entries' + nothing };
+        }
+        const taken = new Set(this.children.map((c) => c.name));
+        const made = [];
+        for (const payload of payloads) {
+            const asked = typeof payload.name === 'string' ? payload.name : '';
+            // In a text dictionary's form, which R2026b+'s part of a set is (measured, R2027a): what a
+            // binary dictionary's reader keeps of its XML beside the properties (the Source of a dynamic
+            // one, XmlUtils.PROPERTY_SOURCE_KEY) is no property, and MATLAB warns of it in a part.
+            let value;
+            try {
+                const form = isRecord(payload.value) ? oneWrite(() => textDictionaryForm(payload.value)) : null;
+                value = isRecord(form) ? form : null;
+            }
+            catch (e) {
+                return { why: into(asked) + 'it could not be written (' + e.message + ')' + nothing };
+            }
+            const className = typeof value?._array_class === 'string' ? value._array_class : '';
+            if (!CONFIG_CLASSES.includes(className)) {
+                return { why: into(asked) + 'the section holds no entry of that class' + nothing };
+            }
+            const elements = value._elements;
+            const element = Array.isArray(elements) && elements.length === 1 && isRecord(elements[0]) ? elements[0] : null;
+            if (!element || !isRecord(element._properties)) {
+                return { why: into(asked) + 'it is not one configuration set as a dictionary holds one' + nothing };
+            }
+            if (className === 'Simulink.ConfigSet' && !this._setsInJson()) {
+                return { why: into(asked) + "a configuration set's settings are written into a model saved in R2026b or later, and " + this._earlierLayout() + ': paste it in MATLAB' + nothing };
+            }
+            const name = uniqueName(asked || (className === 'Simulink.ConfigSetRef' ? 'Reference' : 'Configuration'), (n) => taken.has(n));
+            if (this._childNameError(name) !== null) {
+                return { why: into(asked) + "'" + name + "' is not a name MATLAB gives a configuration set" + nothing };
+            }
+            taken.add(name);
+            // A copy of its settings, which no later edit of what it was copied out of reaches.
+            const props = { ...JSON.parse(JSON.stringify(element._properties)), Name: name };
+            made.push({ name, className, rawVal: { _array_class: className, _dimensions: [1, 1], _elements: [{ _id: '1', _properties: props }], _mw_element_type: 'MATLABArray' } });
+        }
+        return { made };
     }
     /** The classes this section holds and is added: a model's configuration sets', or none. */
     getAllowedTypes() {
@@ -232,13 +352,20 @@ export default class ModelSectionNode extends ContainerNode {
         if (cfg.description) {
             props.Description = cfg.description;
         }
-        const rawVal = {
-            _array_class: objectClass,
-            _array_type: 'MATLABArray',
-            _dimensions: [1, 1],
-            _mw_element_type: 'MATLABArray',
-            _elements: [{ _properties: props }],
-        };
+        // R2026b+'s layout holds a set in its part as a text dictionary holds it in an entry, the same
+        // `_properties` byte for byte (measured, R2027a): so the node is the dictionary's, every setting
+        // in it, which a copy carries and a dictionary pastes whole. Another layout's set is its name, its
+        // Description and a reference's source, which a copy of a set does not carry (entryCopyRefusal).
+        const part = jsonPartProperties(cfg.data);
+        const rawVal = part
+            ? { _array_class: objectClass, _dimensions: [1, 1], _elements: [{ _id: '1', _properties: part }], _mw_element_type: 'MATLABArray' }
+            : {
+                _array_class: objectClass,
+                _array_type: 'MATLABArray',
+                _dimensions: [1, 1],
+                _mw_element_type: 'MATLABArray',
+                _elements: [{ _properties: props }],
+            };
         const node = objectClass === 'Simulink.ConfigSetRef'
             ? ConfigSetRefNode.parse(rawVal, cfg.name, this)
             : ConfigSetNode.parse(rawVal, cfg.name, this);

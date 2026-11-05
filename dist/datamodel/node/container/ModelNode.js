@@ -142,6 +142,10 @@ export default class ModelNode extends ContainerNode {
         }
         return this._configVerdict;
     }
+    /** Whether the model's sets are in R2026b+'s layout, a part of JSON each, which a set's settings travel in. */
+    get _configSetsInJson() {
+        return !!this._zipEntries && Object.prototype.hasOwnProperty.call(this._zipEntries, 'simulink/configSetInfo.json');
+    }
     /** The sets a save writes, where they are not the sets as read (each as it now is), or null. */
     get _configSetsToWrite() {
         const sets = (this.getSection('config')?.children ?? []);
@@ -151,6 +155,8 @@ export default class ModelNode extends ContainerNode {
             className: s instanceof ConfigSetRefNode ? 'Simulink.ConfigSetRef' : 'Simulink.ConfigSet',
             description: s.Description ?? '',
             sourceName: s instanceof ConfigSetRefNode ? s.SourceName : '',
+            // A set pasted in: its settings, which its part is written with.
+            ...(s._readIndex === undefined && s._pasted ? { content: s.serial._properties } : {}),
         }));
         const asRead = this._configAsRead;
         const same = now.length === asRead.length &&
