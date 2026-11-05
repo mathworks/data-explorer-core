@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
-import { createSession } from '../src/index.js';
+import { createSession, parseBinarySldd } from '../src/index.js';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 
 type Any = any;
@@ -112,6 +112,22 @@ describe("a configuration set pasted into a model's Configurations", () => {
     const result = o.s.pasteEntries(d.config.id, [m.set('Fast').serialize()]);
     expect(result.nodes?.map((n: Any) => n.name)).toEqual(['Fast1']);
     expect(propsOf(d.entry('Fast1').serialize())).toEqual({ ...before._elements[0]._properties, Name: 'Fast1' });
+  });
+
+  it("a binary dictionary's set: written in a text dictionary's form, its reader's bookkeeping left out", () => {
+    // MATLAB opens the model so saved with csAutosar's every parameter, and warns of nothing, where
+    // it warned of `_property_source` (probe_config_set_edits.m, frombindict).
+    const o = session();
+    const m = o.model(PASTE + 'pm.slx');
+    const bin = new Uint8Array(readFileSync(fileURLToPath(new URL('./parity/oldsaves/old_saves_r2027a_binary.sldd', import.meta.url))));
+    const root = o.s.addDataSource('b.sldd', parseBinarySldd(buf(bin)), { path: 'b.sldd' });
+    const cs = root.children.find((c: Any) => c.name === 'config').children.find((c: Any) => c.name === 'csAutosar');
+    expect(JSON.stringify(cs.serialize())).toContain('"_property_source"');
+    expect(o.s.pasteEntries(m.config.id, [cs.serialize()]).nodes?.map((n: Any) => n.name)).toEqual(['csAutosar']);
+    const part = text(unzipSync(o.saved('pm.slx'))['simulink/configSet3.json'])!;
+    expect(part).toContain('"Name":"csAutosar"');
+    expect(part).not.toContain('_property_source');
+    expect(JSON.parse(part)._properties.Components._elements.length).toBe(cs.serialize().value._elements[0]._properties.Components._elements.length);
   });
 
   it.each(['acs_sets_R2025a.slx', 'acs_sets_R2021a.slx', 'acs_sets_R2013b.slx'])(

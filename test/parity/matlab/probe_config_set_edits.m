@@ -29,6 +29,11 @@
 %          the model, and writes from the active set as it saves: a set the session makes active
 %          there has the coverage settings the model was read with (R2023b shows it; R2027a gives
 %          every set the same ones), where MATLAB's save gives it the set's own.
+%        - a set pasted in: a copy of one of its own (dup, refpaste), named as MATLAB names a
+%          duplicate, and a dictionary's (fromdict), each with every parameter of MATLAB's save of
+%          the same set attached; and a model's set pasted into the dictionary (todict), which MATLAB
+%          opens holding it of the same class, Description and every parameter as the model's; the
+%          same with a binary dictionary (frombindict, tobindict);
 %        - a reference added and pointed at nothing yet (bareref, as an Add makes it), which MATLAB's
 %          export to an older layout refuses to write, is held to the model as read with the
 %          reference added (a `NOTE` line says so): it opens saying what the model as read does,
@@ -60,6 +65,8 @@ edited = fullfile(here, '..', '..', 'fixtures', 'config-set-edits');
 copyfile(fullfile(edited, 'one__none.slx'), fullfile(gen, 'one.slx'));
 copyfile(fullfile(edited, 'two__none.slx'), fullfile(gen, 'two.slx'));
 copyfile(fullfile(fixtures, 'acs_dict.sldd'), dictdir);
+% A binary dictionary, as R2027a saves one, for a set pasted out of it and into it.
+copyfile(fullfile(here, '..', 'oldsaves', 'old_saves_r2027a_binary.sldd'), fullfile(dictdir, 'acs_bin.sldd'));
 only = getenv('PROBE_ONLY');
 keep = @(mdl) isempty(only) || ~isempty(regexp(mdl, only, 'once'));
 solver = {'SolverType', 'Fixed-step', 'Solver', 'FixedStepDiscrete', 'FixedStep', '1', 'SaveTime', 'on', 'ReturnWorkspaceOutputs', 'on'};
@@ -83,6 +90,12 @@ edits = struct( ...
     'delete', @(m) detachConfigSet(m, 'Slow'), ...
     'combo', @combo, ...
     'spaced', @spaced, ...
+    'dup', @(m) attachConfigSet(m, copy(getConfigSet(m, 'Fast')), true), ...
+    'fromdict', @(m) attachConfigSet(m, dictSet(dictdir, 'acs_dict.sldd', 'dictCfg')), ...
+    'frombindict', @(m) attachConfigSet(m, dictSet(dictdir, 'acs_bin.sldd', 'csAutosar')), ...
+    'tobindict', @(m) [], ...
+    'refpaste', @(m) attachConfigSet(m, copy(getConfigSet(m, 'RefFromDict')), true), ...
+    'todict', @(m) [], ...
     'add1', @(m) attachConfigSet(m, named(Simulink.ConfigSet, 'Configuration1')), ...
     'rename1', @(m) set_param(getConfigSet(m, 'Configuration'), 'Name', 'Main'), ...
     'describe1', @(m) set_param(getConfigSet(m, 'Configuration'), 'Description', 'The one set'), ...
@@ -90,7 +103,11 @@ edits = struct( ...
     'addref', @(m) attachConfigSet(m, refTo('Reference', 'dictCfg')), ...
     'source', @(m) setSource(getConfigSet(m, 'RefFromDict'), 'dictCfg2'));
 added = struct('add', {{'Configuration1'}}, 'combo', {{'Newest'}}, 'add1', {{'Configuration1'}});
-renamed = struct('rename', {{'Fast run-2', 'Fast'}}, 'spaced', {{' Fast run ', 'Fast'}}, 'rename1', {{'Main', 'Configuration'}});  % a kept set's name after the edit, then as read
+renamed = struct('rename', {{'Fast run-2', 'Fast'}}, 'spaced', {{' Fast run ', 'Fast'}}, 'rename1', {{'Main', 'Configuration'}}, 'dup', {{'Fast1', 'Fast'}});
+% A set pasted in out of a dictionary, held to MATLAB's save of the same set attached.
+fromDict = struct('fromdict', {{'dictCfg'}}, 'frombindict', {{'csAutosar'}});
+% A model's set pasted into a dictionary, the one the case saves.
+intoDict = struct('todict', 'acs_dict.sldd', 'tobindict', 'acs_bin.sldd');  % a kept set's name after the edit, then as read
 % An edit MATLAB's export to an older layout refuses ("No configuration set specified by
 % configuration reference"), and the set it adds, as `opened` lists it.
 bare = struct('bareref', 'Reference:Simulink.ConfigSetRef:::0');
@@ -114,55 +131,62 @@ for k = 1:numel(manifest)
         if ~isempty(c.js), error('Node: %s', c.js); end
         found(dictdir, era, sets, solver);
         read = opened(fullfile(gen, c.file), c.model);
-        % MATLAB's own save of the same edit, in the case's layout.
-        bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
-        found(dictdir, era, sets, solver);
-        evalc('load_system(fullfile(gen, c.file))');
-        edits.(c.edit)(c.model);
-        theirs = fullfile(outdir, 'native', c.id, c.file);
-        mkdir(fileparts(theirs));
-        refused = '';
-        try
-            if isempty(era), evalc('save_system(c.model, theirs)'); else, evalc('save_system(c.model, theirs, ''ExportToVersion'', era)'); end
-        catch err
-            if ~isfield(bare, c.edit), rethrow(err); end
-            refused = err.message;
-        end
-        bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
-        found(dictdir, era, sets, solver);
-        mine = opened(fullfile(outdir, 'cases', c.id, c.file), c.model);
-        bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
-        found(dictdir, era, sets, solver);
-        if isempty(refused)
-            matlab = opened(theirs, c.model);
+        if isfield(intoDict, c.edit)
+            % The model's set pasted into the dictionary: held to the model's set as read.
+            why = intoDictionary(fullfile(outdir, 'cases', c.id, intoDict.(c.edit)), 'Fast', read);
         else
-            % MATLAB's export refuses the edit: held to the model as read, with the set it adds.
-            fprintf('NOTE %s MATLAB''s export refuses it (%s): held to the model as read\n', c.id, refused);
-            matlab = read;
-            matlab.sets = [read.sets ' | ' bare.(c.edit)];
-        end
-        if ~strcmp(mine.msg, matlab.msg), why{end+1} = sprintf('opens with [%s], where MATLAB''s save opens with [%s]', mine.msg, matlab.msg); end
-        if ~isequal(mine.sets, matlab.sets), why{end+1} = sprintf('its sets are [%s], where MATLAB''s are [%s]', mine.sets, matlab.sets); end
-        if ~strcmp(mine.dirty, 'off'), why{end+1} = 'it opens changed (Dirty)'; end
-        if ~strcmp(mine.sim, matlab.sim), why{end+1} = sprintf('it simulates to [%s], where MATLAB''s save does to [%s]', mine.sim, matlab.sim); end
-        new = {};
-        if isfield(added, c.edit), new = added.(c.edit); end
-        for j = 1:numel(mine.params)
-            name = mine.params{j}.name;
-            if any(strcmp(name, new))
-                want = fresh;
+            % MATLAB's own save of the same edit, in the case's layout.
+            bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
+            found(dictdir, era, sets, solver);
+            evalc('load_system(fullfile(gen, c.file))');
+            edits.(c.edit)(c.model);
+            theirs = fullfile(outdir, 'native', c.id, c.file);
+            mkdir(fileparts(theirs));
+            refused = '';
+            try
+                if isempty(era), evalc('save_system(c.model, theirs)'); else, evalc('save_system(c.model, theirs, ''ExportToVersion'', era)'); end
+            catch err
+                if ~isfield(bare, c.edit), rethrow(err); end
+                refused = err.message;
+            end
+            bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
+            found(dictdir, era, sets, solver);
+            mine = opened(fullfile(outdir, 'cases', c.id, c.file), c.model);
+            bdclose('all'); Simulink.data.dictionary.closeAll('-discard');
+            found(dictdir, era, sets, solver);
+            if isempty(refused)
+                matlab = opened(theirs, c.model);
             else
-                was = name;
-                if isfield(renamed, c.edit) && strcmp(name, renamed.(c.edit){1}), was = renamed.(c.edit){2}; end
-                want = paramsNamed(read.params, was);
-                d = differing(paramsNamed(matlab.params, name), want);
-                if ~isempty(d), fprintf('NOTE %s MATLAB''s save changes %d parameters of "%s" (%s)\n', c.id, numel(d), name, strjoin(d(1:min(5, end)), ', ')); end
+                % MATLAB's export refuses the edit: held to the model as read, with the set it adds.
+                fprintf('NOTE %s MATLAB''s export refuses it (%s): held to the model as read\n', c.id, refused);
+                matlab = read;
+                matlab.sets = [read.sets ' | ' bare.(c.edit)];
             end
-            if strcmp(era, 'R2013b') && strcmp(name, mine.active) && ~strcmp(name, read.active)
-                want = withCoverage(want, paramsNamed(read.params, read.active));
+            if ~strcmp(mine.msg, matlab.msg), why{end+1} = sprintf('opens with [%s], where MATLAB''s save opens with [%s]', mine.msg, matlab.msg); end
+            if ~isequal(mine.sets, matlab.sets), why{end+1} = sprintf('its sets are [%s], where MATLAB''s are [%s]', mine.sets, matlab.sets); end
+            if ~strcmp(mine.dirty, 'off'), why{end+1} = 'it opens changed (Dirty)'; end
+            if ~strcmp(mine.sim, matlab.sim), why{end+1} = sprintf('it simulates to [%s], where MATLAB''s save does to [%s]', mine.sim, matlab.sim); end
+            new = {};
+            if isfield(added, c.edit), new = added.(c.edit); end
+            for j = 1:numel(mine.params)
+                name = mine.params{j}.name;
+                if any(strcmp(name, new))
+                    want = fresh;
+                elseif isfield(fromDict, c.edit) && any(strcmp(name, fromDict.(c.edit)))
+                    want = paramsNamed(matlab.params, name);
+                else
+                    was = name;
+                    if isfield(renamed, c.edit) && strcmp(name, renamed.(c.edit){1}), was = renamed.(c.edit){2}; end
+                    want = paramsNamed(read.params, was);
+                    d = differing(paramsNamed(matlab.params, name), want);
+                    if ~isempty(d), fprintf('NOTE %s MATLAB''s save changes %d parameters of "%s" (%s)\n', c.id, numel(d), name, strjoin(d(1:min(5, end)), ', ')); end
+                end
+                if strcmp(era, 'R2013b') && strcmp(name, mine.active) && ~strcmp(name, read.active)
+                    want = withCoverage(want, paramsNamed(read.params, read.active));
+                end
+                d = differing(mine.params{j}.params, want);
+                if ~isempty(d), why{end+1} = sprintf('"%s" differs in %d parameters (%s)', name, numel(d), strjoin(d(1:min(5, end)), ', ')); end %#ok<AGROW>
             end
-            d = differing(mine.params{j}.params, want);
-            if ~isempty(d), why{end+1} = sprintf('"%s" differs in %d parameters (%s)', name, numel(d), strjoin(d(1:min(5, end)), ', ')); end %#ok<AGROW>
         end
     catch err
         why{end+1} = err.message;
@@ -184,6 +208,30 @@ function combo(m)
     setActiveConfigSet(m, 'Newest');
     detachConfigSet(m, 'Configuration');
     set_param(getConfigSet(m, 'Fast'), 'Description', 'Quick runs');
+end
+
+% The set `name` of the dictionary `file` in `dictdir`, as MATLAB reads it out.
+function cs = dictSet(dictdir, file, name)
+    dd = Simulink.data.dictionary.open(fullfile(dictdir, file));
+    cs = getValue(getEntry(getSection(dd, 'Configurations'), name));
+    close(dd);
+end
+
+% What is wrong with the set `name` of the dictionary the session saved at `file`, held to the set of
+% that name of the model as read (`read`): its class, its Description and its every parameter.
+function why = intoDictionary(file, name, read)
+    why = {};
+    [~, ~, ext] = fileparts(file);
+    checked = fullfile(tempname, ['todict_check' ext]);
+    mkdir(fileparts(checked)); copyfile(file, checked);
+    dd = Simulink.data.dictionary.open(checked);
+    restore = onCleanup(@() close(dd));
+    cs = getValue(getEntry(getSection(dd, 'Configurations'), name));
+    if ~isa(cs, 'Simulink.ConfigSet'), why{end+1} = sprintf('"%s" is a %s', name, class(cs)); return; end
+    model = paramsNamed(read.params, name);
+    if ~strcmp(get_param(cs, 'Description'), model.Description), why{end+1} = sprintf('its Description is [%s]', get_param(cs, 'Description')); end
+    d = differing(paramsOf(cs), model);
+    if ~isempty(d), why{end+1} = sprintf('"%s" in the dictionary differs in %d parameters (%s)', name, numel(d), strjoin(d(1:min(5, end)), ', ')); end
 end
 
 function spaced(m)

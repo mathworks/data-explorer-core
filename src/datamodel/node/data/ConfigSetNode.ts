@@ -57,6 +57,8 @@ export default class ConfigSetNode extends SimulinkObjectNode {
     // Which of a model's sets as read this is, by its place in the package's list of them: what a
     // save of the model's sets edits (ConfigSetsWriter). Unset on a set added since, and in a .sldd.
     _readIndex?: number;
+    // A set pasted into a model (ModelSectionNode.execPasteEntries), whose settings its part is written with.
+    _pasted?: boolean;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.Description = (props.Description as string) || ''; }
     get icon(): string { return this.active ? 'check_settings' : 'settings'; }
     get className(): string { return CLASS_NAME; }

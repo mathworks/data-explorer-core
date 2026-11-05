@@ -2097,6 +2097,10 @@ export function createSession(opts = {}) {
         if (section) {
             return pasteIntoSection(section, payloads, opts?.removeFirst ?? []);
         }
+        const sets = source ? null : modelSetsOf(containerId);
+        if (sets) {
+            return pasteIntoModelSets(sets, payloads, opts?.removeFirst ?? []);
+        }
         const mat = matTargetOf(containerId, source);
         const refused = pasteTargetRefusal(srcId, source, mat);
         if (refused || !mat) {
@@ -2167,9 +2171,62 @@ export function createSession(opts = {}) {
         if (section) {
             return sectionPasteRefusal(section, payload, opts?.deep === true);
         }
+        const sets = source ? null : modelSetsOf(containerId);
+        if (sets) {
+            return sets.pasteRefusal(payload);
+        }
         const mat = matTargetOf(containerId, source);
         const refused = pasteTargetRefusal(srcId, source, mat);
         return refused ?? mat.pasteRefusal(payload, opts?.deep === true);
+    }
+    // The Configurations section of a model `containerId` names by its id (`m.slx/config`), or null.
+    function modelSetsOf(containerId) {
+        const node = resolveId(containerId);
+        return node && node.parent instanceof ModelNode && node.name === 'config' && typeof node.execPasteEntries === 'function' ? node : null;
+    }
+    // pasteEntries into a model's Configurations: every payload a set or a reference, pasted as new
+    // sets, all of them or none, as ONE undo step of the model's stack, announced as added; the undo
+    // takes them out again. A model takes no entries out before a paste: a set is not moved into one.
+    function pasteIntoModelSets(sets, payloads, removeFirst) {
+        if (removeFirst.length > 0) {
+            return { error: true, reason: 'Cannot paste into "Configurations": a configuration set is not moved into a model, only copied. Nothing was pasted.' };
+        }
+        if (Array.isArray(payloads) && payloads.length === 0) {
+            return { nodes: [] };
+        }
+        const made = sets.execPasteEntries(payloads);
+        if ('error' in made) {
+            return made;
+        }
+        const scope = sets;
+        const owner = editableOwnerOf(scope);
+        const added = () => {
+            for (const node of made.nodes) {
+                indexSubtree(node);
+            }
+            for (const node of made.nodes) {
+                publishIndexed('node/added', { node, sectionKey: scope.name });
+            }
+        };
+        UndoManager.pushExecuted(owner.name, {
+            execute() {
+                made.redo();
+                added();
+            },
+            undo() {
+                const held = made.nodes.map((node) => heldSubtree(node));
+                made.undo();
+                for (const h of held) {
+                    unindexHeld(h);
+                }
+                releaseSubtreeSelection(held.flatMap((h) => h.nodes));
+                for (const node of made.nodes) {
+                    publishIndexed('node/deleted', { node, section: scope });
+                }
+            },
+        });
+        added();
+        return { nodes: made.nodes };
     }
     // The MatNode `containerId` names: a MAT-file by its srcId, or a MatNode under another node by its
     // node id (a model's Model Workspace); or null.
@@ -2354,6 +2411,12 @@ export function createSession(opts = {}) {
         }
         if (!node.isEntry) {
             return 'Cannot copy "' + node.name + '": only an entry or a variable is copied, whole. Nothing was copied.';
+        }
+        // What the entry's own section says of a copy of it: a model's configuration set of a layout whose
+        // settings a copy does not carry (ModelSectionNode.entryCopyRefusal).
+        const own = node.parent?.entryCopyRefusal?.(node) ?? null;
+        if (own) {
+            return 'Cannot copy "' + node.name + '": ' + own + '. Nothing was copied.';
         }
         // A writer's refusal (a MatWriteError) in its own words; any other failure of the copy's writing,
         // which no refusal says, as what it says, so that a copy that cannot be written is refused and

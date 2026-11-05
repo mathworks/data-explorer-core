@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { BLOCK_DIAGRAM, JSON_INFO, XML_INFO, activeMarkMember } from './ActiveConfigMark.js';
+import { formatMatlabJson } from './MatlabJson.js';
 
 // A `.slx` package with its configuration sets as edited: each set renamed, given a Description or,
 // for a reference, a source, sets added and sets deleted, every other byte as read. No node is
@@ -38,6 +39,12 @@ export interface SetState {
 /** A set the package is to hold: one it held (`read`, its place in the sets as read) or a new one. */
 export interface SetToWrite extends SetState {
   read: number | null;
+  /**
+   * A new set's settings, its `_properties` as a dictionary or an R2026b+ part holds them (a set
+   * pasted in): its part is written with them, in R2026b+'s layout alone. Absent: a set as MATLAB
+   * makes a fresh one, its Name and Version.
+   */
+  content?: Record<string, unknown>;
 }
 
 /** Why the sets cannot be written as asked, as a clause. */
@@ -108,6 +115,7 @@ function partSets(
   const added: string[] = [];
   for (const set of sets) {
     if (set.read === null) {
+      if (!json) settingsRefused(set);
       let part = `/simulink/configSet${next++}.${ext}`;
       while (used.has(part) || has(entries, part.slice(1))) part = `/simulink/configSet${next++}.${ext}`;
       used.add(part);
@@ -202,6 +210,7 @@ function setVersion(entries: Record<string, Uint8Array>, listed: readonly Listed
 }
 
 function newJsonPart(set: SetToWrite, version: { value: string }, model: { hasDictionary: boolean }): string {
+  if (set.content) return pastedJsonPart(set, set.content);
   const head = '{\n  "_id":"1",\n  "_mw_element_name":"ConfigSet",\n  "_mw_element_type":"COSObject",\n';
   const props =
     set.className === 'Simulink.ConfigSetRef'
@@ -219,6 +228,27 @@ function newJsonPart(set: SetToWrite, version: { value: string }, model: { hasDi
         ]
       : [...(set.description ? [`    "Description":${jsonString(set.description)}`] : []), `    "Name":${jsonString(set.name)}`, `    "Version":${jsonString(version.value)}`];
   return head + `  "_object_class":"${set.className}",\n  "_properties":{\n` + props.join(',\n') + '\n  }\n}';
+}
+
+// A set pasted in carries its settings in R2026b+'s form, which this writes into that layout alone: a
+// reference's are its source and its Description, which every layout's part of one holds.
+function settingsRefused(set: SetToWrite): void {
+  if (set.content && set.className === 'Simulink.ConfigSet') {
+    throw new ConfigSetsError(`the settings of "${set.name}" are written into a model saved in R2026b or later alone`);
+  }
+}
+
+// A set pasted in, with its settings: the part MATLAB writes of the same set, its `_properties` the
+// dictionary's or the part's it was copied out of, with its Name, Description and a reference's
+// source as the set now has them, the keys in MATLAB's order (by their characters' codes), in
+// MATLAB's JSON (MatlabJson; held to MATLAB's own save of a duplicate and of a dictionary's set).
+function pastedJsonPart(set: SetToWrite, content: Record<string, unknown>): string {
+  const props: Record<string, unknown> = { ...content, Name: set.name };
+  if (set.description) props.Description = set.description;
+  else delete props.Description;
+  if (set.className === 'Simulink.ConfigSetRef') props.SourceName = set.sourceName;
+  const sorted = Object.fromEntries(Object.keys(props).sort().map((k) => [k, props[k]]));
+  return formatMatlabJson({ _id: '1', _mw_element_name: 'ConfigSet', _mw_element_type: 'COSObject', _object_class: set.className, _properties: sorted });
 }
 
 function newXmlPart(set: SetToWrite, version: { value: string; attribute: boolean }): string {
@@ -463,6 +493,7 @@ function inlineSets(entries: Record<string, Uint8Array>, asRead: readonly SetSta
   const pieces: string[] = [];
   for (const set of sets) {
     if (set.read === null) {
+      settingsRefused(set);
       const n = escapeXml(set.name);
       const d = escapeXml(set.description);
       const inner = indent + '  ';

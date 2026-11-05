@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { BLOCK_DIAGRAM, JSON_INFO, activeMarkMember } from './ActiveConfigMark.js';
+import { formatMatlabJson } from './MatlabJson.js';
 /** Why the sets cannot be written as asked, as a clause. */
 export class ConfigSetsError extends Error {
 }
@@ -49,6 +50,8 @@ function partSets(entries, index, asRead, sets, model) {
     const added = [];
     for (const set of sets) {
         if (set.read === null) {
+            if (!json)
+                settingsRefused(set);
             let part = `/simulink/configSet${next++}.${ext}`;
             while (used.has(part) || has(entries, part.slice(1)))
                 part = `/simulink/configSet${next++}.${ext}`;
@@ -144,6 +147,8 @@ function setVersion(entries, listed, json) {
     throw new ConfigSetsError('no configuration set the model holds says the Version a new one is to have');
 }
 function newJsonPart(set, version, model) {
+    if (set.content)
+        return pastedJsonPart(set, set.content);
     const head = '{\n  "_id":"1",\n  "_mw_element_name":"ConfigSet",\n  "_mw_element_type":"COSObject",\n';
     const props = set.className === 'Simulink.ConfigSetRef'
         ? [
@@ -160,6 +165,28 @@ function newJsonPart(set, version, model) {
         ]
         : [...(set.description ? [`    "Description":${jsonString(set.description)}`] : []), `    "Name":${jsonString(set.name)}`, `    "Version":${jsonString(version.value)}`];
     return head + `  "_object_class":"${set.className}",\n  "_properties":{\n` + props.join(',\n') + '\n  }\n}';
+}
+// A set pasted in carries its settings in R2026b+'s form, which this writes into that layout alone: a
+// reference's are its source and its Description, which every layout's part of one holds.
+function settingsRefused(set) {
+    if (set.content && set.className === 'Simulink.ConfigSet') {
+        throw new ConfigSetsError(`the settings of "${set.name}" are written into a model saved in R2026b or later alone`);
+    }
+}
+// A set pasted in, with its settings: the part MATLAB writes of the same set, its `_properties` the
+// dictionary's or the part's it was copied out of, with its Name, Description and a reference's
+// source as the set now has them, the keys in MATLAB's order (by their characters' codes), in
+// MATLAB's JSON (MatlabJson; held to MATLAB's own save of a duplicate and of a dictionary's set).
+function pastedJsonPart(set, content) {
+    const props = { ...content, Name: set.name };
+    if (set.description)
+        props.Description = set.description;
+    else
+        delete props.Description;
+    if (set.className === 'Simulink.ConfigSetRef')
+        props.SourceName = set.sourceName;
+    const sorted = Object.fromEntries(Object.keys(props).sort().map((k) => [k, props[k]]));
+    return formatMatlabJson({ _id: '1', _mw_element_name: 'ConfigSet', _mw_element_type: 'COSObject', _object_class: set.className, _properties: sorted });
 }
 function newXmlPart(set, version) {
     const v = escapeXml(version.value);
@@ -417,6 +444,7 @@ function inlineSets(entries, asRead, sets) {
     const pieces = [];
     for (const set of sets) {
         if (set.read === null) {
+            settingsRefused(set);
             const n = escapeXml(set.name);
             const d = escapeXml(set.description);
             const inner = indent + '  ';

@@ -6,6 +6,7 @@ export default class ConfigSetNode extends SimulinkObjectNode {
     get ConfigName(): string;
     active?: boolean;
     _readIndex?: number;
+    _pasted?: boolean;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;

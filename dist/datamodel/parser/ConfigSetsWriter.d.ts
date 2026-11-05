@@ -11,6 +11,12 @@ export interface SetState {
 /** A set the package is to hold: one it held (`read`, its place in the sets as read) or a new one. */
 export interface SetToWrite extends SetState {
     read: number | null;
+    /**
+     * A new set's settings, its `_properties` as a dictionary or an R2026b+ part holds them (a set
+     * pasted in): its part is written with them, in R2026b+'s layout alone. Absent: a set as MATLAB
+     * makes a fresh one, its Name and Version.
+     */
+    content?: Record<string, unknown>;
 }
 /** Why the sets cannot be written as asked, as a clause. */
 export declare class ConfigSetsError extends Error {
