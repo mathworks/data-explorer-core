@@ -114,6 +114,25 @@ describe("a configuration set pasted into a model's Configurations", () => {
     expect(propsOf(d.entry('Fast1').serialize())).toEqual({ ...before._elements[0]._properties, Name: 'Fast1' });
   });
 
+  it('a reference carrying its name, source and Description alone: its part what an added reference is, so pointed', () => {
+    // Copied out of an older layout, which holds no more of it: the rest is a fresh reference's
+    // (newJsonPart), its layout's Version, and its source looked for in the base workspace, as the
+    // model has no dictionary.
+    const o = session();
+    const old = o.model(ACTIVE + 'acs_ref_R2021a.slx');
+    const m = o.model(PASTE + 'pm.slx');
+    expect(o.s.pasteEntries(m.config.id, [old.set('RefFromDict').serialize()]).nodes?.map((n: Any) => n.name)).toEqual(['RefFromDict']);
+    const pasted = text(unzipSync(o.saved('pm.slx'))['simulink/configSet3.json']);
+    const added = session();
+    const a = added.model(PASTE + 'pm.slx');
+    added.s.setActiveContext(a.root);
+    const ref = added.s.addEntry('config', 'Simulink.ConfigSetRef', 'RefFromDict');
+    added.s.setActive(a.root, ref);
+    expect(added.s.editProperty(ref.id, 'SourceName', 'dictCfg')).toBe(true);
+    expect(pasted).toBe(text(unzipSync(added.saved('pm.slx'))['simulink/configSet3.json']));
+    expect(JSON.parse(pasted!)._properties).toMatchObject({ SourceLocation: 'Base Workspace', SourceName: 'dictCfg', Version: '27.0.0' });
+  });
+
   it("a binary dictionary's set: written in a text dictionary's form, its reader's bookkeeping left out", () => {
     // MATLAB opens the model so saved with csAutosar's every parameter, and warns of nothing, where
     // it warned of `_property_source` (probe_config_set_edits.m, frombindict).

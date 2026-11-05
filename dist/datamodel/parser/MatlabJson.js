@@ -10,6 +10,8 @@
 //                  array, that array inline: `[[]]`
 //                  of more objects (or arrays): `[`, each on its own line two spaces in, then `]`
 //   a string       JSON's escapes, and `/` escaped too
+//   a number       as JavaScript spells it, which reads back as the same double (no part MATLAB
+//                  wrote here holds one but an integer, which both spell alike)
 //   no line break after the last `}`
 /** `value`, a parsed JSON value, as MATLAB writes it. */
 export function formatMatlabJson(value) {

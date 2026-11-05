@@ -18,6 +18,8 @@
 //   refpaste  RefFromDict copied and pasted into its own model: RefFromDict1 (acs_ref, every layout)
 //   todict    Fast copied out of the model and pasted into acs_dict.sldd, the dictionary saved
 //             (OUT/cases/<id>/acs_dict.sldd) and the model left as it was (R2026b+'s layout)
+//   refin     RefFromDict copied out of acs_ref_R2021a, which holds its name, source and Description
+//             alone, and pasted into the model (R2026b+'s layout)
 //   frombindict, tobindict  the same with a binary dictionary, acs_bin.sldd (MATLAB's R2027a save
 //             test/parity/oldsaves/old_saves_r2027a_binary.sldd): its csAutosar, a set with an
 //             AUTOSAR target's dynamic properties, into the model; Fast into it
@@ -61,6 +63,10 @@ const EDITS = {
   fromdict: (o) => o.paste(o.config.id, [o.dict().entry('dictCfg').serialize()]) === 'dictCfg',
   refpaste: (o) => o.paste(o.config.id, [o.set('RefFromDict').serialize()]) === 'RefFromDict1',
   todict: (o) => o.paste(o.dict().config.id, [o.set('Fast').serialize()]) === 'Fast' && ((o.dictSaved = 'acs_dict.sldd'), true),
+  refin: (o) => {
+    const old = o.s.addModelSource('acs_ref_R2021a.slx', bufferOf(new Uint8Array(readFileSync(path.join(GEN, 'acs_ref_R2021a.slx')))));
+    return o.paste(o.config.id, [old.getSection('config').children.find((c) => c.name === 'RefFromDict').serialize()]) === 'RefFromDict';
+  },
   frombindict: (o) => o.paste(o.config.id, [o.dict('acs_bin.sldd').entry('csAutosar').serialize()]) === 'csAutosar',
   tobindict: (o) => o.paste(o.dict('acs_bin.sldd').config.id, [o.set('Fast').serialize()]) === 'Fast' && ((o.dictSaved = 'acs_bin.sldd'), true),
   bareref: (o) => o.s.addEntry('config', 'Simulink.ConfigSetRef')?.name === 'Reference',
@@ -70,7 +76,7 @@ const EDITS = {
 const SETS_EDITS = ['rename', 'describe', 'add', 'delete', 'combo', 'spaced', 'bareref'];
 const REF_EDITS = ['addref', 'source', 'refpaste'];
 // A set's settings are copied and pasted in R2026b+'s layout alone: acs_sets, as R2027a saves it.
-const PASTE_EDITS = ['dup', 'fromdict', 'todict', 'frombindict', 'tobindict'];
+const PASTE_EDITS = ['dup', 'fromdict', 'todict', 'refin', 'frombindict', 'tobindict'];
 const EDITS_OF = (model) =>
   model.startsWith('acs_ref') ? REF_EDITS : model === 'one' ? ['add1', 'rename1', 'describe1'] : model === 'two' ? ['delete'] : model === 'acs_sets' ? [...SETS_EDITS, ...PASTE_EDITS] : SETS_EDITS;
 const DICTS = path.join(OUT, 'dict');

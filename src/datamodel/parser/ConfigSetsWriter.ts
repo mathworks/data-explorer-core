@@ -210,7 +210,7 @@ function setVersion(entries: Record<string, Uint8Array>, listed: readonly Listed
 }
 
 function newJsonPart(set: SetToWrite, version: { value: string }, model: { hasDictionary: boolean }): string {
-  if (set.content) return pastedJsonPart(set, set.content);
+  if (set.content) return pastedJsonPart(set, set.content, version, model);
   const head = '{\n  "_id":"1",\n  "_mw_element_name":"ConfigSet",\n  "_mw_element_type":"COSObject",\n';
   const props =
     set.className === 'Simulink.ConfigSetRef'
@@ -242,8 +242,23 @@ function settingsRefused(set: SetToWrite): void {
 // dictionary's or the part's it was copied out of, with its Name, Description and a reference's
 // source as the set now has them, the keys in MATLAB's order (by their characters' codes), in
 // MATLAB's JSON (MatlabJson; held to MATLAB's own save of a duplicate and of a dictionary's set).
-function pastedJsonPart(set: SetToWrite, content: Record<string, unknown>): string {
-  const props: Record<string, unknown> = { ...content, Name: set.name };
+// Under them, what a part of a new one holds that a copy may not carry (a reference copied out of an
+// older layout, or made by this package in a dictionary, is its Name, source and Description): its
+// layout's Version and, for a reference, the rest of the part newJsonPart writes of a fresh one.
+function pastedJsonPart(set: SetToWrite, content: Record<string, unknown>, version: { value: string }, model: { hasDictionary: boolean }): string {
+  const fresh: Record<string, unknown> =
+    set.className === 'Simulink.ConfigSetRef'
+      ? {
+          ConfigPrmDlgPosition: [0, 0, 0, 0],
+          CurrentDlgPage: '',
+          ParameterOverrideValues: { _array_type: 'Cell', _dimensions: [0, 1], _elements: [] },
+          ParameterOverrides: { _array_type: 'Cell', _dimensions: [0, 0], _elements: [] },
+          SourceLocation: model.hasDictionary ? 'Data Dictionary' : 'Base Workspace',
+          UserParameterOverrides: { _array_type: 'Cell', _dimensions: [0, 0], _elements: [] },
+          Version: version.value,
+        }
+      : { Version: version.value };
+  const props: Record<string, unknown> = { ...fresh, ...content, Name: set.name };
   if (set.description) props.Description = set.description;
   else delete props.Description;
   if (set.className === 'Simulink.ConfigSetRef') props.SourceName = set.sourceName;
