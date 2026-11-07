@@ -24,9 +24,9 @@
 //  3. THE TWO FORMATS AGREE. One dictionary written two ways must answer the same tile with
 //     the same entry. The pair used for it is `parity/artifacts/{text,binary}/params.sldd` —
 //     MATLAB's own output for one dictionary saved twice. Core's `findEntryInsertionPoint`
-//     aims in front of the trailing `DD.Dictionary` / `DD.DICTIONARYREFERENCE`, so a chunk
-//     with neither takes no insert at all — by add or by paste, which is its own invariant and
-//     pinned below.
+//     aims in front of the trailing `DD.Dictionary` / `DD.DICTIONARYREFERENCE`, or, in a chunk
+//     with neither, in front of `</DataSource>` — by add or by paste alike, which is its own
+//     invariant and pinned below.
 //  4. A REFUSED CLASS THROWS, naming the section. The gallery only offers legal tiles, so a
 //     refusal means the catalog and core have gone out of step, and a silent no-op would
 //     read as a broken button.
@@ -377,11 +377,11 @@ describe('a JSON add and a binary add produce the same entry', () => {
     }
   });
 
-  it('refuses an add exactly where it refuses a paste, when the chunk takes no insert', () => {
+  it('puts an add exactly where it puts a paste, when the chunk has no trailing dictionary object', () => {
     // Both XML inserts go through one `insertNewEntry`, so the add inherits the paste's rule
-    // about WHERE an entry goes — including its one failure. `fixtures/arch_binary.sldd` is a
-    // chunk with no trailing dictionary object (invariant 3): nothing can be inserted into it,
-    // and the add must say so rather than guess an offset.
+    // about WHERE an entry goes. `fixtures/arch_binary.sldd` is a chunk with no trailing
+    // dictionary object (invariant 3): both go in front of its `</DataSource>`, which used to
+    // refuse them both ("Could not locate the insertion point.").
     const srcId = 'add-noinsert-bin';
     const bin = openBinary(srcId);
     try {
@@ -389,11 +389,17 @@ describe('a JSON add and a binary add produce the same entry', () => {
       const entry = (bin.model.children as any[]).flatMap((s: any) => s.children as any[])[0];
       const section = entry.parent;
       const payload = entry.serialize() as Record<string, unknown>;
-      // A class the section DOES allow, so the only thing left to fail is the insert.
+      // A class the section DOES allow, so what is left to test is the insert.
       const className = (section.getAllowedTypes() as string[])[0];
       expect(section.allowsType(className)).toBe(true);
-      expect(() => pasteEntryXml(bin.xml, section, payload)).toThrow('Could not locate the insertion point.');
-      expect(() => addNewEntryXml(bin.xml, section, className)).toThrow('Could not locate the insertion point.');
+      expect(bin.xml).not.toMatch(/DD\.Dictionary|DD\.DICTIONARYREFERENCE/);
+      const at = bin.xml.lastIndexOf('</DataSource>');
+      for (const { newText } of [pasteEntryXml(bin.xml, section, payload), addNewEntryXml(bin.xml, section, className)]) {
+        const added = newText.length - bin.xml.length;
+        expect(newText.slice(0, at)).toBe(bin.xml.slice(0, at));
+        expect(newText.slice(at + added)).toBe(bin.xml.slice(at));
+        expect(newText.slice(at, at + added)).toMatch(/^\s*<Object Class="DD\.ENTRY">[\s\S]*<\/Object>\n$/);
+      }
     } finally {
       session.removeDataSource(srcId);
     }

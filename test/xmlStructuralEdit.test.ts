@@ -267,23 +267,39 @@ describe('deleteEntryXml on an entry the model has already detached', () => {
 });
 
 // pasteEntryXml inserts a NEW entry, which needs a place to put it: the offset
-// just before the trailing DD.DICTIONARYREFERENCE / DD.Dictionary objects. A
-// chunk0.xml missing both is what a truncated or partially-written file looks
-// like — it still parses into a full model, so nothing upstream notices, and
-// inserting at a guessed offset would corrupt the document.
-describe('XML insert path with no insertion point', () => {
-  it('pasteEntryXml reports the missing insertion point', () => {
-    const { model, xml } = load('mem://xse-noins-paste');
-    // Both trailing structural objects stripped. The entries themselves are
-    // intact — asserted below — so the file still yields a complete model and
-    // the failure is genuinely insert-only.
-    const stripped = xml
+// just before the trailing DD.DICTIONARYREFERENCE / DD.Dictionary objects, or,
+// in a chunk0.xml that has neither (two of this repo's fixtures), just before
+// `</DataSource>`. A chunk0.xml with no `</DataSource>` either is what a
+// truncated or partially-written file looks like — it still parses into a full
+// model, so nothing upstream notices, and inserting at a guessed offset would
+// corrupt the document.
+describe('XML insert path with no dictionary-level objects', () => {
+  // Both trailing structural objects stripped. The entries themselves are
+  // intact — asserted below — so the file still yields a complete model.
+  const strip = (xml: string) =>
+    xml
       .replace(/[ \t]*<Object Class="DD\.DICTIONARYREFERENCE">[\s\S]*?<\/Object>\n?/g, '')
       .replace(/[ \t]*<Object Class="DD\.Dictionary">[\s\S]*?<\/Object>\n?/g, '');
+
+  it('pasteEntryXml puts the entry just before </DataSource>', () => {
+    const { model, xml } = load('mem://xse-noins-paste');
+    const stripped = strip(xml);
     expect(reparse('mem://xse-noins-reparse', stripped).length).toBe(entryNames(model).length);
 
     const payload = firstEntry(model).serialize() as Record<string, unknown>;
-    expect(() => pasteEntryXml(stripped, model.getSection('design'), payload)).toThrow(
+    const { newText } = pasteEntryXml(stripped, model.getSection('design'), payload);
+    const at = stripped.lastIndexOf('</DataSource>');
+    const added = newText.length - stripped.length;
+    expect(newText.slice(0, at)).toBe(stripped.slice(0, at));
+    expect(newText.slice(at + added)).toBe(stripped.slice(at));
+    expect(reparse('mem://xse-noins-reparse2', newText)).toEqual(entryNames(model));
+  });
+
+  it('pasteEntryXml reports the missing insertion point when </DataSource> is gone too', () => {
+    const { model, xml } = load('mem://xse-noins-truncated');
+    const truncated = strip(xml).replace('</DataSource>', '');
+    const payload = firstEntry(model).serialize() as Record<string, unknown>;
+    expect(() => pasteEntryXml(truncated, model.getSection('design'), payload)).toThrow(
       'Could not locate the insertion point.',
     );
   });

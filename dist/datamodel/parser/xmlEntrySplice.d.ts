@@ -42,9 +42,11 @@ export declare function findEntryObjectSpan(xml: string, target: string | EntryS
  */
 export declare function findEntryElementSpan(xml: string, target: string | EntrySelector): XmlSpan | null;
 /**
- * Offset just before the trailing structural objects (DD.DICTIONARYREFERENCE, then
- * DD.Dictionary) where a new entry should be inserted. Falls back to the
- * DD.Dictionary if no reference object is present. Returns null if neither is found.
+ * Offset where a new entry should be inserted: just before the trailing structural
+ * objects (DD.DICTIONARYREFERENCE, then DD.Dictionary), the first of them the chunk
+ * holds. A chunk with neither (two of this repo's fixtures, compressed.sldd and
+ * arch_binary.sldd) takes it just before `</DataSource>`, after every object it
+ * holds. Returns null only when there is no `</DataSource>` either.
  */
 export declare function findEntryInsertionPoint(xml: string): number | null;
 //# sourceMappingURL=xmlEntrySplice.d.ts.map

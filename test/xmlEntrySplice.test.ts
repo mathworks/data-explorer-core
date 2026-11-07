@@ -130,12 +130,20 @@ describe('findEntryInsertionPoint', () => {
     expect(inserted.indexOf('usageArray')).toBeLessThan(inserted.indexOf('NEW'));
   });
 
-  // A .sldd with neither trailing object has nowhere defined to put an entry. The
-  // caller turns null into "Could not locate the insertion point." — an error the
-  // user sees instead of a silently mangled file.
-  it('returns null when the document has neither trailing object', () => {
+  // A .sldd with neither trailing object takes its new entry after every object it
+  // holds, just before `</DataSource>`; on one line, right before the tag, so the
+  // prolog stays first here too.
+  it('falls back to just before </DataSource> when the document has neither trailing object', () => {
     expect(oneLine).not.toContain('DD.Dictionary');
-    expect(findEntryInsertionPoint(oneLine)).toBeNull();
+    expect(oneLine).not.toContain('DD.DICTIONARYREFERENCE');
+    expect(findEntryInsertionPoint(oneLine)).toBe(oneLine.lastIndexOf('</DataSource>'));
+  });
+
+  // With no `</DataSource>` either, a truncated chunk, there is nowhere defined to put
+  // an entry. The caller turns null into "Could not locate the insertion point." — an
+  // error the user sees instead of a silently mangled file.
+  it('returns null when the document has neither trailing object nor </DataSource>', () => {
+    expect(findEntryInsertionPoint(oneLine.replace('</DataSource>', ''))).toBeNull();
   });
 });
 
