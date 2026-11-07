@@ -3,9 +3,10 @@
 // A new top-level entry put into a binary .sldd whose data/chunk0.xml holds no DD.Dictionary and
 // no DD.DICTIONARYREFERENCE object: an add from the gallery, a paste, a drop, or a compare's Copy
 // to Right (pasteEntriesXml), each of which reaches insertNewEntry and so findEntryInsertionPoint.
-// Two of this repo's own fixtures are such chunks, in the two shapes a writer gives them:
-// compressed.sldd on one line, `…<Object Class="DD.ENTRY">…</Object></DataSource>`, and
-// arch_binary.sldd one tag a line, ending `    </Object>\n</DataSource>\n`. The insert used to be
+// Four of this repo's own fixtures are such chunks, in the two shapes a writer gives them:
+// compressed.sldd and object_array_binary.sldd on one line, `…</Object></DataSource>`, and
+// arch_binary.sldd and arch_service_binary.sldd one tag a line, ending
+// `    </Object>\n</DataSource>\n`. The insert used to be
 // refused ("Could not locate the insertion point."), since only the dictionary-level objects were
 // looked for; the entry now goes just before `</DataSource>`, after every object the chunk holds.
 //
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import {
   SavedChunk,
   addNewEntryXml,
+  assertTypeAllowed,
   changedEntryKeys,
   createSession,
   deleteEntriesByNameXml,
@@ -37,6 +39,8 @@ import {
 const fixture = (name: string) => readBinarySlddPackage(new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)))));
 const COMPRESSED = fixture('compressed.sldd');
 const ARCH_BINARY = fixture('arch_binary.sldd');
+const ARCH_SERVICE_BINARY = fixture('arch_service_binary.sldd');
+const OBJECT_ARRAY_BINARY = fixture('object_array_binary.sldd');
 
 const CLOSE = '</DataSource>';
 const ENTRY_OPEN = '<Object Class="DD.ENTRY">';
@@ -53,6 +57,23 @@ function open(chunkXml: string, parts: Record<string, Uint8Array>) {
 /** Every section's entry names, by section. */
 const namesBySection = (model: any): Record<string, string[]> =>
   Object.fromEntries((model.children as any[]).map((s: any) => [s.name, (s.children as any[]).map((e: any) => e.name)]));
+
+/**
+ * The first entry a paste into its own section accepts (the paste's own check), which a paste then
+ * puts back there: not every entry is one (arch_service_binary's ServiceBus is refused by Design
+ * Data, and object_array_binary's VariableUsage by every section).
+ */
+const pasteable = (model: any): any =>
+  (model.children as any[])
+    .flatMap((s: any) => s.children as any[])
+    .find((e: any) => {
+      try {
+        assertTypeAllowed(e.parent, e.serialize() as Record<string, unknown>);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 
 /** The entry names of a chunk, in document order, as the save gate's scan reads them. */
 const chunkNames = (xml: string): (string | null)[] => {
@@ -139,6 +160,8 @@ describe('findEntryInsertionPoint in a chunk with no dictionary object', () => {
 describe.each([
   ['compressed.sldd', COMPRESSED],
   ['arch_binary.sldd', ARCH_BINARY],
+  ['arch_service_binary.sldd', ARCH_SERVICE_BINARY],
+  ['object_array_binary.sldd', OBJECT_ARRAY_BINARY],
 ])('a new entry in %s, whose chunk has no dictionary object', (_name, pkg) => {
   const xml = pkg.chunkXml;
 
@@ -165,38 +188,43 @@ describe.each([
   it('is pasted, before </DataSource>, and saves', () => {
     const { model } = open(xml, pkg.parts);
     const before = namesBySection(model);
-    const source = (model.children as any[]).flatMap((s: any) => s.children as any[])[0];
-    const { newText } = pasteEntryXml(xml, model.getSection('design'), source.serialize() as Record<string, unknown>);
-    const pasted = model.getSection('design').children.at(-1);
+    const source = pasteable(model);
+    const section = source.parent;
+    const { newText } = pasteEntryXml(xml, section, source.serialize() as Record<string, unknown>);
+    const pasted = section.children.at(-1);
     insertedAt(xml, newText);
     expect(chunkNames(newText)).toEqual([...chunkNames(xml), pasted.name]);
-    expect(namesBySection(open(newText, pkg.parts).model)).toEqual({ ...before, design: [...before.design, pasted.name] });
+    expect(namesBySection(open(newText, pkg.parts).model)).toEqual({ ...before, [section.name]: [...before[section.name], pasted.name] });
     save(xml, newText, pkg.parts, model);
   });
 
   it('several dropped at once go in together, in order, before </DataSource>', () => {
     const { model } = open(xml, pkg.parts);
-    const source = (model.children as any[]).flatMap((s: any) => s.children as any[])[0];
+    const source = pasteable(model);
+    const section = source.parent;
     const payload = source.serialize() as Record<string, unknown>;
-    const { newText, selectIds } = pasteEntriesXml(xml, model.getSection('design'), [payload, payload]);
+    const { newText, selectIds } = pasteEntriesXml(xml, section, [payload, payload]);
     expect(selectIds.length).toBe(2);
     const fragment = insertedAt(xml, newText);
     expect(fragment.split(ENTRY_OPEN).length - 1).toBe(2);
-    const names = (model.getSection('design').children as any[]).slice(-2).map((e: any) => e.name);
+    const names = (section.children as any[]).slice(-2).map((e: any) => e.name);
     expect(chunkNames(newText)).toEqual([...chunkNames(xml), ...names]);
     save(xml, newText, pkg.parts, model);
   });
 
-  it('a move into the same file, every entry taken out first, puts them back before </DataSource>', () => {
+  it('a move into the same file, a section\'s entries taken out first, puts them back before </DataSource>', () => {
     // A same-document drop: the host takes the sources out of the text, then pastes them.
     const { model } = open(xml, pkg.parts);
-    const entries = (model.children as any[]).flatMap((s: any) => s.children as any[]);
+    const section = pasteable(model).parent;
+    const entries = section.children as any[];
+    const names = entries.map((e: any) => e.name);
     const payloads = entries.map((e: any) => e.serialize() as Record<string, unknown>);
-    const emptied = deleteEntriesByNameXml(xml, entries.map((e: any) => e.name));
-    expect(chunkNames(emptied)).toEqual([]);
-    const target = open(emptied, pkg.parts).model.getSection('design');
+    const emptied = deleteEntriesByNameXml(xml, names);
+    const left = chunkNames(xml).filter((n) => !names.includes(n));
+    expect(chunkNames(emptied)).toEqual(left);
+    const target = open(emptied, pkg.parts).model.getSection(section.name);
     const { newText } = pasteEntriesXml(emptied, target, payloads);
     insertedAt(emptied, newText);
-    expect(chunkNames(newText)).toEqual(entries.map((e: any) => e.name));
+    expect(chunkNames(newText)).toEqual([...left, ...names]);
   });
 });
