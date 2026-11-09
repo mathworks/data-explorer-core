@@ -13,6 +13,7 @@ const ENTRY_OPEN = '<Object Class="DD.ENTRY">';
 const OBJECT_CLOSE = '</Object>';
 const DICT_OPEN = '<Object Class="DD.Dictionary">';
 const DICTREF_OPEN = '<Object Class="DD.DICTIONARYREFERENCE">';
+const DATASOURCE_CLOSE = '</DataSource>';
 
 export interface XmlSpan {
   offset: number;
@@ -124,18 +125,20 @@ export function findEntryElementSpan(xml: string, target: string | EntrySelector
 }
 
 /**
- * Offset just before the trailing structural objects (DD.DICTIONARYREFERENCE, then
- * DD.Dictionary) where a new entry should be inserted. Falls back to the
- * DD.Dictionary if no reference object is present. Returns null if neither is found.
+ * Offset where a new entry should be inserted: just before the trailing structural
+ * objects (DD.DICTIONARYREFERENCE, then DD.Dictionary), the first of them the chunk
+ * holds. A chunk with neither (two of this repo's fixtures, compressed.sldd and
+ * arch_binary.sldd) takes it just before `</DataSource>`, after every object it
+ * holds. Returns null only when there is no `</DataSource>` either.
  */
 export function findEntryInsertionPoint(xml: string): number | null {
   const refIdx = xml.indexOf(DICTREF_OPEN);
   const dictIdx = xml.indexOf(DICT_OPEN);
   const candidates = [refIdx, dictIdx].filter((i) => i >= 0);
-  if (candidates.length === 0) return null;
-  const target = Math.min(...candidates);
-  // Back up to the start of that object's line so the inserted entry aligns —
-  // but ONLY when that line holds nothing but the object's indentation. In a
+  const target = candidates.length > 0 ? Math.min(...candidates) : xml.lastIndexOf(DATASOURCE_CLOSE);
+  if (target < 0) return null;
+  // Back up to the start of that tag's line so the inserted entry aligns —
+  // but ONLY when that line holds nothing but the tag's indentation. In a
   // single-line document (a real writer shape: two of the .sldd fixtures put the
   // whole chunk on one line) there is no preceding newline, so the line start is
   // offset 0 and backing up put the new entry BEFORE the `<?xml` prolog, writing

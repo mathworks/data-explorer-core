@@ -50,7 +50,8 @@ function spliceEntry(text: string, entry: any, selectId: string | null): Structu
   return { newText, selectId };
 }
 
-// Insert a freshly-created model entry's fragment before the trailing dictionary.
+// Insert a freshly-created model entry's fragment before the trailing dictionary-level
+// objects, or before `</DataSource>` in a chunk that has none (findEntryInsertionPoint).
 function insertNewEntry(text: string, node: any): StructuralResult {
   const frag = serializeEntryToXml(node); // keeps trailing newline for clean stacking
   const at = findEntryInsertionPoint(text);

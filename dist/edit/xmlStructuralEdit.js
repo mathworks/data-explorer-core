@@ -37,7 +37,8 @@ function spliceEntry(text, entry, selectId) {
         throw new Error(`Could not locate entry "${entry.name}" text.`);
     return { newText, selectId };
 }
-// Insert a freshly-created model entry's fragment before the trailing dictionary.
+// Insert a freshly-created model entry's fragment before the trailing dictionary-level
+// objects, or before `</DataSource>` in a chunk that has none (findEntryInsertionPoint).
 function insertNewEntry(text, node) {
     const frag = serializeEntryToXml(node); // keeps trailing newline for clean stacking
     const at = findEntryInsertionPoint(text);
