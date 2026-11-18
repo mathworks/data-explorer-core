@@ -1,0 +1,407 @@
+{
+  "version": "27.1.0.3456874 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-11-18",
+  "cases": [
+    {
+      "format": "text",
+      "original": "orig_text.sldd",
+      "originalSha256": "bf0dd46da2e825c7e80b4a3115cecfe5c13e6ae6bbb70135e2b9215b6fdd61a9",
+      "id": "storageClass_Auto",
+      "key": "storageClass",
+      "value": "Auto",
+      "file": "text_storageClass_Auto.sldd",
+      "sha256": "ae1761fa4701c841d10e9057623b68a351facca59d864444a87d441a7715a2cf",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "text",
+      "original": "orig_text.sldd",
+      "originalSha256": "bf0dd46da2e825c7e80b4a3115cecfe5c13e6ae6bbb70135e2b9215b6fdd61a9",
+      "id": "storageClass_ExportedGlobal",
+      "key": "storageClass",
+      "value": "ExportedGlobal",
+      "file": "text_storageClass_ExportedGlobal.sldd",
+      "sha256": "511b358163e943b21f3e7f1264c4a9b754ccd19967ae826260052fafb07c9335",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "ExportedGlobal",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "ExportedGlobal",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "text",
+      "original": "orig_text.sldd",
+      "originalSha256": "bf0dd46da2e825c7e80b4a3115cecfe5c13e6ae6bbb70135e2b9215b6fdd61a9",
+      "id": "storageClass_ImportedExtern",
+      "key": "storageClass",
+      "value": "ImportedExtern",
+      "file": "text_storageClass_ImportedExtern.sldd",
+      "sha256": "ec9b09da36c062c3dcfc941055d42bad476fc48b3e2eff7e397c9198bc26a3f9",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "ImportedExtern",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "ImportedExtern",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "text",
+      "original": "orig_text.sldd",
+      "originalSha256": "bf0dd46da2e825c7e80b4a3115cecfe5c13e6ae6bbb70135e2b9215b6fdd61a9",
+      "id": "storageClass_SimulinkGlobal",
+      "key": "storageClass",
+      "value": "SimulinkGlobal",
+      "file": "text_storageClass_SimulinkGlobal.sldd",
+      "sha256": "48d93f28cddff29b854442daefe67fae25c6f4ea244cd6a45fcf948ebb1e9520",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Model default",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Model default",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "text",
+      "original": "orig_text.sldd",
+      "originalSha256": "bf0dd46da2e825c7e80b4a3115cecfe5c13e6ae6bbb70135e2b9215b6fdd61a9",
+      "id": "alignment_8",
+      "key": "alignment",
+      "value": "8",
+      "file": "text_alignment_8.sldd",
+      "sha256": "f6e9d152fa5cbace6ec92d1a7eccecbd53a419f03ac2797451057cac556e7eb1",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "Alignment": 8,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "Alignment": 8,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "binary",
+      "original": "orig_binary.sldd",
+      "originalSha256": "d5d7a70b17b1391373fd6c90de5436fe11b9ad93610cbe8a0c94be0397c539e2",
+      "id": "storageClass_Auto",
+      "key": "storageClass",
+      "value": "Auto",
+      "file": "binary_storageClass_Auto.sldd",
+      "sha256": "ce7b87f4d248ddcb10e51dad6901fed2df87742d96e32ec7c7570d6ed1d8dad4",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "binary",
+      "original": "orig_binary.sldd",
+      "originalSha256": "d5d7a70b17b1391373fd6c90de5436fe11b9ad93610cbe8a0c94be0397c539e2",
+      "id": "storageClass_ExportedGlobal",
+      "key": "storageClass",
+      "value": "ExportedGlobal",
+      "file": "binary_storageClass_ExportedGlobal.sldd",
+      "sha256": "9e4f1c059f23308c9898b4ddd0929731b6e403faf34e3d5c00d73a8b937e7b59",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "ExportedGlobal",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "ExportedGlobal",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "binary",
+      "original": "orig_binary.sldd",
+      "originalSha256": "d5d7a70b17b1391373fd6c90de5436fe11b9ad93610cbe8a0c94be0397c539e2",
+      "id": "storageClass_ImportedExtern",
+      "key": "storageClass",
+      "value": "ImportedExtern",
+      "file": "binary_storageClass_ImportedExtern.sldd",
+      "sha256": "8fb1ae330c50f9f82c725ba7c3b2abe46adb999ebd496835362c889524263ea8",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "ImportedExtern",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "ImportedExtern",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "binary",
+      "original": "orig_binary.sldd",
+      "originalSha256": "d5d7a70b17b1391373fd6c90de5436fe11b9ad93610cbe8a0c94be0397c539e2",
+      "id": "storageClass_SimulinkGlobal",
+      "key": "storageClass",
+      "value": "SimulinkGlobal",
+      "file": "binary_storageClass_SimulinkGlobal.sldd",
+      "sha256": "f0bba16e84289599f277b30fd60cf51beb857c2e51a441bcc22c6b5757ab8265",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Model default",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Model default",
+        "CustomStorageClass": "Default",
+        "Alignment": -1,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    },
+    {
+      "format": "binary",
+      "original": "orig_binary.sldd",
+      "originalSha256": "d5d7a70b17b1391373fd6c90de5436fe11b9ad93610cbe8a0c94be0397c539e2",
+      "id": "alignment_8",
+      "key": "alignment",
+      "value": "8",
+      "file": "binary_alignment_8.sldd",
+      "sha256": "e4def578b73afc39a37b8421ad79bad8aec42d90e8024bd959ef6f0208c47de3",
+      "refused": [],
+      "matlab": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "Alignment": 8,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "saved": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "Alignment": 8,
+        "attributesClass": "SimulinkCSC.AttribClass_Simulink_ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        },
+        "warning": "",
+        "printed": ""
+      },
+      "sameAsMatlab": true
+    }
+  ]
+}
