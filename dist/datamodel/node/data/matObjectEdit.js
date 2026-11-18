@@ -8,7 +8,7 @@ import { McosValueKind, isHandleOpaque, measuredVersion, propertiesOf, readDescr
 import { elementValue } from '../../parser/McosObjectWrite.js';
 import { addBusElements, busElementsOf, removeBusElement } from '../../parser/McosTemplateMerge.js';
 import { editedObjects, handleRuleObjectOf, heldObjectIds, ruleObjectOf, writeObjectEdits } from '../../parser/McosObjectWrite.js';
-import { hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRefusal, planPropertyEdits, propertyChoices, propertyRowOf, } from '../../parser/McosPropertyRules.js';
+import { CUSTOM_STORAGE_CLASS_KEPT, hasCustomStorageClass, hasPropertyRules, isCoWritten, parameterDataTypeAfter, parameterValueRefusal, planPropertyEdits, propertyChoices, propertyRowOf, } from '../../parser/McosPropertyRules.js';
 import { getSchema, hydrate, resolveSourcePath } from '../../schema/index.js';
 import { numericTypeShown } from '../mcosShown.js';
 import StructNode from './StructNode.js';
@@ -1118,6 +1118,12 @@ export function matSpotRefusal(state, node, key, sharing) {
     // A CoderInfo MATLAB never set up, of which MATLAB keeps no coder setting the file holds (unkeptCoder.ts).
     if (s.spot.nested?.saved === 'CoderInfo' && coderSettingUnkept(node)) {
         return unkeptCoderWhy(node, CODER_ROW_LABELS[s.spot.property] ?? s.spot.property);
+    }
+    // A CoderInfo with a custom storage class, of which the rules change nothing (McosPropertyRules'
+    // coderInfo): its StorageClass, Identifier and Alignment, whatever the value.
+    const coder = s.spot.nested?.saved === 'CoderInfo' ? state.objects.get(nestedKeyOf(s.spot)) : undefined;
+    if (coder && hasCustomStorageClass(coder.rule)) {
+        return coder.path + '.' + s.spot.property + ' ' + CUSTOM_STORAGE_CLASS_KEPT;
     }
     // A CoderInfo's Identifier and Alignment, which MATLAB takes only under a storage class other than
     // 'Auto' (it refuses the one there, and resets the other with a warning).

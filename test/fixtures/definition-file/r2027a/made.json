@@ -1,0 +1,92 @@
+{
+  "version": "27.1.0.3456874 (R2027a) Prerelease",
+  "release": "2027a",
+  "values": [
+    {
+      "name": "pExport",
+      "class": "Simulink.Parameter",
+      "text": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        }
+      },
+      "mat": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "attributes": {
+          "HeaderFile": "p_export.h",
+          "DefinitionFile": "p_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        }
+      }
+    },
+    {
+      "name": "sExport",
+      "class": "Simulink.Signal",
+      "text": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "attributes": {
+          "HeaderFile": "s_export.h",
+          "DefinitionFile": "s_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        }
+      },
+      "mat": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "ExportToFile",
+        "attributes": {
+          "HeaderFile": "s_export.h",
+          "DefinitionFile": "s_export.c",
+          "Owner": "",
+          "PreserveDimensions": "false"
+        }
+      }
+    },
+    {
+      "name": "pGetSet",
+      "class": "Simulink.Parameter",
+      "text": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "GetSet",
+        "attributes": {
+          "HeaderFile": "getset.h",
+          "PreserveDimensions": "false",
+          "GetFunction": "get_p",
+          "SetFunction": "set_p"
+        }
+      },
+      "mat": {
+        "StorageClass": "Custom",
+        "CustomStorageClass": "GetSet",
+        "attributes": {
+          "HeaderFile": "getset.h",
+          "PreserveDimensions": "false",
+          "GetFunction": "get_p",
+          "SetFunction": "set_p"
+        }
+      }
+    },
+    {
+      "name": "pAuto",
+      "class": "Simulink.Parameter",
+      "text": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "attributes": {}
+      },
+      "mat": {
+        "StorageClass": "Auto",
+        "CustomStorageClass": "Default",
+        "attributes": {}
+      }
+    }
+  ]
+}

@@ -1399,6 +1399,24 @@ const BUILTIN_STORAGE: Record<string, string> = {
   ImportedExternPointer: 'ImportedExternPointer',
 };
 
+/** Why no property of a CoderInfo with a custom storage class changes (coderInfo), as a clause. */
+export const CUSTOM_STORAGE_CLASS_KEPT = 'cannot change while the object has a custom storage class, no edit under which was measured';
+
+// Whether a CoderInfo has a custom storage class: its StorageClass 'Custom', or a
+// CustomStorageClass other than 'Default'.
+function customStorageClass(o: Working): boolean {
+  const custom = o.text('CustomStorageClass');
+  return o.text(RULES['Simulink.CoderInfo'].rows.StorageClass.saved) === 'Custom' || (custom !== null && custom !== 'Default');
+}
+
+/**
+ * Whether the Simulink.CoderInfo `object`, as the file holds it, has a custom storage class, of
+ * which no property changes (coderInfo): what an editor offers no edit of.
+ */
+export function hasCustomStorageClass(object: McosRuleObject): boolean {
+  return customStorageClass(new Working('', object));
+}
+
 /**
  * Simulink.CoderInfo, of a Parameter, Signal, LookupTable or Breakpoint, an MCOS object (MATLAB
  * R2027a) or the object of a 'handle' opaque (R2024b and earlier, and every one from the R2023b
@@ -1423,10 +1441,9 @@ function coderInfo(o: Working, edits: readonly McosRuleEdit[], rules: ClassRules
   const r = rules.rows;
   // Nothing of a CoderInfo with a custom storage class, whose attributes object follows it: no
   // edit of one was measured, and a change of the storage class replaces that object.
-  const custom = o.text('CustomStorageClass');
-  if (o.text(r.StorageClass.saved) === 'Custom' || (custom !== null && custom !== 'Default')) {
+  if (customStorageClass(o)) {
     current = edits[0]?.property ?? '';
-    refuse(o.key + '.' + current + ' cannot change while the object has a custom storage class, no edit under which was measured');
+    refuse(o.key + '.' + current + ' ' + CUSTOM_STORAGE_CLASS_KEPT);
   }
   for (const { property, value: v } of edits) {
     current = property;
