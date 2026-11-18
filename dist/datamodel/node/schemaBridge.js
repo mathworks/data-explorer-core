@@ -133,9 +133,11 @@ function toPropClass(prop, column, editorOverride) {
     return pc;
 }
 // The schema props the schema itself surfaces into the UI (PI groups + table
-// columns) — marked `projected` in the registry. This is exactly the 4 object
-// properties (dimensions, complexity, storageClass, alignment); the min/max/unit
-// props are authored for reference but owned by the node, so they are excluded.
+// columns) — marked `projected` in the registry: a class's Data Object columns
+// (dimensions, complexity, ...) and Code Generation ones (storageClass,
+// headerFile, alignment, and a Parameter's and a Signal's definitionFile); the
+// min/max/unit props are authored for reference but owned by the node, so they
+// are excluded.
 // Shared by the PI, table-column, group, and label bridges. Empty when the class
 // has no schema.
 function eligibleProps(className) {

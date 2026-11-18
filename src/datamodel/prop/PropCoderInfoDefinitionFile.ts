@@ -6,7 +6,8 @@ import { formatText } from './formatText.js';
 // A Simulink.VariantBankCoderInfo's DefinitionFile: the source file generated code defines the
 // bank's choices in (VariantBankCoderInfoNode). Its layout key is `coderInfoDefinitionFile`, not
 // `definitionFile`, because that one is the schema property a Parameter's and a Signal's layouts
-// name for their CustomAttributes.DefinitionFile (schemaBridge resolves an atom key first).
+// name for their CustomAttributes.DefinitionFile (schemaBridge resolves an atom key first). Its
+// column is the one theirs shows in, so a table has one Definition File column.
 export default class PropCoderInfoDefinitionFile {
     static key = 'DefinitionFile';
     static displayName = 'Definition File';

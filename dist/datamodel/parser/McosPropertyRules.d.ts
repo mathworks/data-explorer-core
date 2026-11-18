@@ -120,6 +120,13 @@ export declare function parameterValueRefusal(v: MatVariable, inStruct: boolean)
 export declare function heldChar(v: MatVariable): string | null;
 /** MATLAB's DataType after `p.Value = v` of class `now` over a Value of class `old` under DataType `dt`, measured. */
 export declare function parameterDataTypeAfter(old: string, now: string, dt: string): string;
+/** Why no property of a CoderInfo with a custom storage class changes (coderInfo), as a clause. */
+export declare const CUSTOM_STORAGE_CLASS_KEPT = "cannot change while the object has a custom storage class, no edit under which was measured";
+/**
+ * Whether the Simulink.CoderInfo `object`, as the file holds it, has a custom storage class, of
+ * which no property changes (coderInfo): what an editor offers no edit of.
+ */
+export declare function hasCustomStorageClass(object: McosRuleObject): boolean;
 /**
  * The triple operations that write `targets`, the edits of one save, each object's in the order
  * its edits were made, and those MATLAB's own setters make with them; or the first edit refused,

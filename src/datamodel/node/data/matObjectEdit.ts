@@ -26,6 +26,8 @@ import { elementValue } from '../../parser/McosObjectWrite.js';
 import { addBusElements, busElementsOf, removeBusElement, type McosAppendSession } from '../../parser/McosTemplateMerge.js';
 import { editedObjects, handleRuleObjectOf, heldObjectIds, ruleObjectOf, writeObjectEdits, type McosEditedObject } from '../../parser/McosObjectWrite.js';
 import {
+  CUSTOM_STORAGE_CLASS_KEPT,
+  hasCustomStorageClass,
   hasPropertyRules,
   isCoWritten,
   parameterDataTypeAfter,
@@ -1304,6 +1306,12 @@ export function matSpotRefusal(state: MatObjectState, node: BaseNode, key: strin
   // A CoderInfo MATLAB never set up, of which MATLAB keeps no coder setting the file holds (unkeptCoder.ts).
   if (s.spot.nested?.saved === 'CoderInfo' && coderSettingUnkept(node)) {
     return unkeptCoderWhy(node, CODER_ROW_LABELS[s.spot.property] ?? s.spot.property);
+  }
+  // A CoderInfo with a custom storage class, of which the rules change nothing (McosPropertyRules'
+  // coderInfo): its StorageClass, Identifier and Alignment, whatever the value.
+  const coder = s.spot.nested?.saved === 'CoderInfo' ? state.objects.get(nestedKeyOf(s.spot)) : undefined;
+  if (coder && hasCustomStorageClass(coder.rule)) {
+    return coder.path + '.' + s.spot.property + ' ' + CUSTOM_STORAGE_CLASS_KEPT;
   }
   // A CoderInfo's Identifier and Alignment, which MATLAB takes only under a storage class other than
   // 'Auto' (it refuses the one there, and resets the other with a warning).
