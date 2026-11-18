@@ -78,7 +78,7 @@ describe('buildPILayout — declarative PI layout from schema', () => {
 describe('schemaColumns — bridge schema props into table columns', () => {
   it('returns a flat PropClass[] with the column key = prop key', () => {
     const cols = schemaColumns('Simulink.Parameter');
-    expect(cols.map((c) => c.key)).toEqual(['dimensions', 'complexity', 'storageClass', 'headerFile', 'alignment']);
+    expect(cols.map((c) => c.key)).toEqual(['dimensions', 'complexity', 'storageClass', 'headerFile', 'alignment', 'definitionFile']);
     for (const c of cols) {
       expect(c.column).toBe(c.key);
     }

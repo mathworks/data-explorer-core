@@ -15,7 +15,7 @@
             { "$ref": "headerFile", "sourcePath": "CoderInfo.CustomAttributes.HeaderFile", "projected": true },
             { "$ref": "alignment", "sourcePath": "CoderInfo.Alignment", "projected": true, "editor": "text" },
             "identifier",
-            "definitionFile",
+            { "$ref": "definitionFile", "projected": true },
             "owner",
             "preserveDimensions",
             "structName",

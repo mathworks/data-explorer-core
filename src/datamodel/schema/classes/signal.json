@@ -19,7 +19,7 @@
       { "$ref": "alignment", "sourcePath": "CoderInfo.Alignment", "projected": true, "editor": "text" },
       { "$ref": "dataScope", "sourcePath": "CoderInfo.CustomAttributes.DataScope" },
       { "$ref": "headerFile", "sourcePath": "CoderInfo.CustomAttributes.HeaderFile", "projected": true },
-      "definitionFile",
+      { "$ref": "definitionFile", "projected": true },
       "owner",
       "preserveDimensions",
       "structName",

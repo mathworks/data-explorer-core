@@ -9,15 +9,15 @@
 
 ## Overview
 
-The Code Generation group contributes three schema-projected columns to the
+The Code Generation group contributes four schema-projected columns to the
 Property Inspector and data table: **Storage Class** (editable dropdown),
-**Header File** (read-only label), and **Alignment** (editable text, except
-under StorageClass `Auto`). These are properties of the `Simulink.CoderInfo`
+**Header File** and **Definition File** (read-only labels), and **Alignment**
+(editable text, except under StorageClass `Auto`). These are properties of the `Simulink.CoderInfo`
 sub-object nested at `_properties.CoderInfo._properties.*` in the serialized
 entry.
 
 **Storage Class** and **Alignment** are editable in the table. The Property
-Inspector shows all three read-only: it has no edit channel for schema rows.
+Inspector shows all four read-only: it has no edit channel for schema rows.
 Edits flow through `trySetSchemaProperty` in `schemaBridge.ts`. Storage Class is
 validated against the schema's `options` list and written to
 `CoderInfo._properties.StorageClass` via `writeSourcePath`. Alignment has its
@@ -30,6 +30,7 @@ own rule and write form (below).
 | storageClass | Storage Class | CoderInfo.StorageClass | string | select | **yes** | Code Generation |
 | headerFile | Header File | CoderInfo.CustomAttributes.HeaderFile | string | label | no | Code Generation |
 | alignment | Alignment | CoderInfo.Alignment | int | text | **yes**, unless StorageClass is `Auto` | Code Generation |
+| definitionFile | Definition File | CoderInfo.CustomAttributes.DefinitionFile | string | label | no | Code Generation |
 
 ## StorageClass — allowed values (via CoderInfo.StorageClass path)
 
@@ -97,6 +98,19 @@ selected. Because:
 It is rendered with `editor: 'label'` — `trySetSchemaProperty` returns `null`
 (not a writable schema prop), so the edit path is never reached.
 
+## definitionFile — a column, read-only
+
+`CoderInfo.CustomAttributes.DefinitionFile` is the source file generated code
+defines the object in, which only a storage class that carries it has
+(ExportToFile, not GetSet or Auto). It is read-only for the reasons Header File
+is, and blank where the storage class has none, as MATLAB's own table leaves it.
+The column is the one a Simulink.VariantBankCoderInfo's DefinitionFile shows in
+(`PropCoderInfoDefinitionFile`, column `definitionFile`), so a table has one
+Definition File column. The other attributes the Property Inspector shows
+(Owner, Preserve Array Dimensions, Struct Name, Get Function, Set Function, a
+Signal's Data Scope) are not columns: a table reads one by the name a user
+types.
+
 ## alignment — MATLAB's rule
 
 `CoderInfo.Alignment` is an int32. Measured in R2027a (27.1.0.3409468,
@@ -151,8 +165,8 @@ subclasses:
   above, and a `storageClass` write to `Auto` resets it. Test:
   `test/alignmentEdit.test.ts`, which runs over the MATLAB-written entries in
   `test/fixtures/classes_r2027a_{text,binary}.sldd`.
-- `headerFile` (editor 'label'): `trySetSchemaProperty` returns `null` (not
-  writable), so `DataNode.setProperty` falls through to field-based logic,
+- `headerFile` and `definitionFile` (editor 'label'): `trySetSchemaProperty`
+  returns `null` (not writable), so `DataNode.setProperty` falls through to field-based logic,
   which also does not handle it. It is effectively read-only.
 - **No generic validation.** `trySetSchemaProperty` validates each writable
   prop by its own rule: the 'select' options, and Alignment's. There is no
